@@ -4,6 +4,13 @@
 #include "Engine/DataAsset.h"
 #include "ResonanceMaterialProfile.generated.h"
 
+UENUM(BlueprintType)
+enum class EResonanceModelType : uint8
+{
+    ModalImpact UMETA(DisplayName="模态撞击体"),
+    WaveguideString UMETA(DisplayName="数字波导弦")
+};
+
 USTRUCT(BlueprintType)
 struct RESONANCEFORGERUNTIME_API FResonanceMode
 {
@@ -25,6 +32,9 @@ class RESONANCEFORGERUNTIME_API UResonanceMaterialProfile final : public UDataAs
     GENERATED_BODY()
 
 public:
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="声学模型")
+    EResonanceModelType ModelType = EResonanceModelType::ModalImpact;
+
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="材质")
     FText DisplayName;
 
@@ -36,4 +46,13 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="共振")
     TArray<FResonanceMode> Modes;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="数字波导弦", meta=(ClampMin="0.90", ClampMax="0.99999", EditCondition="ModelType == EResonanceModelType::WaveguideString", EditConditionHides))
+    float StringDecay = 0.9965f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="数字波导弦", meta=(ClampMin="0.0", ClampMax="1.0", EditCondition="ModelType == EResonanceModelType::WaveguideString", EditConditionHides))
+    float StringDamping = 0.36f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="数字波导弦", meta=(ClampMin="0.0", ClampMax="1.0", EditCondition="ModelType == EResonanceModelType::WaveguideString", EditConditionHides))
+    float BodyCoupling = 0.22f;
 };

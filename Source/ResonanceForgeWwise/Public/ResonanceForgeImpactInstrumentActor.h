@@ -4,6 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "InputCoreTypes.h"
 #include "MIDIDeviceController.h"
+#include "ResonanceMaterialProfile.h"
 #include "ResonanceForgeImpactInstrumentActor.generated.h"
 
 class UResonanceForgeSynthComponent;
@@ -37,6 +38,9 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|材质")
     FName ResonancePreset = TEXT("拉丝钢");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|声学模型")
+    EResonanceModelType SynthesisModel = EResonanceModelType::ModalImpact;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|撞击", meta=(ClampMin="0.0"))
     float MinimumImpulse = 800.0f;

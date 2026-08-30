@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Modules/ModuleManager.h"
+#include "ResonanceMaterialProfile.h"
 
 class FResonanceForgeEditorModule final : public IModuleInterface
 {
@@ -13,12 +14,14 @@ private:
     TSharedRef<class SDockTab> SpawnWorkbench(const class FSpawnTabArgs& Args);
     class AResonanceForgeImpactInstrumentActor* ResolveInstrument() const;
     void ApplyPreset(const FName PresetName);
+    void ApplyModel(EResonanceModelType ModelType);
     FReply TriggerPreview();
     FReply OpenDemoMap();
     FText GetSelectionText() const;
     FText GetStatusText() const;
 
     FName ActivePreset = TEXT("拉丝钢");
+    EResonanceModelType ActiveModel = EResonanceModelType::ModalImpact;
     float PreviewEnergy = 0.78f;
     float PreviewBrightness = 0.58f;
     float PreviewSize = 0.5f;

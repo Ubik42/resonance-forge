@@ -30,12 +30,14 @@ AResonanceForgeImpactInstrumentActor::AResonanceForgeImpactInstrumentActor()
 void AResonanceForgeImpactInstrumentActor::OnConstruction(const FTransform& Transform)
 {
     Super::OnConstruction(Transform);
+    NativeSynth->SetSynthesisModel(SynthesisModel);
     NativeSynth->LoadBuiltInPreset(ResonancePreset);
 }
 
 void AResonanceForgeImpactInstrumentActor::BeginPlay()
 {
     Super::BeginPlay();
+    NativeSynth->SetSynthesisModel(SynthesisModel);
     NativeSynth->LoadBuiltInPreset(ResonancePreset);
 
     if (bEnableKeyboardTrigger)
@@ -81,6 +83,8 @@ int32 AResonanceForgeImpactInstrumentActor::TriggerInstrument(
     Parameters.Brightness = FMath::Clamp(Brightness, 0.0f, 1.0f);
     Parameters.ObjectSize = FMath::Clamp(ObjectSize, 0.0f, 1.0f);
     Parameters.MidiNote = FMath::Clamp(MidiNote, 0, 127);
+
+    NativeSynth->PitchScale = FMath::Lerp(1.35f, 0.72f, Parameters.ObjectSize);
 
     LastTriggerTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
     const int32 PlayingId = WwiseBridge->TriggerImpact(Parameters, NativeSynth);
