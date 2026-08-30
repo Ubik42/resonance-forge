@@ -1,70 +1,161 @@
+<div align="center">
+
 # 共振铸造台 Resonance Forge
 
-共振铸造台是运行在 Unreal Editor 中的物理声学工作台。它让场景对象既可以作为被碰撞的共振体，也可以成为由 MIDI 演奏的数字波导弦；同一组激励参数还能同步驱动 Wwise Event 与 RTPC。
+**面向 Unreal 音频开发的物理声源工作台**<br>
+把场景碰撞、模态共振、数字波导弦、MIDI 表演和 Wwise 参数发布连接成一条可试听的制作流程。
 
-当前版本专注一条短流程：选择场景对象，选择声学模型，调整激励能量与明亮度，然后立即试听。
+![Unreal Engine 5.8](https://img.shields.io/badge/Unreal_Engine-5.8.1-0E1128?logo=unrealengine&logoColor=white)
+![Wwise 2025.1](https://img.shields.io/badge/Wwise-2025.1-00549F)
+![Platform](https://img.shields.io/badge/Platform-Windows_Editor-0078D4?logo=windows&logoColor=white)
+![Version](https://img.shields.io/badge/Version-0.3.0-16B8C4)
+![License](https://img.shields.io/badge/License-MIT-2EA44F)
+
+</div>
+
+![共振铸造台声学工坊](docs/images/resonance-forge-workshop.png)
+
+> 这不是一个“替你生成音效”的黑盒按钮，而是一套可检查的声源原型：选择场景对象，施加碰撞或 MIDI 激励，决定共振模型，再把同一组参数同步交给 UE Synth 与 Wwise。
+
+## 项目亮点
+
+- **两类实时物理声源**：模态撞击体与八复音数字波导弦。
+- **真实场景输入**：碰撞冲量、相对速度和物体尺寸直接影响声音。
+- **UE × Wwise 双路径**：UE 原生合成可独立试听，同时发布 Wwise Event 与 3 个 RTPC。
+- **可演奏**：MIDI Note On 控制音高与力度，CC1 控制音色明亮度。
+- **编辑器工作流**：中文 Slate 面板按“对象 → 激励 → 共振 → 发布”组织操作。
+- **可重复验证**：测试音频、PBR 贴图、演示地图和复检报告均可由脚本重建。
+
+## 它解决什么问题
+
+传统游戏音效通常从录音文件开始，材质、碰撞强度和物体尺寸只能通过大量样本与分层规则近似。Resonance Forge 用轻量实时模型把这些信息保留到运行时，让音频设计师和技术音频开发者可以：
+
+1. 在 UE 场景里直接选择一个可发声对象；
+2. 用物理碰撞或 MIDI 作为激励；
+3. 在模态共振与数字波导之间选择合适模型；
+4. 调整能量、明亮度和尺度并立即试听；
+5. 将相同参数发送给 Wwise，继续进行混音、路由和发布。
+
+```mermaid
+flowchart LR
+    A[场景对象] --> B{激励方式}
+    B -->|物理碰撞| C[冲量 / 相对速度 / 尺寸]
+    B -->|MIDI| D[音高 / 力度 / CC1]
+    C --> E{共振模型}
+    D --> E
+    E -->|模态撞击体| F[离散共振峰]
+    E -->|数字波导弦| G[延迟线传播与阻尼反馈]
+    F --> H[UE Synth]
+    G --> H
+    H --> I[Wwise Event + RTPC]
+```
+
+## 实机界面
+
+![UE 场景与插件联动](docs/images/resonance-forge-overview.png)
+
+上图记录了 UE 场景、插件面板与 Wwise 参数链路的真实联调状态。当前 `0.3.0` 代码已进一步改成任务导向的声音链布局，并增加“读取当前选择”、空状态和模型相关试听按钮；后续会用新版界面截图替换这张联调图。
 
 ## 两种声学模型
 
-### 模态撞击体
+| 模型 | 核心结构 | 适用对象 | 可控参数 |
+| --- | --- | --- | --- |
+| 模态撞击体 | 多组频率、增益与衰减时间不同的共振模态 | 金属板、木块、玻璃、机械结构 | 激励能量、频谱明亮度、共振尺度 |
+| 数字波导弦 | 噪声激励、延迟线传播、环路低通、衰减反馈 | 弦、金属丝、可演奏机关 | MIDI 音高、力度、阻尼、反馈与材质耦合 |
 
-将钢、木、玻璃表示为一组频率、增益和衰减时间不同的共振模态。碰撞冲量控制激励能量，相对速度控制频谱明亮度，适合金属板、木块、玻璃和机械结构的撞击声音。
+数字波导结构参考 STK `Plucked` 的 Karplus–Strong 思路，但没有直接嵌入 STK 整库；核心代码针对 Unreal 音频线程和固定复音池重新实现。来源和许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
-### 数字波导弦
+## 最快上手
 
-使用噪声激励、延迟线传播、环路低通和衰减反馈实时生成弦振动。它支持八复音、MIDI 音高与力度，并将少量能量耦合到当前材质的模态共振中。算法结构参考 STK `Plucked`，工程内实现针对 Unreal 音频线程重写，来源与许可记录见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+### 环境要求
 
-## 现在能做什么
+- Unreal Engine `5.8.1`
+- Windows Editor / Win64
+- Wwise Authoring 与 SDK `2025.1.10`
+- Wwise Unreal Integration `2025.1.10.9233.4458`
 
-- 两种实时模型：模态撞击体与八复音数字波导弦。
-- 三种材质配置：拉丝钢、硬木、薄玻璃，视觉贴图与模态参数同步切换。
-- 物理落球实时触发声音；冲量映射能量，相对速度映射明亮度，物体尺寸映射共振尺度。
-- UE 原生合成与 Wwise Event 同时触发，既能独立预听，也能进入中间件管线。
-- Wwise `Play_RF_Impact_Metal` Event 与 `RF_ImpactEnergy`、`RF_ImpactBrightness`、`RF_ObjectSize` 三个 RTPC 已接通。
-- MIDI Note On 力度控制撞击能量，CC1 控制音色明亮度。
-- 中文 Slate 工作区以“场景对象 → 激励 → 共振模型 → Wwise 输出”组织操作，并提供选择同步、空状态与模型相关试听动作。
-- 撞击发生时会按材质显示蓝、橙、青三种短促反馈光，便于录屏解释声音来源。
+### 安装
 
-## 最短使用路径
+1. 克隆仓库：
 
-1. 打开 `窗口 → 音频工具 → 共振铸造台 · 材质声源工作台`。
-2. 选择场景中的共振体并点击“读取当前选择”；如果场景为空，点击“打开试听场景”。
-3. 在“模态撞击体”和“数字波导弦”之间切换。
-4. 选择材质，调整激励能量、明亮度和共振尺度。
-5. 点击“敲击当前对象”或“拨动当前弦”，也可以进入 PIE 使用物理碰撞和 MIDI 演奏。
+   ```powershell
+   git clone https://github.com/Ubik42/resonance-forge.git
+   cd resonance-forge
+   ```
 
-## 试听场景
+2. 使用 Audiokinetic Launcher 将 Wwise Integration 安装到 `Demo/Plugins`。仓库不会重新分发 Wwise SDK 或官方插件。
+3. 同步当前插件源码并打开工程：
 
-`/Game/ResonanceForge/Demo/Maps/L_RF_PhysicsLab`
+   ```powershell
+   ./scripts/sync_demo_plugin.ps1
+   Start-Process ./Demo/ResonanceForgeDemo.uproject
+   ```
 
-基础场景是一座紧凑的声学工坊：左侧工作台布置钢、木、玻璃三组物理碰撞砧座，右侧是可演奏的五弦波导模型，后墙把两类声源汇入 Wwise Event / RTPC 输出区。它直接表达这条链路：
+4. 在 Unreal Editor 中打开：
+
+   ```text
+   窗口 → 音频工具 → 共振铸造台 · 材质声源工作台
+   ```
+
+### 最短成功路径
+
+1. 点击“打开试听场景”。
+2. 在场景中选择钢、木、玻璃砧座或数字波导弦。
+3. 点击“读取当前选择”。
+4. 选择共振模型和材质预设。
+5. 调整激励能量、明亮度与共振尺度。
+6. 点击“敲击当前对象”或“拨动当前弦”。
+7. 进入 PIE，观察落球碰撞并在 Wwise Profiler 中检查 RTPC。
+
+## 演示场景
+
+### 仓库自带：基础声学工坊
 
 ```text
-场景对象 → 物理碰撞或 MIDI 激励 → 模态或波导共振 → UE Synth + Wwise
+/Game/ResonanceForge/Demo/Maps/L_RF_PhysicsLab
 ```
 
-点击 PIE 后，三颗 18 kg 落球会从不同高度下落并分别撞击钢、木、玻璃共振体。
+左侧为钢、木、玻璃三组物理碰撞砧座，右侧为数字波导弦，后墙集中显示 Wwise Event 与 RTPC 输出。点击 PIE 后，三颗 `18 kg` 落球会从不同高度下落。
 
-若本机已从 Fab 安装 **Carpenter's Workshop Environment**，执行重建脚本还会在
-`/Game/CarpentersWorkshop/ResonanceForge/L_RF_WorkshopShowcase` 生成本地增强地图，用真实木工台、锤、木槌、木板、钢板和工具箱替换基础布景。插件会优先打开增强地图；未安装素材包时自动回退到仓库自带场景，不影响核心功能。
+### 本机可选：Fab 增强声学工坊
 
-## 安装与依赖
+安装 **Carpenter's Workshop Environment** 后运行：
 
-1. 安装 Unreal Engine 5.8.1。
-2. 通过 Audiokinetic Launcher 为 UE 5.8 安装 Wwise 2025.1.10 Unreal Integration。仓库不会重新分发 Wwise SDK 与官方插件文件。
-3. 克隆仓库后，将本机 Wwise Integration 安装到 `Demo/Plugins`，或使用 Audiokinetic Launcher 的“Integrate Wwise into Project”。
-4. 运行 `scripts/sync_demo_plugin.ps1`，把当前插件源码同步到 Demo 工程。
-5. 打开 `Demo/ResonanceForgeDemo.uproject`；首次启动时按提示编译 C++ 模块。
+```powershell
+./scripts/regenerate_physics_lab.ps1
+```
 
-## 目录说明
+脚本会在本机生成：
 
-- `Source/ResonanceForgeRuntime`：模态共振、数字波导弦与固定复音池。
-- `Source/ResonanceForgeWwise`：物理撞击 Actor、MIDI 输入与 Wwise 桥接。
-- `Source/ResonanceForgeEditor`：中文插件控制台。
-- `Demo/Demo_WwiseProject`：独立管理的 Wwise Authoring 工程。
-- `Demo/TestAudio/Generated`：脚本合成的撞击 WAV。
-- `Demo/TestMaterials/Generated`：脚本生成的钢、木、玻璃 PBR 测试贴图。
-- `Demo/Scripts`：材质资产、演示地图与后台复检脚本。
+```text
+/Game/CarpentersWorkshop/ResonanceForge/L_RF_WorkshopShowcase
+```
+
+增强地图加入真实木工台、锤、木槌、木板、钢板和工具箱。Fab 源资产与派生地图均被 Git 忽略；插件检测到增强地图时优先打开，否则自动回退基础场景。
+
+## Wwise 映射
+
+| 类型 | 名称 | 数据来源 |
+| --- | --- | --- |
+| Event | `Play_RF_Impact_Metal` | 碰撞、MIDI 或面板试听 |
+| RTPC | `RF_ImpactEnergy` | 碰撞冲量 / MIDI Velocity |
+| RTPC | `RF_ImpactBrightness` | 相对速度 / MIDI CC1 |
+| RTPC | `RF_ObjectSize` | 场景对象共振尺度 |
+
+## 工程结构
+
+```text
+ResonanceForge
+├── Source/ResonanceForgeRuntime   # 模态合成、数字波导与复音池
+├── Source/ResonanceForgeWwise     # 碰撞 Actor、MIDI 与 Wwise 桥接
+├── Source/ResonanceForgeEditor    # 中文 Slate 声学工作台
+├── Demo/Demo_WwiseProject         # 独立 Wwise Authoring 工程
+├── Demo/TestAudio/Generated       # 确定性脚本合成撞击 WAV
+├── Demo/TestMaterials/Generated   # 自生成钢、木、玻璃 PBR 贴图
+├── Demo/Scripts                   # 场景生成、截图与后台复检
+├── docs                           # 使用、素材、截图与集成说明
+└── scripts                        # 同步、素材生成与一键重建
+```
 
 ## 可重复重建
 
@@ -75,27 +166,38 @@
 ./scripts/regenerate_physics_lab.ps1
 ```
 
-所有随仓库发布的展示贴图和 WAV 都是确定性脚本合成素材。地图重建脚本会导入贴图、创建材质图、生成基础声学工坊，并通过磁盘重载检查三个落球和数字波导弦。检测到本机 Carpenter's Workshop 时会额外生成增强地图，但不会把 Fab 源资产加入 Git。
+随仓库发布的 WAV 与 PBR 贴图均由确定性脚本生成。地图重建完成后会重新从磁盘加载关卡，验证三个物理落球和一个数字波导弦 Actor，而不是只检查脚本是否返回成功。
 
-## 已验证环境
+## 验证证据
 
-- Unreal Engine 5.8.1
-- Wwise Unreal Integration 2025.1.10.9233.4458
-- Wwise Authoring / SDK 2025.1.10.9233
-- Windows Editor / Win64
-- 4 项自动化测试全部通过，包含数字波导实际音频缓冲、物理映射、Wwise 资产与 RTPC 检查
+| 检查项 | 当前结果 |
+| --- | --- |
+| UE 5.8 Editor 编译 | 通过 |
+| 物理碰撞映射测试 | 通过 |
+| 内置声学预设测试 | 通过 |
+| Wwise 生成资源检查 | 通过 |
+| Wwise RTPC 映射检查 | 通过 |
+| 基础地图磁盘重载 | 3 个落球 + 1 个波导弦通过 |
+| Carpenter's Workshop UE 5.8 加载 | 通过，本机可选依赖 |
 
-## 发布边界
+自动化报告默认输出到 `artifacts/automation-*`，地图与 Fab 复检报告输出到 `Demo/Saved/ResonanceForge`。
 
-- 本仓库发布本人编写的插件源码、Demo 资产、Wwise 工程结构、自生成声音与贴图素材。
-- Wwise SDK、Unreal Integration 与官方插件受 Audiokinetic 许可约束，不进入仓库，需由使用者自行安装。
-- `Binaries`、`Intermediate`、`Saved`、Derived Data、Wwise Cache 与用户级设置均被忽略。
-- 当前已验证 Windows Editor 开发流程；未把 Cook、Shipping 包和其他平台写成已完成能力。
-- 当前数字波导采用经典 Karplus–Strong 结构，不模拟完整钢琴的琴槌接触、踏板、弦间耦合与音板传播。
+## 已知限制
 
-更多资料：
+- 当前验证范围是 Windows Editor；尚未把 Cook、Shipping 和其他平台写成已完成能力。
+- 波导模型采用经典 Karplus–Strong 结构，不等同于 Pianoteq 一类完整钢琴物理建模系统。
+- 尚未模拟琴槌接触、踏板、弦间耦合、音板传播和复杂辐射体。
+- Wwise SDK、Unreal Integration 与 Fab 商业素材必须由使用者自行安装。
+- 当前仓库中的插件联动截图来自上一轮实机界面；`0.3.0` 新版面板截图将在下一轮人工截取后更新。
+
+## 文档
 
 - [演示与截图指南](docs/演示与截图指南.md)
 - [测试素材说明](docs/测试素材说明.md)
 - [Wwise 集成记录](docs/Wwise集成记录.md)
 - [产品与技术选型](docs/产品与技术选型.md)
+- [第三方代码与算法说明](THIRD_PARTY_NOTICES.md)
+
+## 许可证
+
+项目代码采用 [MIT License](LICENSE)。Wwise SDK、Wwise Unreal Integration、Fab 素材和其他第三方内容继续遵循各自许可，本仓库不授予其再分发权。

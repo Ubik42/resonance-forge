@@ -5,7 +5,7 @@ import unreal
 
 BASE_MAP = "/Game/ResonanceForge/Demo/Maps/L_RF_PhysicsLab"
 FAB_MAP = "/Game/CarpentersWorkshop/ResonanceForge/L_RF_WorkshopShowcase"
-OUTPUT_PATH = Path(unreal.Paths.project_saved_dir()) / "Screenshots" / "ResonanceForge_Workshop.png"
+OUTPUT_PATH = Path(unreal.Paths.project_dir()).parent / "docs" / "images" / "resonance-forge-workshop.png"
 
 library = unreal.EditorAssetLibrary
 level_subsystem = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
