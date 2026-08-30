@@ -1,0 +1,69 @@
+{
+ "SoundBanksInfo": {
+  "Platform": "Windows",
+  "BasePlatform": "Windows",
+  "SchemaVersion": "16",
+  "SoundBankVersion": "172",
+  "SoundBanks": [
+   {
+    "Id": "949773777",
+    "Type": "User",
+    "GUID": "{A5052D09-03B1-41D5-B575-5654906DC94A}",
+    "Language": "SFX",
+    "Hash": "{F65EF8FC-0816-FE3D-478C-8FDCE7264084}",
+    "ObjectPath": "\\SoundBanks\\Default Work Unit\\RF_ResonanceForge",
+    "ShortName": "RF_ResonanceForge",
+    "Path": "RF_ResonanceForge.bnk",
+    "Media": [
+     {
+      "Id": "454399814",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "ResonanceForge\\RF_Metal_Medium.wav",
+      "CachePath": "DB/{DB225F27-C12B-FA53-CB43-63CCD322E24B}.wem"
+     },
+     {
+      "Id": "804088654",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "ResonanceForge\\RF_Metal_Hard.wav",
+      "CachePath": "13/{134FA3F0-ECE5-9A9B-7FC6-13DA1223CC4D}.wem"
+     },
+     {
+      "Id": "993602079",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "ResonanceForge\\RF_Metal_Soft.wav",
+      "CachePath": "2C/{2C31AD91-A304-8CFA-F37C-148B8BD0AE77}.wem"
+     }
+    ],
+    "Events": [
+     {
+      "Id": "265247363",
+      "Name": "Play_RF_Impact_Metal",
+      "ObjectPath": "\\Events\\Default Work Unit\\ResonanceForge\\Play_RF_Impact_Metal",
+      "GUID": "{75937F16-0F9A-4990-B179-777468DA39BA}",
+      "DurationType": "OneShot",
+      "DurationMin": "1.25",
+      "DurationMax": "1.25",
+      "MediaRefs": [
+       {
+        "Id": "454399814"
+       },
+       {
+        "Id": "804088654"
+       },
+       {
+        "Id": "993602079"
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "FileHash": "{CFD53D6C-0422-EDC6-29B6-6ED6B48B6354}"
+ }
+}

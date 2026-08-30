@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WwiseDocument Type="WorkUnit" ID="{4B182EF4-C2EB-4B13-995C-113646641E03}" SchemaVersion="133">
+	<Containers>
+		<WorkUnit Name="Default Work Unit" ID="{4B182EF4-C2EB-4B13-995C-113646641E03}" PersistMode="Standalone">
+			<ChildrenList>
+				<RandomSequenceContainer Name="RF_Impact_Metal" ID="{0B41D982-4D54-4728-B711-76DE3B380658}" ShortID="759856899">
+					<ReferenceList>
+						<Reference Name="Conversion">
+							<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{3D71345B-944B-46BF-8E6D-97F94B8DDFB5}"/>
+						</Reference>
+						<Reference Name="OutputBus">
+							<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{6EBA8917-7718-46FF-A571-7FA5C36BC399}"/>
+						</Reference>
+					</ReferenceList>
+					<ChildrenList>
+						<Sound Name="RF_Metal_Soft" ID="{6FC78449-DFE1-4BA1-9157-94E9ADA761EF}" ShortID="341179513">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{3D71345B-944B-46BF-8E6D-97F94B8DDFB5}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{6EBA8917-7718-46FF-A571-7FA5C36BC399}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="RF_Metal_Soft" ID="{ACFF6664-9454-4CEE-9E84-822D58BDDEF1}">
+									<Language>SFX</Language>
+									<AudioFile>ResonanceForge\RF_Metal_Soft.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="993602079"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ActiveSourceList>
+								<ActiveSource Name="RF_Metal_Soft" ID="{ACFF6664-9454-4CEE-9E84-822D58BDDEF1}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+						<Sound Name="RF_Metal_Medium" ID="{694882F1-A862-46FC-BF24-AB31ED515260}" ShortID="400877307">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{3D71345B-944B-46BF-8E6D-97F94B8DDFB5}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{6EBA8917-7718-46FF-A571-7FA5C36BC399}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="RF_Metal_Medium" ID="{22B86B0F-E376-4D56-8225-15353A67366E}">
+									<Language>SFX</Language>
+									<AudioFile>ResonanceForge\RF_Metal_Medium.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="454399814"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ActiveSourceList>
+								<ActiveSource Name="RF_Metal_Medium" ID="{22B86B0F-E376-4D56-8225-15353A67366E}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+						<Sound Name="RF_Metal_Hard" ID="{A4B1AB67-5EF5-443B-A5C0-EDF98DB756BC}" ShortID="117468007">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{3D71345B-944B-46BF-8E6D-97F94B8DDFB5}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{6EBA8917-7718-46FF-A571-7FA5C36BC399}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="RF_Metal_Hard" ID="{C2856740-D54C-4028-9F46-2AD0B19408CC}">
+									<Language>SFX</Language>
+									<AudioFile>ResonanceForge\RF_Metal_Hard.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="804088654"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ActiveSourceList>
+								<ActiveSource Name="RF_Metal_Hard" ID="{C2856740-D54C-4028-9F46-2AD0B19408CC}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+					</ChildrenList>
+				</RandomSequenceContainer>
+			</ChildrenList>
+		</WorkUnit>
+	</Containers>
+</WwiseDocument>

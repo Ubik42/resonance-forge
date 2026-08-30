@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WwiseDocument Type="WorkUnit" ID="{70A8E132-6D83-4E17-97E4-A6AE689AED10}" SchemaVersion="133">
+	<Events>
+		<WorkUnit Name="Default Work Unit" ID="{70A8E132-6D83-4E17-97E4-A6AE689AED10}" PersistMode="Standalone">
+			<ChildrenList>
+				<Folder Name="ResonanceForge" ID="{387550D4-56CA-4D4A-AFEA-F5BE669254A8}" ShortID="967250883">
+					<Comment>共振铸造台自动生成的 Wwise 事件。</Comment>
+					<ChildrenList>
+						<Event Name="Play_RF_Impact_Metal" ID="{75937F16-0F9A-4990-B179-777468DA39BA}">
+							<Comment>播放金属共振撞击；由 UE 侧 Energy、Brightness、ObjectSize RTPC 驱动。</Comment>
+							<ChildrenList>
+								<Action Name="" ID="{6E6E4B7D-B5EB-4A24-BD82-5B820333D4ED}" ShortID="351099382">
+									<ReferenceList>
+										<Reference Name="Target">
+											<ObjectRef Name="RF_Impact_Metal" ID="{0B41D982-4D54-4728-B711-76DE3B380658}" WorkUnitID="{4B182EF4-C2EB-4B13-995C-113646641E03}"/>
+										</Reference>
+									</ReferenceList>
+								</Action>
+							</ChildrenList>
+						</Event>
+					</ChildrenList>
+				</Folder>
+			</ChildrenList>
+		</WorkUnit>
+	</Events>
+</WwiseDocument>

@@ -1,0 +1,43 @@
+{
+  "FileVersion": 3,
+  "Version": 2,
+  "VersionName": "0.2.0",
+  "FriendlyName": "共振铸造台 Resonance Forge",
+  "Description": "将物理碰撞、视觉材质与 MIDI 表演映射为可实时演奏的模态共振声源，并同步驱动 Wwise Event 与 RTPC。",
+  "Category": "音频",
+  "CreatedBy": "Shen Yuyan",
+  "CanContainContent": true,
+  "IsBetaVersion": true,
+  "Installed": false,
+  "Modules": [
+    {
+      "Name": "ResonanceForgeRuntime",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    },
+    {
+      "Name": "ResonanceForgeWwise",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    },
+    {
+      "Name": "ResonanceForgeEditor",
+      "Type": "Editor",
+      "LoadingPhase": "Default"
+    }
+  ],
+  "Plugins": [
+    {
+      "Name": "MIDIDevice",
+      "Enabled": true
+    },
+    {
+      "Name": "Synthesis",
+      "Enabled": true
+    },
+    {
+      "Name": "Wwise",
+      "Enabled": true
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+Event	ID	Name			Wwise Object Path	Notes
+	265247363	Play_RF_Impact_Metal			\Default Work Unit\ResonanceForge\Play_RF_Impact_Metal	播放金属共振撞击；由 UE 侧 Energy、Brightness、ObjectSize RTPC 驱动。
+
+In Memory Audio	ID	Name	Audio source file		Wwise Object Path	Notes	Data Size
+	454399814	RF_Metal_Medium	.cache\DB\{DB225F27-C12B-FA53-CB43-63CCD322E24B}.wem		\Containers\Default Work Unit\RF_Impact_Metal\RF_Metal_Medium		120096
+	804088654	RF_Metal_Hard	.cache\13\{134FA3F0-ECE5-9A9B-7FC6-13DA1223CC4D}.wem		\Containers\Default Work Unit\RF_Impact_Metal\RF_Metal_Hard		120096
+	993602079	RF_Metal_Soft	.cache\2C\{2C31AD91-A304-8CFA-F37C-148B8BD0AE77}.wem		\Containers\Default Work Unit\RF_Impact_Metal\RF_Metal_Soft		120096
+

@@ -1,0 +1,35 @@
+{
+  "FileVersion": 3,
+  "EngineAssociation": "5.8",
+  "Category": "音频工具",
+  "Description": "共振铸造台真实宿主演示工程",
+  "Modules": [
+    {
+      "Name": "ResonanceForgeDemo",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
+  ],
+  "Plugins": [
+    {
+      "Name": "ResonanceForge",
+      "Enabled": true
+    },
+    {
+      "Name": "MIDIDevice",
+      "Enabled": true
+    },
+    {
+      "Name": "Synthesis",
+      "Enabled": true
+    },
+    {
+      "Name": "PythonScriptPlugin",
+      "Enabled": true
+    },
+    {
+      "Name": "EditorScriptingUtilities",
+      "Enabled": true
+    }
+  ]
+}

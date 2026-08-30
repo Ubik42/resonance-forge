@@ -1,0 +1,17 @@
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+Demo/Binaries/
+Demo/DerivedDataCache/
+Demo/Intermediate/
+Demo/Saved/
+Demo/Plugins/ResonanceForge/
+Demo/Plugins/Wwise/
+Demo/Plugins/WwiseMotionOpenXRHelpers/
+Demo/Plugins/WwiseNiagara/
+Demo/Plugins/WwiseSoundEngine/
+Demo/Demo_WwiseProject/.cache/
+Demo/Demo_WwiseProject/*.wsettings
+Demo/Demo_WwiseProject/*.validationcache
+artifacts/build/

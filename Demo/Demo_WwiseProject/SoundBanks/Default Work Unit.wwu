@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WwiseDocument Type="WorkUnit" ID="{8022A5BF-F13C-4C7C-ADCD-C4D5723ECC04}" SchemaVersion="133">
+	<SoundBanks>
+		<WorkUnit Name="Default Work Unit" ID="{8022A5BF-F13C-4C7C-ADCD-C4D5723ECC04}" PersistMode="Standalone">
+			<ChildrenList>
+				<SoundBank Name="RF_ResonanceForge" ID="{A5052D09-03B1-41D5-B575-5654906DC94A}">
+					<Comment>共振铸造台演示 SoundBank。</Comment>
+					<ObjectInclusionList>
+						<ObjectRef Name="Play_RF_Impact_Metal" ID="{75937F16-0F9A-4990-B179-777468DA39BA}" WorkUnitID="{70A8E132-6D83-4E17-97E4-A6AE689AED10}" Origin="Manual" Filter="7"/>
+					</ObjectInclusionList>
+					<ObjectExclusionList/>
+					<GameSyncExclusionList/>
+				</SoundBank>
+			</ChildrenList>
+		</WorkUnit>
+	</SoundBanks>
+</WwiseDocument>
