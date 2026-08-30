@@ -15,9 +15,13 @@ private:
     class AResonanceForgeImpactInstrumentActor* ResolveInstrument() const;
     void ApplyPreset(const FName PresetName);
     void ApplyModel(EResonanceModelType ModelType);
+    FReply SyncFromSelection();
     FReply TriggerPreview();
     FReply OpenDemoMap();
     FText GetSelectionText() const;
+    FText GetExcitationText() const;
+    FText GetResonanceText() const;
+    FText GetPrimaryActionText() const;
     FText GetStatusText() const;
 
     FName ActivePreset = TEXT("拉丝钢");

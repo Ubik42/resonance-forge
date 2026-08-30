@@ -14,5 +14,7 @@ Demo/Plugins/WwiseSoundEngine/
 Demo/Demo_WwiseProject/.cache/
 Demo/Demo_WwiseProject/*.wsettings
 Demo/Demo_WwiseProject/*.validationcache
+Demo/Content/CarpentersWorkshop/
+__pycache__/
 artifacts/build/
 artifacts/automation*/

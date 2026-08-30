@@ -43,3 +43,12 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ## 未直接集成的调研项目
 
 Faust `physmodels.lib`、FigBug/Piano、OpenPiano 与 Resonarium 只作为技术调研资料，没有复制到本仓库。后面若引入其代码，必须重新评估 LGPL、GPL 或 AGPL 对发布方式的影响。
+
+## Carpenter's Workshop Environment（本机可选布景）
+
+- 来源：Epic Fab 用户资产库。
+- 使用范围：仅在本机 Demo 工程中生成增强声学工坊，用于截图和交互验证。
+- 仓库状态：原始模型、材质、贴图及派生增强地图均不进入本仓库。
+- 依赖状态：可选。未安装时插件自动打开仓库自带的基础声学工坊。
+
+该素材遵循购买/领取时适用的 Fab 内容许可。本仓库不授予其任何再分发权，也不把它描述为本项目作者制作的资产。

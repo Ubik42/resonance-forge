@@ -15,8 +15,11 @@ if not level_subsystem.load_level(MAP_PATH):
     raise RuntimeError(f"无法重新加载演示地图：{MAP_PATH}")
 
 balls = []
+waveguides = []
 for actor in actor_subsystem.get_all_level_actors():
     label = actor.get_actor_label()
+    if label == "RF_04_数字波导弦":
+        waveguides.append(label)
     if not label.startswith("RF_落球_"):
         continue
     component = actor.static_mesh_component
@@ -34,6 +37,8 @@ balls.sort(key=lambda item: item["label"])
 failures = []
 if len(balls) != 3:
     failures.append(f"预期 3 个落球，实际找到 {len(balls)} 个")
+if len(waveguides) != 1:
+    failures.append(f"预期 1 个数字波导弦 Actor，实际找到 {len(waveguides)} 个")
 for ball in balls:
     if not ball["simulate_physics"]:
         failures.append(f"{ball['label']} 未启用物理模拟")
@@ -50,6 +55,7 @@ report = {
     "map": MAP_PATH,
     "verification_scope": "重新加载磁盘地图后的组件状态",
     "ball_count": len(balls),
+    "waveguide_actors": waveguides,
     "balls": balls,
     "failures": failures,
     "status": "success" if not failures else "failed",

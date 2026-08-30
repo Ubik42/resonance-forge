@@ -121,10 +121,10 @@ for key, (base_source, rough_source, metallic, translucent) in texture_specs.ite
 support_paths = {
     "Floor": build_color_material("M_RF_Floor", (0.012, 0.022, 0.038), 0.72, 0.27),
     "Dark": build_color_material("M_RF_Dark", (0.018, 0.034, 0.055), 0.58, 0.34),
-    "SteelAccent": build_color_material("M_RF_AccentSteel", (0.03, 0.36, 0.92), 0.15, 0.22, 7.0),
-    "WoodAccent": build_color_material("M_RF_AccentWood", (0.95, 0.17, 0.025), 0.05, 0.30, 6.0),
-    "GlassAccent": build_color_material("M_RF_AccentGlass", (0.02, 0.84, 0.63), 0.05, 0.18, 7.0),
-    "Wwise": build_color_material("M_RF_WwiseCore", (0.01, 0.48, 0.82), 0.25, 0.16, 9.0),
+    "SteelAccent": build_color_material("M_RF_AccentSteel", (0.03, 0.36, 0.92), 0.15, 0.22, 1.2),
+    "WoodAccent": build_color_material("M_RF_AccentWood", (0.95, 0.17, 0.025), 0.05, 0.30, 0.9),
+    "GlassAccent": build_color_material("M_RF_AccentGlass", (0.02, 0.84, 0.63), 0.05, 0.18, 1.1),
+    "Wwise": build_color_material("M_RF_WwiseCore", (0.004, 0.07, 0.12), 0.25, 0.24, 0.35),
 }
 
 report = {"status": "success", "surface_materials": surface_paths, "support_materials": support_paths}
