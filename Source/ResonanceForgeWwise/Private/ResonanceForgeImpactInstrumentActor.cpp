@@ -76,13 +76,16 @@ float AResonanceForgeImpactInstrumentActor::ComputeImpactBrightness(const float 
 int32 AResonanceForgeImpactInstrumentActor::TriggerInstrument(
     const float Energy,
     const float Brightness,
-    const int32 MidiNote)
+    const int32 MidiNote,
+    const float StrikePosition)
 {
     FResonanceForgeImpactParameters Parameters;
     Parameters.Energy = FMath::Clamp(Energy, 0.0f, 1.0f);
     Parameters.Brightness = FMath::Clamp(Brightness, 0.0f, 1.0f);
     Parameters.ObjectSize = FMath::Clamp(ObjectSize, 0.0f, 1.0f);
     Parameters.MidiNote = FMath::Clamp(MidiNote, 0, 127);
+    Parameters.StrikePosition = FMath::Clamp(StrikePosition < 0.0f ? ManualStrikePosition : StrikePosition, 0.0f, 1.0f);
+    LastStrikePosition = Parameters.StrikePosition;
     Parameters.MaterialPreset = NativeSynth && NativeSynth->MaterialProfile
         ? NativeSynth->MaterialProfile->SourcePreset
         : ResonancePreset;
@@ -111,6 +114,22 @@ int32 AResonanceForgeImpactInstrumentActor::TriggerInstrument(
     return PlayingId;
 }
 
+float AResonanceForgeImpactInstrumentActor::ComputeNormalizedStrikePosition(const FVector& WorldImpactPoint) const
+{
+    if (!InstrumentMesh || !InstrumentMesh->GetStaticMesh())
+    {
+        return 0.5f;
+    }
+    const FBoxSphereBounds LocalBounds = InstrumentMesh->GetStaticMesh()->GetBounds();
+    const FVector LocalPoint = InstrumentMesh->GetComponentTransform().InverseTransformPosition(WorldImpactPoint);
+    const bool bUseX = LocalBounds.BoxExtent.X >= LocalBounds.BoxExtent.Y;
+    const float HalfLength = FMath::Max(1.0f, bUseX ? LocalBounds.BoxExtent.X : LocalBounds.BoxExtent.Y);
+    const float CenteredPosition = bUseX
+        ? LocalPoint.X - LocalBounds.Origin.X
+        : LocalPoint.Y - LocalBounds.Origin.Y;
+    return FMath::Clamp((CenteredPosition + HalfLength) / (2.0f * HalfLength), 0.0f, 1.0f);
+}
+
 void AResonanceForgeImpactInstrumentActor::HandleMeshHit(
     UPrimitiveComponent* HitComponent,
     AActor* OtherActor,
@@ -131,7 +150,7 @@ void AResonanceForgeImpactInstrumentActor::HandleMeshHit(
 
     const FVector OtherVelocity = OtherComponent ? OtherComponent->GetComponentVelocity() : FVector::ZeroVector;
     const float RelativeSpeed = (OtherVelocity - InstrumentMesh->GetComponentVelocity()).Size();
-    TriggerInstrument(Energy, ComputeImpactBrightness(RelativeSpeed), 60);
+    TriggerInstrument(Energy, ComputeImpactBrightness(RelativeSpeed), 60, ComputeNormalizedStrikePosition(Hit.ImpactPoint));
 }
 
 void AResonanceForgeImpactInstrumentActor::HandleKeyboardTrigger()

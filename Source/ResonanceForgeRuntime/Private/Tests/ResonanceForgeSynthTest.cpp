@@ -28,6 +28,9 @@ bool FResonanceForgePresetTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("共享配方可取得硬木六个模态"), WoodModes.Num(), 6);
     TestEqual(TEXT("共享配方可取得薄玻璃七个模态"), GlassModes.Num(), 7);
     TestTrue(TEXT("三种材质拥有不同的第一共振频率"), !FMath::IsNearlyEqual(SteelModes[0].FrequencyHz, WoodModes[0].FrequencyHz));
+    TestTrue(TEXT("中央敲击充分激励第一模态"), UResonanceForgeSynthComponent::ComputeModeExcitation(0, 0.5f) > 0.95f);
+    TestTrue(TEXT("中央敲击落在第二模态节点附近"), UResonanceForgeSynthComponent::ComputeModeExcitation(1, 0.5f) < 0.15f);
+    TestTrue(TEXT("偏置落点会重新激励第二模态"), UResonanceForgeSynthComponent::ComputeModeExcitation(1, 0.34f) > 0.75f);
 
     TestEqual(TEXT("A4 在 48 kHz 下的波导长度接近 109 个采样"),
         UResonanceForgeSynthComponent::ComputeWaveguideDelaySamples(440.0f, 48000.0f), 109);

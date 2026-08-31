@@ -41,7 +41,7 @@ public:
     int32 MaxStringVoices = 8;
 
     UFUNCTION(BlueprintCallable, Category="共振铸造台")
-    void Strike(float Energy = 0.7f, float Brightness = 0.5f, int32 MidiNote = 60);
+    void Strike(float Energy = 0.7f, float Brightness = 0.5f, int32 MidiNote = 60, float StrikePosition = 0.5f);
 
     UFUNCTION(BlueprintCallable, Category="共振铸造台")
     void LoadBuiltInPreset(FName PresetName);
@@ -72,6 +72,9 @@ public:
 
     static int32 ComputeWaveguideDelaySamples(float FrequencyHz, float SampleRate);
 
+    UFUNCTION(BlueprintPure, Category="共振铸造台")
+    static float ComputeModeExcitation(int32 ModeIndex, float StrikePosition);
+
 #if WITH_DEV_AUTOMATION_TESTS
     bool RenderWaveguideForTest(int32 MidiNote, int32 NumFrames, TArray<float>& OutSamples);
 #endif
@@ -91,6 +94,7 @@ private:
         float Damping;
         float Coupling;
         float PitchScale;
+        float StrikePosition;
     };
 
     struct FActiveMode

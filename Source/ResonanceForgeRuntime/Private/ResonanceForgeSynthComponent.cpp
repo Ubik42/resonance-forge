@@ -39,7 +39,11 @@ bool UResonanceForgeSynthComponent::Init(int32& SampleRate)
     return true;
 }
 
-void UResonanceForgeSynthComponent::Strike(const float Energy, const float Brightness, const int32 MidiNote)
+void UResonanceForgeSynthComponent::Strike(
+    const float Energy,
+    const float Brightness,
+    const int32 MidiNote,
+    const float StrikePosition)
 {
     const UResonanceMaterialProfile* Profile = MaterialProfile;
     PendingStrikes.Enqueue({
@@ -50,7 +54,8 @@ void UResonanceForgeSynthComponent::Strike(const float Energy, const float Brigh
         Profile ? Profile->StringDecay : StringDecay,
         Profile ? Profile->StringDamping : StringDamping,
         Profile ? Profile->BodyCoupling : BodyCoupling,
-        PitchScale
+        PitchScale,
+        FMath::Clamp(StrikePosition, 0.0f, 1.0f)
     });
 }
 
@@ -82,6 +87,13 @@ int32 UResonanceForgeSynthComponent::ComputeWaveguideDelaySamples(const float Fr
     const float SafeSampleRate = FMath::Max(8000.0f, SampleRate);
     const float SafeFrequency = FMath::Clamp(FrequencyHz, 20.0f, SafeSampleRate * 0.45f);
     return FMath::Max(2, FMath::RoundToInt(SafeSampleRate / SafeFrequency));
+}
+
+float UResonanceForgeSynthComponent::ComputeModeExcitation(const int32 ModeIndex, const float StrikePosition)
+{
+    const float Position = FMath::Clamp(StrikePosition, 0.02f, 0.98f);
+    const float ModeShape = FMath::Abs(FMath::Sin(UE_PI * static_cast<float>(FMath::Max(0, ModeIndex) + 1) * Position));
+    return FMath::Lerp(0.12f, 1.0f, ModeShape);
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -213,7 +225,7 @@ void UResonanceForgeSynthComponent::ApplyStrike(const FStrikeEvent& Event)
         Mode.FrequencyHz = FMath::Clamp(Mode.BaseFrequencyHz * NotePitch * Event.PitchScale, 20.0f, RenderSampleRate * 0.45f);
         const float ExcitationGain = Event.ModelType == EResonanceModelType::WaveguideString
             ? Event.Coupling
-            : 1.0f;
+            : ComputeModeExcitation(Index, Event.StrikePosition);
         Mode.Envelope = FMath::Min(2.0f, Mode.Envelope + Event.Energy * Mode.Gain * SpectralTilt * ExcitationGain);
         Mode.Phase += 0.37f * Index;
     }

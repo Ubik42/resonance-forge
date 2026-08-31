@@ -51,6 +51,12 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|撞击", meta=(ClampMin="0.0", ClampMax="1.0"))
     float ObjectSize = 0.5f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|撞击", meta=(ClampMin="0.0", ClampMax="1.0"))
+    float ManualStrikePosition = 0.5f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="共振铸造台|撞击")
+    float LastStrikePosition = 0.5f;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|撞击", meta=(ClampMin="0.0"))
     float RetriggerCooldownSeconds = 0.06f;
 
@@ -79,7 +85,10 @@ public:
     FOnResonanceImpactTriggered OnImpactTriggered;
 
     UFUNCTION(BlueprintCallable, Category="共振铸造台")
-    int32 TriggerInstrument(float Energy = 0.75f, float Brightness = 0.55f, int32 MidiNote = 60);
+    int32 TriggerInstrument(float Energy = 0.75f, float Brightness = 0.55f, int32 MidiNote = 60, float StrikePosition = -1.0f);
+
+    UFUNCTION(BlueprintPure, Category="共振铸造台|撞击")
+    float ComputeNormalizedStrikePosition(const FVector& WorldImpactPoint) const;
 
     UFUNCTION(BlueprintCallable, Category="共振铸造台|MIDI")
     bool ConnectMidiInput(int32 DeviceId);

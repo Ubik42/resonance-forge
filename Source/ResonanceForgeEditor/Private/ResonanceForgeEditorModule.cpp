@@ -1,6 +1,7 @@
 #include "ResonanceForgeEditorModule.h"
 #include "SResonanceForgeVisualizer.h"
 #include "SResonanceModeRack.h"
+#include "SResonanceStrikeRail.h"
 
 #include "Editor.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -152,6 +153,7 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
                     CaptureWorkbenchImage(TEXT("resonance-forge-workbench-details.png"));
                     ApplyModel(EResonanceModelType::ModalImpact);
                     ApplyPreset(TEXT("硬木"));
+                    ApplyStrikePosition(0.34f, false);
                     SelectedModeIndex = FMath::Min(2, ActiveModes.Num() - 1);
                     if (ActiveModes.IsValidIndex(SelectedModeIndex))
                     {
@@ -371,13 +373,29 @@ void FResonanceForgeEditorModule::SelectModalMode(const int32 ModeIndex)
     }
 }
 
+void FResonanceForgeEditorModule::ApplyStrikePosition(const float NewPosition, const bool bFinished)
+{
+    PreviewStrikePosition = FMath::Clamp(NewPosition, 0.0f, 1.0f);
+    if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
+    {
+        Instrument->Modify();
+        Instrument->ManualStrikePosition = PreviewStrikePosition;
+        Instrument->LastStrikePosition = PreviewStrikePosition;
+        Instrument->MarkPackageDirty();
+    }
+    if (bFinished)
+    {
+        AuditionCurrentSound(NSLOCTEXT("ResonanceForge", "StrikePositionAudition", "敲击落点调整完成"));
+    }
+}
+
 void FResonanceForgeEditorModule::AuditionCurrentSound(const FText& ChangeLabel)
 {
     if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
     {
         Instrument->ObjectSize = PreviewSize;
         ApplyWaveguideParameters();
-        Instrument->TriggerInstrument(PreviewEnergy, PreviewBrightness, 60);
+        Instrument->TriggerInstrument(PreviewEnergy, PreviewBrightness, 60, PreviewStrikePosition);
         LastStatus = FText::Format(
             NSLOCTEXT("ResonanceForge", "AuditionedChange", "{0} · 已试听  能量 {1}% / 明亮度 {2}% / 尺度 {3}%"),
             ChangeLabel,
@@ -399,6 +417,7 @@ FReply FResonanceForgeEditorModule::SyncFromSelection()
         ActiveModel = SharedProfile ? SharedProfile->ModelType : Instrument->SynthesisModel;
         ActivePreset = SharedProfile ? SharedProfile->SourcePreset : Instrument->ResonancePreset;
         PreviewSize = Instrument->ObjectSize;
+        PreviewStrikePosition = Instrument->LastStrikePosition;
         if (Instrument->NativeSynth)
         {
             WaveguideSustain = FMath::GetRangePct(
@@ -443,7 +462,7 @@ FReply FResonanceForgeEditorModule::TriggerStrikePreset(
     {
         Instrument->ObjectSize = PreviewSize;
         ApplyWaveguideParameters();
-        Instrument->TriggerInstrument(PreviewEnergy, PreviewBrightness, 60);
+        Instrument->TriggerInstrument(PreviewEnergy, PreviewBrightness, 60, PreviewStrikePosition);
         LastStatus = FText::Format(
             NSLOCTEXT("ResonanceForge", "StrikePresetTriggered", "{0}已触发 · {1} / {2} / {3}"),
             GestureName,
@@ -466,6 +485,7 @@ FReply FResonanceForgeEditorModule::PinReference()
     ReferenceEnergy = PreviewEnergy;
     ReferenceBrightness = PreviewBrightness;
     ReferenceSize = PreviewSize;
+    ReferenceStrikePosition = PreviewStrikePosition;
     ReferenceSustain = WaveguideSustain;
     ReferenceDamping = WaveguideDamping;
     ReferenceCoupling = WaveguideCoupling;
@@ -487,6 +507,7 @@ FReply FResonanceForgeEditorModule::SwapAndPreviewReference()
     const float PreviousEnergy = PreviewEnergy;
     const float PreviousBrightness = PreviewBrightness;
     const float PreviousSize = PreviewSize;
+    const float PreviousStrikePosition = PreviewStrikePosition;
     const float PreviousSustain = WaveguideSustain;
     const float PreviousDamping = WaveguideDamping;
     const float PreviousCoupling = WaveguideCoupling;
@@ -497,6 +518,7 @@ FReply FResonanceForgeEditorModule::SwapAndPreviewReference()
     PreviewEnergy = ReferenceEnergy;
     PreviewBrightness = ReferenceBrightness;
     PreviewSize = ReferenceSize;
+    PreviewStrikePosition = ReferenceStrikePosition;
     WaveguideSustain = ReferenceSustain;
     WaveguideDamping = ReferenceDamping;
     WaveguideCoupling = ReferenceCoupling;
@@ -507,6 +529,7 @@ FReply FResonanceForgeEditorModule::SwapAndPreviewReference()
     ReferenceEnergy = PreviousEnergy;
     ReferenceBrightness = PreviousBrightness;
     ReferenceSize = PreviousSize;
+    ReferenceStrikePosition = PreviousStrikePosition;
     ReferenceSustain = PreviousSustain;
     ReferenceDamping = PreviousDamping;
     ReferenceCoupling = PreviousCoupling;
@@ -517,6 +540,7 @@ FReply FResonanceForgeEditorModule::SwapAndPreviewReference()
     ApplyPreset(ActivePreset);
     ActiveModes = DesiredModes;
     ApplyModalModes(false, FText::GetEmpty());
+    ApplyStrikePosition(PreviewStrikePosition, false);
     TriggerPreview();
     LastStatus = FText::Format(
         NSLOCTEXT("ResonanceForge", "ReferenceSwapped", "正在试听「{0}」· 再按一次即可切回另一版"),
@@ -633,6 +657,7 @@ FReply FResonanceForgeEditorModule::SaveRecipeSlot(const int32 SlotIndex)
     GConfig->SetFloat(*Section, *(Prefix + TEXT(".Energy")), PreviewEnergy, GEditorPerProjectIni);
     GConfig->SetFloat(*Section, *(Prefix + TEXT(".Brightness")), PreviewBrightness, GEditorPerProjectIni);
     GConfig->SetFloat(*Section, *(Prefix + TEXT(".Size")), PreviewSize, GEditorPerProjectIni);
+    GConfig->SetFloat(*Section, *(Prefix + TEXT(".StrikePosition")), PreviewStrikePosition, GEditorPerProjectIni);
     GConfig->SetFloat(*Section, *(Prefix + TEXT(".Sustain")), WaveguideSustain, GEditorPerProjectIni);
     GConfig->SetFloat(*Section, *(Prefix + TEXT(".Damping")), WaveguideDamping, GEditorPerProjectIni);
     GConfig->SetFloat(*Section, *(Prefix + TEXT(".Coupling")), WaveguideCoupling, GEditorPerProjectIni);
@@ -667,9 +692,15 @@ FReply FResonanceForgeEditorModule::RecallRecipeSlot(const int32 SlotIndex)
     WaveguideSustain = Sustain;
     WaveguideDamping = Damping;
     WaveguideCoupling = Coupling;
+    const FString RecipeSection(TEXT("ResonanceForge.UserRecipes"));
+    const FString RecipePrefix = FString::Printf(TEXT("Slot%d"), SlotIndex + 1);
+    PreviewStrikePosition = 0.5f;
+    GConfig->GetFloat(*RecipeSection, *(RecipePrefix + TEXT(".StrikePosition")), PreviewStrikePosition, GEditorPerProjectIni);
+    PreviewStrikePosition = FMath::Clamp(PreviewStrikePosition, 0.0f, 1.0f);
     ApplyModel(ActiveModel);
     ApplyPreset(ActivePreset);
     ApplyWaveguideParameters();
+    ApplyStrikePosition(PreviewStrikePosition, false);
     if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
     {
         Instrument->ObjectSize = PreviewSize;
@@ -867,6 +898,17 @@ FText FResonanceForgeEditorModule::GetSelectedModeDecayText() const
         : FText::FromString(TEXT("—"));
 }
 
+FText FResonanceForgeEditorModule::GetStrikePositionText() const
+{
+    const int32 Percent = FMath::RoundToInt(FMath::Clamp(PreviewStrikePosition, 0.0f, 1.0f) * 100.0f);
+    const FText Region = Percent < 38
+        ? NSLOCTEXT("ResonanceForge", "StrikeNear", "近端")
+        : Percent > 62
+            ? NSLOCTEXT("ResonanceForge", "StrikeFar", "远端")
+            : NSLOCTEXT("ResonanceForge", "StrikeCenter", "中央");
+    return FText::Format(NSLOCTEXT("ResonanceForge", "StrikePositionReading", "{0} · {1}%"), Region, FText::AsNumber(Percent));
+}
+
 FReply FResonanceForgeEditorModule::ForgeSharedRecipeAsset()
 {
     AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
@@ -987,7 +1029,7 @@ FText FResonanceForgeEditorModule::GetExcitationText() const
 {
     return ActiveModel == EResonanceModelType::WaveguideString
         ? NSLOCTEXT("ResonanceForge", "StringExcitation", "拨弦噪声 / MIDI 力度")
-        : NSLOCTEXT("ResonanceForge", "ImpactExcitation", "物理碰撞 / 冲量与速度");
+        : NSLOCTEXT("ResonanceForge", "ImpactExcitation", "物理碰撞 / 冲量、速度与落点");
 }
 
 FText FResonanceForgeEditorModule::GetResonanceText() const
@@ -1032,6 +1074,7 @@ FText FResonanceForgeEditorModule::GetComparisonText() const
     const int32 EnergyDelta = FMath::RoundToInt((PreviewEnergy - ReferenceEnergy) * 100.0f);
     const int32 BrightnessDelta = FMath::RoundToInt((PreviewBrightness - ReferenceBrightness) * 100.0f);
     const int32 SizeDelta = FMath::RoundToInt((PreviewSize - ReferenceSize) * 100.0f);
+    const int32 PositionDelta = FMath::RoundToInt((PreviewStrikePosition - ReferenceStrikePosition) * 100.0f);
     const int32 SustainDelta = FMath::RoundToInt((WaveguideSustain - ReferenceSustain) * 100.0f);
     const int32 DampingDelta = FMath::RoundToInt((WaveguideDamping - ReferenceDamping) * 100.0f);
     const int32 CouplingDelta = FMath::RoundToInt((WaveguideCoupling - ReferenceCoupling) * 100.0f);
@@ -1058,11 +1101,12 @@ FText FResonanceForgeEditorModule::GetComparisonText() const
             FText::FromName(ReferencePreset), SignedPercent(SustainDelta), SignedPercent(DampingDelta), SignedPercent(CouplingDelta));
     }
     return FText::Format(
-        NSLOCTEXT("ResonanceForge", "ReferenceDifference", "参考「{0}」 · 能量 {1}%  明亮 {2}%  尺度 {3}%  ·  变化 {4} 根共振齿"),
+        NSLOCTEXT("ResonanceForge", "ReferenceDifference", "参考「{0}」 · 能量 {1}%  明亮 {2}%  尺度 {3}%  落点 {4}%  ·  变化 {5} 根共振齿"),
         FText::FromName(ReferencePreset),
         SignedPercent(EnergyDelta),
         SignedPercent(BrightnessDelta),
         SignedPercent(SizeDelta),
+        SignedPercent(PositionDelta),
         FText::AsNumber(ChangedModeCount));
 }
 
@@ -1076,6 +1120,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
         ActiveModel = SharedProfile ? SharedProfile->ModelType : Instrument->SynthesisModel;
         ActivePreset = SharedProfile ? SharedProfile->SourcePreset : Instrument->ResonancePreset;
         PreviewSize = Instrument->ObjectSize;
+        PreviewStrikePosition = Instrument->LastStrikePosition;
         if (Instrument->NativeSynth)
         {
             WaveguideSustain = FMath::GetRangePct(
@@ -1504,6 +1549,27 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                         .Padding(FMargin(14, 12))
                         [
                             SNew(SVerticalBox)
+                            + SVerticalBox::Slot().AutoHeight()
+                            [
+                                SNew(SHorizontalBox)
+                                + SHorizontalBox::Slot().FillWidth(1.0f)
+                                [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "StrikeRail", "落点划线规"), NSLOCTEXT("ResonanceForge", "StrikeRailDetail", "拖动铜色锤头选择敲击位置；下方短齿显示这一落点会激起哪些模态。"))]
+                                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+                                [SNew(STextBlock).Text_Raw(this, &FResonanceForgeEditorModule::GetStrikePositionText).ColorAndOpacity(Wood).Font(FAppStyle::GetFontStyle(TEXT("BoldFont")))]
+                            ]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 16)
+                            [
+                                SNew(SBorder)
+                                .BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel")))
+                                .BorderBackgroundColor(FLinearColor(0.026f, 0.021f, 0.017f, 1.0f))
+                                .Padding(FMargin(8, 4))
+                                [
+                                    SNew(SResonanceStrikeRail)
+                                    .StrikePosition_Lambda([this]{ return PreviewStrikePosition; })
+                                    .ModeCount_Lambda([this]{ return ActiveModes.Num(); })
+                                    .OnPositionChanged(FOnStrikeRailChanged::CreateRaw(this, &FResonanceForgeEditorModule::ApplyStrikePosition))
+                                ]
+                            ]
                             + SVerticalBox::Slot().AutoHeight()
                             [
                                 SNew(SHorizontalBox)

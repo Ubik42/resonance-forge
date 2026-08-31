@@ -20,6 +20,7 @@ private:
     void ApplyModalModes(bool bAudition, const FText& ChangeLabel);
     void ResetModalModesToPreset();
     void SelectModalMode(int32 ModeIndex);
+    void ApplyStrikePosition(float NewPosition, bool bFinished);
     void AuditionCurrentSound(const FText& ChangeLabel);
     FReply SyncFromSelection();
     FReply TriggerPreview();
@@ -53,6 +54,7 @@ private:
     FText GetSelectedModeFrequencyText() const;
     FText GetSelectedModeGainText() const;
     FText GetSelectedModeDecayText() const;
+    FText GetStrikePositionText() const;
     bool HasRecipeSlot(int32 SlotIndex) const;
     bool ReadRecipeSlot(int32 SlotIndex, FName& OutPreset, EResonanceModelType& OutModel, float& OutEnergy, float& OutBrightness, float& OutSize, float& OutSustain, float& OutDamping, float& OutCoupling) const;
 
@@ -61,6 +63,7 @@ private:
     float PreviewEnergy = 0.78f;
     float PreviewBrightness = 0.58f;
     float PreviewSize = 0.5f;
+    float PreviewStrikePosition = 0.5f;
     float WaveguideSustain = 0.90f;
     float WaveguideDamping = 0.36f;
     float WaveguideCoupling = 0.22f;
@@ -72,6 +75,7 @@ private:
     float ReferenceEnergy = 0.0f;
     float ReferenceBrightness = 0.0f;
     float ReferenceSize = 0.0f;
+    float ReferenceStrikePosition = 0.5f;
     float ReferenceSustain = 0.90f;
     float ReferenceDamping = 0.36f;
     float ReferenceCoupling = 0.22f;

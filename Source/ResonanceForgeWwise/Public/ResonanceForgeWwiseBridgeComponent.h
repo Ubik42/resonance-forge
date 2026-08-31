@@ -21,6 +21,9 @@ struct RESONANCEFORGEWWISE_API FResonanceForgeImpactParameters
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台", meta=(ClampMin="0.0", ClampMax="1.0"))
     float ObjectSize = 0.5f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台", meta=(ClampMin="0.0", ClampMax="1.0"))
+    float StrikePosition = 0.5f;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台", meta=(ClampMin="0", ClampMax="127"))
     int32 MidiNote = 60;
 

@@ -76,7 +76,7 @@ int32 UResonanceForgeWwiseBridgeComponent::TriggerImpact(
 
     if (bLayerNativeSynth && NativeSynth)
     {
-        NativeSynth->Strike(Energy, Brightness, FMath::Clamp(Parameters.MidiNote, 0, 127));
+        NativeSynth->Strike(Energy, Brightness, FMath::Clamp(Parameters.MidiNote, 0, 127), Parameters.StrikePosition);
     }
 
     if (ImpactEnergyRtpc)
