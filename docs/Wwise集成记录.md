@@ -43,8 +43,9 @@ UE 5.8 Demo 使用 Launcher 当前提供的 2025.1 Integration。2026.1 保留�
 - `scripts/provision_wwise_project.ps1`：经 HTTP WAAPI 创建或合并 Wwise 对象、保存工程并验证对象路径。
 - `scripts/sync_demo_plugin.ps1`：把仓库根目录的插件源码同步到 Demo。
 
-## 下一阶段
+## 当前边界与后续
 
-- 为三个 RTPC 配置实际的音量、Pitch、Low-pass 属性曲线，而不只是在 Profiler 中观察参数。
-- 创建物理碰撞 Actor 与 MIDI 输入桥，完成“球体撞击 / 键盘演奏 / Wwise Profiler”演示关卡。
-- 补录 UE 与 Wwise 双窗口联动截图和作品集演示视频。
+- 物理碰撞 Actor、数字波导弦、MIDI 输入桥和 Wwise Event / RTPC 发布已经进入基础演示关卡。
+- UE 侧会真实发送三个 RTPC；Wwise 工程仍需继续打磨对应的音量、Pitch 与滤波曲线，避免把“参数抵达 Profiler”误写成最终混音已经完成。
+- 作品展示优先保留真实工作台、场景联动与 Wwise Profiler 截图，不要求为这个轻量工具单独录制视频。
+- 2026.1 仅作为独立研究环境；Demo 在 Audiokinetic 发布兼容版本前继续锁定 2025.1 Integration。

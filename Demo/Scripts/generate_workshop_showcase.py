@@ -5,6 +5,7 @@ import unreal
 
 BASE_MAP = "/Game/ResonanceForge/Demo/Maps/L_RF_PhysicsLab"
 OPTIONAL_MAP = "/Game/CarpentersWorkshop/ResonanceForge/L_RF_WorkshopShowcase"
+SHARED_PROFILE_PATH = "/Game/ResonanceForge/Profiles/DA_RF_LongTailWoodString"
 REPORT_PATH = os.path.join(
     unreal.Paths.project_saved_dir(),
     "ResonanceForge",
@@ -14,6 +15,9 @@ REPORT_PATH = os.path.join(
 asset_library = unreal.EditorAssetLibrary
 level_subsystem = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 actor_subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+shared_waveguide_profile = unreal.load_asset(SHARED_PROFILE_PATH)
+if shared_waveguide_profile is None:
+    raise RuntimeError(f"Fab 地图缺少共享配方：{SHARED_PROFILE_PATH}")
 
 
 def asset(path):
@@ -85,6 +89,7 @@ text_layout = {
     "RF_标题": (unreal.Vector(650, 587, 552), 32),
     "RF_副标题": (unreal.Vector(650, 586, 510), 13),
 }
+waveguide_profile_path = None
 for actor in actor_subsystem.get_all_level_actors():
     label = actor.get_actor_label()
     if label.startswith("RF_基础工作台_") or label.startswith("RF_Fab_"):
@@ -109,6 +114,12 @@ for actor in actor_subsystem.get_all_level_actors():
         actor.light_component.set_intensity(260.0)
     elif label == "RF_主光":
         actor.light_component.set_intensity(1.55)
+    elif label == "RF_04_数字波导弦":
+        actor.native_synth.apply_material_profile(shared_waveguide_profile)
+        waveguide_profile_path = actor.native_synth.get_editor_property("material_profile").get_path_name()
+
+if not waveguide_profile_path or waveguide_profile_path.split(".")[0] != SHARED_PROFILE_PATH:
+    raise RuntimeError(f"Fab 数字弦共享配方挂载失败：{waveguide_profile_path}")
 
 props = [
     spawn_prop(
@@ -164,6 +175,7 @@ report = {
     "prop_count": len(props),
     "props": [actor.get_actor_label() for actor in props],
     "public_repository_dependency": False,
+    "shared_profile": waveguide_profile_path,
     "status": "success",
 }
 os.makedirs(os.path.dirname(REPORT_PATH), exist_ok=True)

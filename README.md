@@ -8,7 +8,7 @@
 ![Unreal Engine 5.8](https://img.shields.io/badge/Unreal_Engine-5.8.1-0E1128?logo=unrealengine&logoColor=white)
 ![Wwise 2025.1](https://img.shields.io/badge/Wwise-2025.1-00549F)
 ![Platform](https://img.shields.io/badge/Platform-Windows_Editor-0078D4?logo=windows&logoColor=white)
-![Version](https://img.shields.io/badge/Version-0.8.1-D96B2B)
+![Version](https://img.shields.io/badge/Version-0.9.0-D96B2B)
 ![License](https://img.shields.io/badge/License-MIT-2EA44F)
 
 </div>
@@ -16,6 +16,16 @@
 ![共振铸造台声学工坊](docs/images/resonance-forge-workshop.png)
 
 > 这不是一个“替你生成音效”的黑盒按钮，而是一套可检查的声源原型：选择场景对象，施加碰撞或 MIDI 激励，决定共振模型，再把同一组参数同步交给 UE Synth 与 Wwise。
+
+## 工作台实机
+
+下面两张图由插件自身的 Slate 截图链路直接导出，不依赖外部录屏或界面拼接。第一张呈现对象、激励、共振与 Wwise 出口，以及当前声纹和紫色参考声纹的 A/B 关系。
+
+![共振铸造台工作台主视图](docs/images/resonance-forge-workbench.png)
+
+第二张呈现数字波导弦的“弦床”、材质听感、RTPC 塑形、本地配方槽与团队 Content 资产铸印。
+
+![共振铸造台弦床与配方架](docs/images/resonance-forge-workbench-details.png)
 
 ## 项目亮点
 
@@ -105,7 +115,7 @@ flowchart LR
 3. 点击“读取当前选择”。
 4. 选择共振模型和材质预设。
 5. 调整激励能量、明亮度与共振尺度，观察“声纹炉膛”的轮廓变化。
-6. 点击“钉住当前声纹”，再切换材质或参数，比较橙色参考轮廓与当前声纹。
+6. 点击“钉住当前声纹”，再切换材质或参数，比较紫色参考轮廓与当前声纹。
 7. 点击“交换并试听 A/B”在两版之间往返切换；每次交换都会立即触发当前版本。
 8. 使用“配方架”把满意的版本存入甲、乙或丙槽，需要时一键召回到当前对象。
 9. 有 MIDI 键盘时，在“演奏入口”选择设备并点击“连接”；弹奏键盘或推动调制轮观察 Note、Velocity 与 CC1。

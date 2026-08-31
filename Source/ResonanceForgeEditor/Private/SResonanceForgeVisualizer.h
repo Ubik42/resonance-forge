@@ -140,7 +140,7 @@ public:
 
         if (HasReference.Get(false))
         {
-            DrawFingerprint(ReferenceModelType.Get(EResonanceModelType::ModalImpact), ReferencePresetName.Get(NAME_None), ReferenceEnergy.Get(0.0f), ReferenceBrightness.Get(0.0f), ReferenceSize.Get(0.0f), ReferenceSustain.Get(0.90f), ReferenceDamping.Get(0.36f), ReferenceCoupling.Get(0.22f), FLinearColor(0.92f, 0.52f, 0.18f, 0.62f), 1.2f, LayerId + 2);
+            DrawFingerprint(ReferenceModelType.Get(EResonanceModelType::ModalImpact), ReferencePresetName.Get(NAME_None), ReferenceEnergy.Get(0.0f), ReferenceBrightness.Get(0.0f), ReferenceSize.Get(0.0f), ReferenceSustain.Get(0.90f), ReferenceDamping.Get(0.36f), ReferenceCoupling.Get(0.22f), FLinearColor(0.72f, 0.42f, 1.0f, 0.78f), 1.6f, LayerId + 2);
         }
         DrawFingerprint(ModelType.Get(EResonanceModelType::ModalImpact), PresetName.Get(TEXT("拉丝钢")), EnergyValue, BrightnessValue, ScaleValue, Sustain.Get(0.90f), Damping.Get(0.36f), Coupling.Get(0.22f), Accent, 2.6f, LayerId + 3);
 

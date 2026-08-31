@@ -28,6 +28,9 @@ private:
     FReply ConnectSelectedMidiDevice();
     FReply DisconnectMidiDevice();
     FReply ForgeSharedRecipeAsset();
+    FReply CaptureWorkbenchScreenshot();
+    void QueueAutomatedCapture();
+    bool CaptureWorkbenchImage(const FString& FileName);
     FReply OpenDemoMap();
     FText GetSelectionText() const;
     FText GetExcitationText() const;
@@ -62,6 +65,9 @@ private:
     TArray<int32> MidiDeviceIds;
     TSharedPtr<FString> SelectedMidiDevice;
     TSharedPtr<SComboBox<TSharedPtr<FString>>> MidiDeviceCombo;
+    TWeakPtr<SWidget> WorkbenchWidget;
+    TSharedPtr<class SScrollBox> WorkbenchScrollBox;
+    class IConsoleObject* CaptureConsoleCommand = nullptr;
     FString SharedRecipeName = TEXT("新声学配方");
     FText LastStatus;
 };

@@ -3,13 +3,21 @@
 
 #include "Editor.h"
 #include "AssetRegistry/AssetRegistryModule.h"
-#include "Engine/Selection.h"
+#include "Containers/Ticker.h"
 #include "EngineUtils.h"
+#include "Framework/Application/SlateApplication.h"
+#include "HAL/IConsoleManager.h"
+#include "ImageUtils.h"
+#include "Engine/Selection.h"
 #include "Framework/Docking/TabManager.h"
 #include "Materials/MaterialInterface.h"
 #include "MIDIDeviceManager.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/CommandLine.h"
+#include "Misc/FileHelper.h"
 #include "Misc/PackageName.h"
+#include "Misc/Parse.h"
+#include "Misc/Paths.h"
 #include "ObjectTools.h"
 #include "../../ResonanceForgeWwise/Public/ResonanceForgeImpactInstrumentActor.h"
 #include "../../ResonanceForgeWwise/Public/ResonanceForgeWwiseBridgeComponent.h"
@@ -73,13 +81,119 @@ void FResonanceForgeEditorModule::StartupModule()
 
     UToolMenus::RegisterStartupCallback(
         FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FResonanceForgeEditorModule::RegisterMenus));
+
+    CaptureConsoleCommand = IConsoleManager::Get().RegisterConsoleCommand(
+        TEXT("ResonanceForge.CaptureWorkbench"),
+        TEXT("打开共振铸造台并将 Slate 工作台导出为 docs/images/resonance-forge-workbench.png"),
+        FConsoleCommandDelegate::CreateRaw(this, &FResonanceForgeEditorModule::QueueAutomatedCapture),
+        ECVF_Default);
 }
 
 void FResonanceForgeEditorModule::ShutdownModule()
 {
     UToolMenus::UnRegisterStartupCallback(this);
     UToolMenus::UnregisterOwner(this);
+    if (CaptureConsoleCommand)
+    {
+        IConsoleManager::Get().UnregisterConsoleObject(CaptureConsoleCommand);
+        CaptureConsoleCommand = nullptr;
+    }
     FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(ResonanceForgeEditor::TabName);
+}
+
+void FResonanceForgeEditorModule::QueueAutomatedCapture()
+{
+    OpenDemoMap();
+    if (GEditor)
+    {
+        UWorld* World = GEditor->GetEditorWorldContext().World();
+        GEditor->SelectNone(false, true, false);
+        if (World)
+        {
+            for (TActorIterator<AResonanceForgeImpactInstrumentActor> It(World); It; ++It)
+            {
+                if (It->GetActorLabel() == TEXT("RF_04_数字波导弦"))
+                {
+                    GEditor->SelectActor(*It, true, true, true);
+                    break;
+                }
+            }
+        }
+    }
+    SyncFromSelection();
+    if (ActiveModel == EResonanceModelType::WaveguideString)
+    {
+        PinReference();
+        WaveguideSustain = 0.72f;
+        WaveguideDamping = 0.52f;
+        WaveguideCoupling = 0.26f;
+        ApplyWaveguideParameters();
+    }
+    FGlobalTabmanager::Get()->TryInvokeTab(ResonanceForgeEditor::TabName);
+
+    FTSTicker::GetCoreTicker().AddTicker(
+        FTickerDelegate::CreateLambda([this](float)
+        {
+            CaptureWorkbenchScreenshot();
+            if (WorkbenchScrollBox.IsValid())
+            {
+                WorkbenchScrollBox->ScrollToEnd();
+            }
+            FTSTicker::GetCoreTicker().AddTicker(
+                FTickerDelegate::CreateLambda([this](float)
+                {
+                    CaptureWorkbenchImage(TEXT("resonance-forge-workbench-details.png"));
+                    if (FParse::Param(FCommandLine::Get(), TEXT("ResonanceForgeCaptureAndExit")))
+                    {
+                        FPlatformMisc::RequestExit(false);
+                    }
+                    return false;
+                }),
+                1.0f);
+            return false;
+        }),
+        3.0f);
+}
+
+FReply FResonanceForgeEditorModule::CaptureWorkbenchScreenshot()
+{
+    CaptureWorkbenchImage(TEXT("resonance-forge-workbench.png"));
+    return FReply::Handled();
+}
+
+bool FResonanceForgeEditorModule::CaptureWorkbenchImage(const FString& FileName)
+{
+    const TSharedPtr<SWidget> Widget = WorkbenchWidget.Pin();
+    if (!Widget.IsValid() || !FSlateApplication::IsInitialized())
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "CaptureUnavailable", "工作台截图失败 · 请先让插件面板保持可见");
+        return false;
+    }
+
+    TArray<FColor> Pixels;
+    FIntVector ImageSize;
+    if (!FSlateApplication::Get().TakeScreenshot(Widget.ToSharedRef(), Pixels, ImageSize) || Pixels.IsEmpty())
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "CaptureFailed", "工作台截图失败 · 当前 Slate 窗口尚未完成绘制");
+        return false;
+    }
+
+    TArray64<uint8> PngData;
+    FImageUtils::PNGCompressImageArray(
+        ImageSize.X,
+        ImageSize.Y,
+        TArrayView64<const FColor>(Pixels.GetData(), Pixels.Num()),
+        PngData);
+    const FString OutputPath = FPaths::ConvertRelativePathToFull(
+        FPaths::Combine(FPaths::ProjectDir(), TEXT(".."), TEXT("docs"), TEXT("images"), FileName));
+    IFileManager::Get().MakeDirectory(*FPaths::GetPath(OutputPath), true);
+    const bool bSaved = FFileHelper::SaveArrayToFile(PngData, *OutputPath);
+    LastStatus = bSaved
+        ? FText::Format(
+            NSLOCTEXT("ResonanceForge", "CaptureSaved", "工作台截图已导出 · docs/images/{0}"),
+            FText::FromString(FileName))
+        : NSLOCTEXT("ResonanceForge", "CaptureWriteFailed", "工作台截图生成成功，但 PNG 写入失败");
+    return bSaved;
 }
 
 void FResonanceForgeEditorModule::RegisterMenus()
@@ -256,7 +370,7 @@ FReply FResonanceForgeEditorModule::PinReference()
     ReferenceSustain = WaveguideSustain;
     ReferenceDamping = WaveguideDamping;
     ReferenceCoupling = WaveguideCoupling;
-    LastStatus = NSLOCTEXT("ResonanceForge", "ReferencePinned", "参考声纹已钉住 · 继续换材质或调整参数，橙色轮廓会保留用于比较");
+    LastStatus = NSLOCTEXT("ResonanceForge", "ReferencePinned", "参考声纹已钉住 · 继续换材质或调整参数，紫色轮廓会保留用于比较");
     return FReply::Handled();
 }
 
@@ -888,12 +1002,12 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
             ];
     };
 
-    return SNew(SDockTab)
+    TSharedRef<SDockTab> Workbench = SNew(SDockTab)
         .TabRole(ETabRole::NomadTab)
         [
             SNew(SBorder).BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel"))).BorderBackgroundColor(Panel).Padding(0)
             [
-                SNew(SScrollBox)
+                SAssignNew(WorkbenchScrollBox, SScrollBox)
                 + SScrollBox::Slot()
                 [
                     SNew(SVerticalBox)
@@ -907,7 +1021,13 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)[SNew(STextBlock).Text(NSLOCTEXT("ResonanceForge", "Subtitle", "把碰撞与拨弦，锻造成能进入游戏的声音。")).ColorAndOpacity(Muted)]
                         ]
                         + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-                        [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "OpenMap", "打开试听场景")).ContentPadding(FMargin(14, 8)).OnClicked_Raw(this, &FResonanceForgeEditorModule::OpenDemoMap)]
+                        [
+                            SNew(SHorizontalBox)
+                            + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 8, 0)
+                            [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "CaptureWorkbench", "导出工作台截图")).ContentPadding(FMargin(12, 8)).OnClicked_Raw(this, &FResonanceForgeEditorModule::CaptureWorkbenchScreenshot)]
+                            + SHorizontalBox::Slot().AutoWidth()
+                            [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "OpenMap", "打开试听场景")).ContentPadding(FMargin(14, 8)).OnClicked_Raw(this, &FResonanceForgeEditorModule::OpenDemoMap)]
+                        ]
                     ]
                     + SVerticalBox::Slot().AutoHeight().Padding(22, 0, 22, 12)
                     [
@@ -1133,6 +1253,8 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                 ]
             ]
         ];
+    WorkbenchWidget = Workbench->GetContent();
+    return Workbench;
 }
 
 IMPLEMENT_MODULE(FResonanceForgeEditorModule, ResonanceForgeEditor)
