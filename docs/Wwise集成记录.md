@@ -27,6 +27,7 @@ UE 5.8 Demo 使用 Launcher 当前提供的 2025.1 Integration。2026.1 保留�
 8. 修正 `RootOutputPath` 后运行 Wwise Reconcile，成功创建 6 个 UE Wwise 资源和 Init Bank。
 9. 在 `RF_Impact_Metal` 上建立三条实际 RTPC 曲线：Energy → Volume、Brightness → Low-pass、ObjectSize → Pitch。
 10. 配置脚本支持重复执行：已有 WAV 不再重复导入，相同曲线不重建 GUID；连续两次运行的 Work Unit SHA-256 保持一致。
+11. UE 工作台加入“锤击标尺”与“Wwise 出口刻度”：三档力度可直接触发试听，并按曲线控制点显示近似的 dB、Low-pass 与 cent。
 
 ## 当前 Wwise 对象
 
@@ -48,6 +49,8 @@ UE 5.8 Demo 使用 Launcher 当前提供的 2025.1 Integration。2026.1 保留�
 | `RF_ObjectSize` | Voice Pitch | `0:+420 cent`、`50:0`、`100:-520 cent` |
 
 明亮度曲线采用反向 Low-pass：低明亮度保留较强低通，高明亮度逐渐打开高频。尺度曲线以 `50` 为原始音高，小物体升高、大物体降低。
+
+工作台刻度用于快速判断设计方向，不代替 Wwise 的最终曲线求值或 Profiler。它复用相同控制点做近似插值，因此面板明确使用“约”字样。
 
 ## 可重复构建脚本
 

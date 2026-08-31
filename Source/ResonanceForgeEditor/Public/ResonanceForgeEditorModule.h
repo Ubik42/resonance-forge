@@ -19,6 +19,7 @@ private:
     void ApplyWaveguideParameters();
     FReply SyncFromSelection();
     FReply TriggerPreview();
+    FReply TriggerStrikePreset(float Energy, float Brightness, const FText& GestureName);
     FReply PinReference();
     FReply SwapAndPreviewReference();
     FReply ClearReference();
@@ -41,6 +42,9 @@ private:
     FText GetRecipeSlotText(int32 SlotIndex) const;
     FText GetMidiStatusText() const;
     FText GetWwiseStatusText() const;
+    FText GetWwiseVolumeText() const;
+    FText GetWwiseLowpassText() const;
+    FText GetWwisePitchText() const;
     bool HasRecipeSlot(int32 SlotIndex) const;
     bool ReadRecipeSlot(int32 SlotIndex, FName& OutPreset, EResonanceModelType& OutModel, float& OutEnergy, float& OutBrightness, float& OutSize, float& OutSustain, float& OutDamping, float& OutCoupling) const;
 

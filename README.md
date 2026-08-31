@@ -8,7 +8,7 @@
 ![Unreal Engine 5.8](https://img.shields.io/badge/Unreal_Engine-5.8.1-0E1128?logo=unrealengine&logoColor=white)
 ![Wwise 2025.1](https://img.shields.io/badge/Wwise-2025.1-00549F)
 ![Platform](https://img.shields.io/badge/Platform-Windows_Editor-0078D4?logo=windows&logoColor=white)
-![Version](https://img.shields.io/badge/Version-0.10.0-D96B2B)
+![Version](https://img.shields.io/badge/Version-0.11.0-D96B2B)
 ![License](https://img.shields.io/badge/License-MIT-2EA44F)
 
 </div>
@@ -23,7 +23,7 @@
 
 ![共振铸造台工作台主视图](docs/images/resonance-forge-workbench.png)
 
-第二张呈现数字波导弦的“弦床”、材质听感、RTPC 塑形、本地配方槽与团队 Content 资产铸印。
+第二张呈现数字波导弦的“弦床”、材质听感、三档锤击标尺、Wwise 出口刻度、本地配方槽与团队 Content 资产铸印。
 
 ![共振铸造台弦床与配方架](docs/images/resonance-forge-workbench-details.png)
 
@@ -32,6 +32,7 @@
 - **两类实时物理声源**：模态撞击体与八复音数字波导弦。
 - **真实场景输入**：碰撞冲量、相对速度和物体尺寸直接影响声音。
 - **UE × Wwise 双路径**：UE 原生合成可独立试听，同时发布 Wwise Event 与 3 个 RTPC。
+- **锤击标尺与出口刻度**：轻触、常规、重击三档手势一键试听，并把 RTPC 曲线翻译成近似的 dB、低通与 cent 读数。
 - **可演奏**：面板可发现并连接 MIDI 输入设备；Note On 控制音高与力度，CC1 控制音色明亮度，并显示实时演奏状态。
 - **声纹炉膛**：用随模型、材质与演奏参数实时变化的声学指纹理解声音，而不是只看抽象滑杆。
 - **A/B 声纹比较**：钉住一次参考声纹，再更换材质或参数；“交换并试听 A/B”可在两个版本间往返切换。
@@ -114,14 +115,15 @@ flowchart LR
 2. 在场景中选择钢、木、玻璃砧座或数字波导弦。
 3. 点击“读取当前选择”。
 4. 选择共振模型和材质预设。
-5. 调整激励能量、明亮度与共振尺度，观察“声纹炉膛”的轮廓变化。
-6. 点击“钉住当前声纹”，再切换材质或参数，比较紫色参考轮廓与当前声纹。
-7. 点击“交换并试听 A/B”在两版之间往返切换；每次交换都会立即触发当前版本。
-8. 使用“配方架”把满意的版本存入甲、乙或丙槽，需要时一键召回到当前对象。
-9. 有 MIDI 键盘时，在“演奏入口”选择设备并点击“连接”；弹奏键盘或推动调制轮观察 Note、Velocity 与 CC1。
-10. 切换到“数字波导弦”，调节弦床中的回响长度、弦路阻尼和箱体耦合，观察声纹与听感同步变化。
-11. 为满意版本输入名称，点击“铸印为 Content 资产”，将它转成团队可复用的正式配方。
-12. 进入 PIE，观察落球碰撞并在 Wwise Profiler 中检查 RTPC。
+5. 先点“轻触 / 常规 / 重击”建立力度参照；每一档都会立即试听，并在“Wwise 出口刻度”显示近似的响度、低通和移调结果。
+6. 再细调激励能量、明亮度与共振尺度，观察声纹轮廓和出口刻度同步变化。
+7. 点击“钉住当前声纹”，再切换材质或参数，比较紫色参考轮廓与当前声纹。
+8. 点击“交换并试听 A/B”在两版之间往返切换；每次交换都会立即触发当前版本。
+9. 使用“配方架”把满意的版本存入甲、乙或丙槽，需要时一键召回到当前对象。
+10. 有 MIDI 键盘时，在“演奏入口”选择设备并点击“连接”；弹奏键盘或推动调制轮观察 Note、Velocity 与 CC1。
+11. 切换到“数字波导弦”，调节弦床中的回响长度、弦路阻尼和箱体耦合，观察声纹与听感同步变化。
+12. 为满意版本输入名称，点击“铸印为 Content 资产”，将它转成团队可复用的正式配方。
+13. 进入 PIE，观察落球碰撞并在 Wwise Profiler 中检查 RTPC。
 
 配方槽写入 Unreal 的本机工程用户设置，不会生成需要提交的团队资产；适合保存个人试听草案。需要团队共享的正式声学资产仍应使用 `UResonanceMaterialProfile`。
 
@@ -179,6 +181,8 @@ flowchart LR
 | `RF_ObjectSize` | 场景对象共振尺度 | Voice Pitch | `+420 → -520 cent` |
 
 曲线由 `scripts/provision_wwise_project.ps1` 通过 WAAPI 写入。脚本会先读取现有声音对象，并逐层核对 RTPC 与 Curve；配置相同时不重复导入 WAV，也不重建曲线 GUID。
+
+工作台中的“Wwise 出口刻度”按这些控制点近似显示当前 dB、Low-pass 与 cent，方便不打开 Authoring 时快速判断调音方向；最终值仍由 Wwise 运行时按实际曲线求值。
 
 ## MIDI 映射
 

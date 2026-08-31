@@ -49,6 +49,12 @@ namespace ResonanceForgeEditor
     static constexpr float WaveguideDecayMin = 0.9700f;
     static constexpr float WaveguideDecayMax = 0.9995f;
 
+    float SmoothCurve(const float Alpha)
+    {
+        const float T = FMath::Clamp(Alpha, 0.0f, 1.0f);
+        return T * T * (3.0f - 2.0f * T);
+    }
+
     TSharedRef<SWidget> WorkspaceTitle(const FText& Title, const FText& Detail)
     {
         return SNew(SVerticalBox)
@@ -355,6 +361,33 @@ FReply FResonanceForgeEditorModule::TriggerPreview()
     else
     {
         LastStatus = NSLOCTEXT("ResonanceForge", "PreviewMissing", "无法预听 · 场景中没有可用的共振体");
+    }
+    return FReply::Handled();
+}
+
+FReply FResonanceForgeEditorModule::TriggerStrikePreset(
+    const float Energy,
+    const float Brightness,
+    const FText& GestureName)
+{
+    PreviewEnergy = FMath::Clamp(Energy, 0.0f, 1.0f);
+    PreviewBrightness = FMath::Clamp(Brightness, 0.0f, 1.0f);
+
+    if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
+    {
+        Instrument->ObjectSize = PreviewSize;
+        ApplyWaveguideParameters();
+        Instrument->TriggerInstrument(PreviewEnergy, PreviewBrightness, 60);
+        LastStatus = FText::Format(
+            NSLOCTEXT("ResonanceForge", "StrikePresetTriggered", "{0}已触发 · {1} / {2} / {3}"),
+            GestureName,
+            GetWwiseVolumeText(),
+            GetWwiseLowpassText(),
+            GetWwisePitchText());
+    }
+    else
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "StrikePresetMissing", "无法试听锤击标尺 · 请先打开试听场景");
     }
     return FReply::Handled();
 }
@@ -695,6 +728,51 @@ FText FResonanceForgeEditorModule::GetWwiseStatusText() const
         : FText::FromString(Status);
 }
 
+FText FResonanceForgeEditorModule::GetWwiseVolumeText() const
+{
+    const float Energy = FMath::Clamp(PreviewEnergy, 0.0f, 1.0f);
+    float VolumeDb = 0.0f;
+    if (Energy <= 0.20f)
+    {
+        const float T = Energy / 0.20f;
+        VolumeDb = FMath::Lerp(-24.0f, -12.0f, T * T);
+    }
+    else if (Energy <= 0.55f)
+    {
+        VolumeDb = FMath::Lerp(-12.0f, -4.0f, ResonanceForgeEditor::SmoothCurve((Energy - 0.20f) / 0.35f));
+    }
+    else
+    {
+        VolumeDb = FMath::Lerp(-4.0f, 0.0f, FMath::Sqrt((Energy - 0.55f) / 0.45f));
+    }
+    return FText::FromString(FString::Printf(TEXT("响度约 %.1f dB"), VolumeDb));
+}
+
+FText FResonanceForgeEditorModule::GetWwiseLowpassText() const
+{
+    const float Brightness = FMath::Clamp(PreviewBrightness, 0.0f, 1.0f);
+    float Lowpass = 0.0f;
+    if (Brightness <= 0.45f)
+    {
+        const float T = Brightness / 0.45f;
+        Lowpass = FMath::Lerp(82.0f, 34.0f, FMath::Pow(T, 0.25f));
+    }
+    else
+    {
+        Lowpass = FMath::Lerp(34.0f, 0.0f, ResonanceForgeEditor::SmoothCurve((Brightness - 0.45f) / 0.55f));
+    }
+    return FText::FromString(FString::Printf(TEXT("低通约 %.0f / 100"), Lowpass));
+}
+
+FText FResonanceForgeEditorModule::GetWwisePitchText() const
+{
+    const float Size = FMath::Clamp(PreviewSize, 0.0f, 1.0f);
+    const float PitchCent = Size <= 0.50f
+        ? FMath::Lerp(420.0f, 0.0f, ResonanceForgeEditor::SmoothCurve(Size / 0.50f))
+        : FMath::Lerp(0.0f, -520.0f, ResonanceForgeEditor::SmoothCurve((Size - 0.50f) / 0.50f));
+    return FText::FromString(FString::Printf(TEXT("移调约 %+.0f cent"), PitchCent));
+}
+
 FReply FResonanceForgeEditorModule::ForgeSharedRecipeAsset()
 {
     AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
@@ -948,6 +1026,26 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
             [
                 SNew(SSlider).Value_Lambda([Value]{ return *Value; }).OnValueChanged_Lambda([Value](float NewValue){ *Value = NewValue; })
                 .SliderBarColor(Color).SliderHandleColor(Color)
+            ];
+    };
+
+    auto OutputReading = [](const FText& Label, const TAttribute<FText>& Reading, const FLinearColor& Color)
+    {
+        return SNew(SHorizontalBox)
+            + SHorizontalBox::Slot().AutoWidth().Padding(0, 2, 10, 2)
+            [
+                SNew(SBorder)
+                .BorderImage(FAppStyle::GetBrush(TEXT("WhiteBrush")))
+                .BorderBackgroundColor(Color)
+                .Padding(FMargin(2, 0))
+            ]
+            + SHorizontalBox::Slot().FillWidth(1.0f)
+            [
+                SNew(SVerticalBox)
+                + SVerticalBox::Slot().AutoHeight()
+                [SNew(STextBlock).Text(Label).ColorAndOpacity(Muted)]
+                + SVerticalBox::Slot().AutoHeight().Padding(0, 3, 0, 0)
+                [SNew(STextBlock).Text(Reading).ColorAndOpacity(Color).Font(FAppStyle::GetFontStyle(TEXT("BoldFont")))]
             ];
     };
 
@@ -1207,6 +1305,58 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 12, 0, 0)[ParameterRow(NSLOCTEXT("ResonanceForge", "Energy", "激励能量"), FText::FromString(TEXT("RF_ImpactEnergy")), &PreviewEnergy, Steel)]
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 12, 0, 0)[ParameterRow(NSLOCTEXT("ResonanceForge", "Brightness", "明亮度"), FText::FromString(TEXT("RF_ImpactBrightness")), &PreviewBrightness, Glass)]
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 12, 0, 0)[ParameterRow(NSLOCTEXT("ResonanceForge", "Size", "共振尺度"), FText::FromString(TEXT("RF_ObjectSize")), &PreviewSize, Wood)]
+                        ]
+                    ]
+                    + SVerticalBox::Slot().AutoHeight().Padding(22, 4, 22, 12)
+                    [
+                        SNew(SBorder)
+                        .BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel")))
+                        .BorderBackgroundColor(FLinearColor(0.050f, 0.032f, 0.018f, 1.0f))
+                        .Padding(FMargin(14, 12))
+                        [
+                            SNew(SVerticalBox)
+                            + SVerticalBox::Slot().AutoHeight()
+                            [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "StrikeScale", "锤击标尺"), NSLOCTEXT("ResonanceForge", "StrikeScaleDetail", "轻触、常规、重击会重设能量与明亮度并立即试听；共振尺度保持不变。"))]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
+                            [
+                                SNew(SHorizontalBox)
+                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(0, 0, 5, 0)
+                                [
+                                    SNew(SButton)
+                                    .Text(NSLOCTEXT("ResonanceForge", "StrikeLight", "轻触  ·  克制起音"))
+                                    .ContentPadding(FMargin(12, 10))
+                                    .ButtonColorAndOpacity(FLinearColor(0.12f, 0.20f, 0.22f, 1.0f))
+                                    .OnClicked_Lambda([this]{ return TriggerStrikePreset(0.22f, 0.30f, NSLOCTEXT("ResonanceForge", "StrikeLightStatus", "轻触")); })
+                                ]
+                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(5, 0)
+                                [
+                                    SNew(SButton)
+                                    .Text(NSLOCTEXT("ResonanceForge", "StrikeRegular", "常规  ·  清晰主体"))
+                                    .ContentPadding(FMargin(12, 10))
+                                    .ButtonColorAndOpacity(FLinearColor(0.22f, 0.19f, 0.12f, 1.0f))
+                                    .OnClicked_Lambda([this]{ return TriggerStrikePreset(0.58f, 0.55f, NSLOCTEXT("ResonanceForge", "StrikeRegularStatus", "常规锤击")); })
+                                ]
+                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(5, 0, 0, 0)
+                                [
+                                    SNew(SButton)
+                                    .Text(NSLOCTEXT("ResonanceForge", "StrikeHeavy", "重击  ·  明亮爆发"))
+                                    .ContentPadding(FMargin(12, 10))
+                                    .ButtonColorAndOpacity(FLinearColor(0.34f, 0.12f, 0.045f, 1.0f))
+                                    .OnClicked_Lambda([this]{ return TriggerStrikePreset(0.92f, 0.80f, NSLOCTEXT("ResonanceForge", "StrikeHeavyStatus", "重击")); })
+                                ]
+                            ]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 18, 0, 0)
+                            [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "WwiseOutputScale", "Wwise 出口刻度"), NSLOCTEXT("ResonanceForge", "WwiseOutputScaleDetail", "基于已写入曲线控制点的近似读数；实际输出由 Wwise 运行时求值。"))]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
+                            [
+                                SNew(SHorizontalBox)
+                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(0, 0, 10, 0)
+                                [OutputReading(NSLOCTEXT("ResonanceForge", "WwiseVolumeLabel", "RF_ImpactEnergy → Volume"), TAttribute<FText>::CreateRaw(this, &FResonanceForgeEditorModule::GetWwiseVolumeText), Steel)]
+                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(10, 0)
+                                [OutputReading(NSLOCTEXT("ResonanceForge", "WwiseLowpassLabel", "RF_ImpactBrightness → Low-pass"), TAttribute<FText>::CreateRaw(this, &FResonanceForgeEditorModule::GetWwiseLowpassText), Glass)]
+                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(10, 0, 0, 0)
+                                [OutputReading(NSLOCTEXT("ResonanceForge", "WwisePitchLabel", "RF_ObjectSize → Pitch"), TAttribute<FText>::CreateRaw(this, &FResonanceForgeEditorModule::GetWwisePitchText), Wood)]
+                            ]
                         ]
                     ]
                     + SVerticalBox::Slot().AutoHeight().Padding(22, 4, 22, 12)
