@@ -60,6 +60,7 @@ void UResonanceForgeSynthComponent::Strike(
         PitchScale,
         FMath::Clamp(StrikePosition, 0.0f, 1.0f),
         false,
+        false,
         false
     });
 }
@@ -84,6 +85,7 @@ void UResonanceForgeSynthComponent::NoteOn(
         PitchScale,
         FMath::Clamp(StrikePosition, 0.0f, 1.0f),
         true,
+        false,
         false
     });
 }
@@ -94,6 +96,14 @@ void UResonanceForgeSynthComponent::NoteOff(const int32 MidiNote)
     ReleaseEvent.MidiNote = FMath::Clamp(MidiNote, 0, 127);
     ReleaseEvent.bNoteOff = true;
     PendingStrikes.Enqueue(ReleaseEvent);
+}
+
+void UResonanceForgeSynthComponent::SetBowExpression(const float NormalizedExpression)
+{
+    FStrikeEvent ExpressionEvent{};
+    ExpressionEvent.Brightness = FMath::Clamp(NormalizedExpression, 0.0f, 1.0f);
+    ExpressionEvent.bExpressionChange = true;
+    PendingStrikes.Enqueue(ExpressionEvent);
 }
 
 TArray<FName> UResonanceForgeSynthComponent::GetBuiltInPresetNames()
@@ -209,6 +219,28 @@ bool UResonanceForgeSynthComponent::RenderHeldBowForTest(
     OnGenerateAudio(OutSamples.GetData(), SafeHoldFrames * NumChannels);
     NoteOff(MidiNote);
     OnGenerateAudio(OutSamples.GetData() + SafeHoldFrames * NumChannels, SafeReleaseFrames * NumChannels);
+    return !OutSamples.IsEmpty();
+}
+
+bool UResonanceForgeSynthComponent::RenderBowExpressionForTest(
+    const int32 MidiNote,
+    const int32 PhaseFrames,
+    TArray<float>& OutSamples)
+{
+    RenderSampleRate = 48000.0f;
+    RebuildModesFrom(GetEffectiveModes());
+    InitializeWaveguideVoices();
+    SynthesisModel = EResonanceModelType::WaveguideString;
+    ExcitationType = EResonanceExcitationType::Bow;
+    ActiveModes.Reset();
+
+    const int32 SafePhaseFrames = FMath::Max(1, PhaseFrames);
+    OutSamples.SetNumZeroed(SafePhaseFrames * 3 * NumChannels);
+    NoteOn(0.88f, 0.18f, MidiNote);
+    OnGenerateAudio(OutSamples.GetData(), SafePhaseFrames * NumChannels);
+    OnGenerateAudio(OutSamples.GetData() + SafePhaseFrames * NumChannels, SafePhaseFrames * NumChannels);
+    SetBowExpression(0.92f);
+    OnGenerateAudio(OutSamples.GetData() + SafePhaseFrames * 2 * NumChannels, SafePhaseFrames * NumChannels);
     return !OutSamples.IsEmpty();
 }
 #endif
@@ -394,8 +426,9 @@ void UResonanceForgeSynthComponent::StartWaveguideVoice(const FStrikeEvent& Even
     Target->BowSamplesRemaining = Target->BowSamplesTotal;
     Target->BowSamplesElapsed = 0;
     Target->BowReleaseSamplesRemaining = 0;
-    Target->BowVelocity = FMath::Lerp(0.035f, 0.22f, Event.Brightness);
-    Target->BowPressure = FMath::Lerp(0.12f, 0.42f, FMath::Clamp(Event.Energy, 0.0f, 1.0f));
+    Target->BowEnergy = FMath::Clamp(Event.Energy, 0.0f, 1.0f);
+    Target->BowExpression = FMath::Clamp(Event.Brightness, 0.0f, 1.0f);
+    Target->TargetBowExpression = Target->BowExpression;
     Target->bActive = true;
 
     float PreviousNoise = 0.0f;
@@ -462,6 +495,11 @@ float UResonanceForgeSynthComponent::RenderWaveguideVoices()
         const bool bBowActive = Voice.ExcitationType == EResonanceExcitationType::Bow && (bAutoBowActive || bHeldBowActive);
         if (bBowActive)
         {
+            const float ExpressionSmoothing = 1.0f - FMath::Exp(-1.0f / FMath::Max(1.0f, RenderSampleRate * 0.018f));
+            Voice.BowExpression = FMath::Lerp(Voice.BowExpression, Voice.TargetBowExpression, ExpressionSmoothing);
+            const float BowVelocity = FMath::Lerp(0.025f, 0.24f, Voice.BowExpression);
+            const float BowPressure = FMath::Lerp(0.07f, 0.46f, FMath::Sqrt(Voice.BowExpression))
+                * FMath::Lerp(0.62f, 1.18f, Voice.BowEnergy);
             const int32 BowIndex = (Voice.Cursor + Voice.BowOffset) % Voice.DelaySamples;
             const int32 BowNeighbor = (BowIndex + Voice.DelaySamples - 1) % Voice.DelaySamples;
             const float StringVelocity = Voice.DelayBuffer[BowIndex] - Voice.DelayBuffer[BowNeighbor];
@@ -476,12 +514,12 @@ float UResonanceForgeSynthComponent::RenderWaveguideVoices()
             const float StrokeEnvelope = FMath::Min(
                 Attack * Attack * (3.0f - 2.0f * Attack),
                 Release * Release * (3.0f - 2.0f * Release));
-            const float RelativeVelocity = Voice.BowVelocity * StrokeEnvelope - StringVelocity;
+            const float RelativeVelocity = BowVelocity * StrokeEnvelope - StringVelocity;
             const float FrictionTable = FMath::Clamp(
                 FMath::Pow(FMath::Abs(RelativeVelocity) * 3.8f + 0.75f, -4.0f),
                 0.0f,
                 1.0f);
-            const float Friction = RelativeVelocity * FrictionTable * Voice.BowPressure * StrokeEnvelope * 0.24f;
+            const float Friction = RelativeVelocity * FrictionTable * BowPressure * StrokeEnvelope * 0.24f;
             Voice.DelayBuffer[BowIndex] = FMath::Clamp(Voice.DelayBuffer[BowIndex] + Friction, -1.8f, 1.8f);
             ++Voice.BowSamplesElapsed;
             if (Voice.BowSamplesRemaining > 0)
@@ -529,6 +567,16 @@ int32 UResonanceForgeSynthComponent::OnGenerateAudio(float* OutAudio, const int3
                 {
                     Voice.bBowHeld = false;
                     Voice.BowReleaseSamplesRemaining = FMath::Max(1, FMath::RoundToInt(RenderSampleRate * 0.14f));
+                }
+            }
+        }
+        else if (Event.bExpressionChange)
+        {
+            for (FWaveguideVoice& Voice : WaveguideVoices)
+            {
+                if (Voice.bActive && Voice.ExcitationType == EResonanceExcitationType::Bow && Voice.bBowHeld)
+                {
+                    Voice.TargetBowExpression = Event.Brightness;
                 }
             }
         }

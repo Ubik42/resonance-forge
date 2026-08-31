@@ -70,6 +70,9 @@ public:
     int32 TriggerImpact(const FResonanceForgeImpactParameters& Parameters, UResonanceForgeSynthComponent* NativeSynth = nullptr);
 
     UFUNCTION(BlueprintCallable, Category="共振铸造台|Wwise")
+    void SetLiveBrightness(float NormalizedBrightness);
+
+    UFUNCTION(BlueprintCallable, Category="共振铸造台|Wwise")
     bool AutoBindDemoAssets();
 
     UFUNCTION(BlueprintPure, Category="共振铸造台|Wwise")

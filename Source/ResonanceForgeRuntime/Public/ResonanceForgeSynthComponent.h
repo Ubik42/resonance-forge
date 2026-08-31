@@ -55,6 +55,9 @@ public:
     UFUNCTION(BlueprintCallable, Category="共振铸造台|MIDI")
     void NoteOff(int32 MidiNote = 60);
 
+    UFUNCTION(BlueprintCallable, Category="共振铸造台|MIDI")
+    void SetBowExpression(float NormalizedExpression);
+
     UFUNCTION(BlueprintCallable, Category="共振铸造台")
     void LoadBuiltInPreset(FName PresetName);
 
@@ -107,6 +110,7 @@ public:
 #if WITH_DEV_AUTOMATION_TESTS
     bool RenderWaveguideForTest(int32 MidiNote, int32 NumFrames, TArray<float>& OutSamples);
     bool RenderHeldBowForTest(int32 MidiNote, int32 HoldFrames, int32 ReleaseFrames, TArray<float>& OutSamples);
+    bool RenderBowExpressionForTest(int32 MidiNote, int32 PhaseFrames, TArray<float>& OutSamples);
 #endif
 
 protected:
@@ -129,6 +133,7 @@ private:
         float StrikePosition;
         bool bHeld;
         bool bNoteOff;
+        bool bExpressionChange;
     };
 
     struct FActiveMode
@@ -160,8 +165,9 @@ private:
         int32 BowSamplesTotal = 0;
         int32 BowSamplesElapsed = 0;
         int32 BowReleaseSamplesRemaining = 0;
-        float BowVelocity = 0.0f;
-        float BowPressure = 0.0f;
+        float BowEnergy = 0.0f;
+        float BowExpression = 0.5f;
+        float TargetBowExpression = 0.5f;
         bool bBowHeld = false;
         bool bActive = false;
     };

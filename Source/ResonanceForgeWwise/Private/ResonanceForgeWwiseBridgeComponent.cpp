@@ -54,6 +54,27 @@ float UResonanceForgeWwiseBridgeComponent::ToWwiseRtpc(const float NormalizedVal
     return FMath::Clamp(NormalizedValue, 0.0f, 1.0f) * 100.0f;
 }
 
+void UResonanceForgeWwiseBridgeComponent::SetLiveBrightness(const float NormalizedBrightness)
+{
+    AActor* Owner = GetOwner();
+    if (!Owner)
+    {
+        return;
+    }
+    if (!ImpactBrightnessRtpc && bAutoBindGeneratedAssets)
+    {
+        AutoBindDemoAssets();
+    }
+    if (ImpactBrightnessRtpc)
+    {
+        UAkGameplayStatics::SetRTPCValue(
+            ImpactBrightnessRtpc,
+            ToWwiseRtpc(NormalizedBrightness),
+            RtpcInterpolationMs,
+            Owner);
+    }
+}
+
 int32 UResonanceForgeWwiseBridgeComponent::TriggerImpact(
     const FResonanceForgeImpactParameters& Parameters,
     UResonanceForgeSynthComponent* NativeSynth)

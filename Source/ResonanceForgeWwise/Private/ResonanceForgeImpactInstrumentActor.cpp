@@ -250,6 +250,14 @@ void AResonanceForgeImpactInstrumentActor::HandleMidiEvent(
         LastMidiControl = ControlId;
         LastMidiControlValue = Velocity;
         MidiBrightness = FMath::Clamp(Velocity / 127.0f, 0.0f, 1.0f);
+        if (ListenModeIncludesNative(ListenMode) && NativeSynth)
+        {
+            NativeSynth->SetBowExpression(MidiBrightness);
+        }
+        if (ListenModeIncludesWwise(ListenMode) && WwiseBridge)
+        {
+            WwiseBridge->SetLiveBrightness(MidiBrightness);
+        }
     }
     else if (EventType == EMIDIEventType::NoteOn && Velocity > 0)
     {

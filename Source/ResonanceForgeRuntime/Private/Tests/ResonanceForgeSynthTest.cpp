@@ -111,6 +111,31 @@ bool FResonanceForgePresetTest::RunTest(const FString& Parameters)
     const float ReleasedLateRms = ComputeWindowRms(182400, 192000);
     TestTrue(TEXT("按住 MIDI 音符三秒后弓擦仍持续补能"), HeldLateRms > 0.001f);
     TestTrue(TEXT("松键后输出显著低于持弓末段"), ReleasedLateRms < HeldLateRms * 0.45f);
+
+    TArray<float> ExpressiveBowSamples;
+    constexpr int32 ExpressionPhaseFrames = 48000;
+    TestTrue(TEXT("持续弓擦能够在不重触发音符时接收 CC1 表现变化"),
+        Synth->RenderBowExpressionForTest(55, ExpressionPhaseFrames, ExpressiveBowSamples));
+    auto ComputeExpressionRms = [&ExpressiveBowSamples](const int32 StartFrame, const int32 EndFrame)
+    {
+        double SquareSum = 0.0;
+        int32 SampleCount = 0;
+        for (int32 Frame = StartFrame; Frame < EndFrame; ++Frame)
+        {
+            for (int32 Channel = 0; Channel < 2; ++Channel)
+            {
+                const float Sample = ExpressiveBowSamples[Frame * 2 + Channel];
+                SquareSum += static_cast<double>(Sample) * Sample;
+                ++SampleCount;
+            }
+        }
+        return SampleCount > 0 ? FMath::Sqrt(static_cast<float>(SquareSum / SampleCount)) : 0.0f;
+    };
+    const float LowExpressionRms = ComputeExpressionRms(72000, 96000);
+    const float HighExpressionRms = ComputeExpressionRms(120000, 144000);
+    AddInfo(FString::Printf(TEXT("CC1 弓压段 RMS：低 %.6f / 高 %.6f"), LowExpressionRms, HighExpressionRms));
+    TestTrue(TEXT("高弓压段与低弓压段形成可测量的动态差异"),
+        FMath::Abs(HighExpressionRms - LowExpressionRms) > FMath::Max(0.00001f, LowExpressionRms * 0.005f));
     return true;
 }
 
