@@ -327,7 +327,7 @@ void UResonanceForgeSynthComponent::StartWaveguideVoice(const FStrikeEvent& Even
 
     float PreviousNoise = 0.0f;
     float PreviousSmoothedNoise = 0.0f;
-    const float HammerCenter = FMath::Lerp(0.16f, 0.84f, FMath::Clamp(Event.StrikePosition, 0.0f, 1.0f));
+    const float ExcitationCenter = FMath::Lerp(0.12f, 0.88f, FMath::Clamp(Event.StrikePosition, 0.0f, 1.0f));
     const float HammerWidth = FMath::Lerp(0.085f, 0.030f, Event.Brightness);
     for (int32 Index = 0; Index < Target->DelaySamples; ++Index)
     {
@@ -339,20 +339,29 @@ void UResonanceForgeSynthComponent::StartWaveguideVoice(const FStrikeEvent& Even
         if (Event.ExcitationType == EResonanceExcitationType::Finger)
         {
             const float SmoothedNoise = 0.50f * PreviousSmoothedNoise + 0.25f * (Noise + PreviousNoise);
-            const float SpatialEnvelope = FMath::Sin(PI * T);
+            const float Distance = (T - ExcitationCenter) / 0.24f;
+            const float TouchFocus = FMath::Exp(-0.5f * Distance * Distance);
+            const float SpatialEnvelope = FMath::Sin(PI * T) * FMath::Lerp(0.38f, 1.0f, TouchFocus);
             Excitation = FMath::Lerp(SmoothedNoise, Noise, 0.10f + Event.Brightness * 0.28f)
                 * SpatialEnvelope * 0.72f;
             PreviousSmoothedNoise = SmoothedNoise;
         }
         else if (Event.ExcitationType == EResonanceExcitationType::Hammer)
         {
-            const float Distance = (T - HammerCenter) / FMath::Max(0.01f, HammerWidth);
+            const float Distance = (T - ExcitationCenter) / FMath::Max(0.01f, HammerWidth);
             const float BipolarPulse = -Distance * FMath::Exp(-0.5f * Distance * Distance);
             Excitation = BipolarPulse * (0.78f + Event.Brightness * 0.26f) + Noise * 0.055f;
         }
         else
         {
-            Excitation = FMath::Lerp(0.5f * (Noise + PreviousNoise), Noise, Event.Brightness) * 0.62f;
+            const float LeftSpan = FMath::Max(0.02f, ExcitationCenter);
+            const float RightSpan = FMath::Max(0.02f, 1.0f - ExcitationCenter);
+            const float PluckShape = T <= ExcitationCenter
+                ? T / LeftSpan
+                : (1.0f - T) / RightSpan;
+            const float ShapedNoise = FMath::Lerp(0.5f * (Noise + PreviousNoise), Noise, Event.Brightness);
+            Excitation = FMath::Clamp(PluckShape, 0.0f, 1.0f)
+                * (0.40f + ShapedNoise * 0.32f);
         }
         Target->DelayBuffer[Index] = Excitation * Target->Gain;
         PreviousNoise = Noise;
