@@ -182,19 +182,19 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
                 {
                     CaptureWorkbenchImage(TEXT("resonance-forge-keybed.png"));
                     ExportCurrentSample();
-                    ActivePreset = TEXT("拉丝钢");
-                    ActiveModel = EResonanceModelType::ModalImpact;
-                    PreviewEnergy = 0.11f;
-                    PreviewBrightness = 0.12f;
-                    PreviewSize = 0.13f;
-                    PreviewStrikePosition = 0.14f;
-                    LastKeybedNote = 36;
-                    LastKeybedVelocity = 0.15f;
-                    WaveguideSustain = 0.16f;
-                    WaveguideDamping = 0.17f;
-                    WaveguideCoupling = 0.18f;
-                    ActiveModes.Reset();
-                    ReforgeLatestSampleLabel();
+                    const FString LongTailLabelPath = FPaths::ChangeExtension(LastSampleExportPath, TEXT("rfrecipe.json"));
+                    SampleExportName = TEXT("RF_DryWood_G3");
+                    PreviewEnergy = 0.55f;
+                    PreviewBrightness = 0.42f;
+                    PreviewSize = 0.38f;
+                    LastKeybedVelocity = 0.55f;
+                    WaveguideSustain = 0.28f;
+                    WaveguideDamping = 0.74f;
+                    WaveguideCoupling = 0.12f;
+                    ApplyWaveguideParameters();
+                    ExportCurrentSample();
+                    ReforgeSampleLabelFromPath(LongTailLabelPath);
+                    SampleExportName = TEXT("RF_LongTailWood_G3");
                     if (WorkbenchScrollBox.IsValid())
                     {
                         WorkbenchScrollBox->ScrollToEnd();
@@ -1265,13 +1265,131 @@ FReply FResonanceForgeEditorModule::ExportCurrentSample()
     }
 
     LastSampleExportPath = FPaths::ConvertRelativePathToFull(ExportPath);
+    RefreshRecentSampleLabels();
     LastStatus = FText::Format(
         NSLOCTEXT("ResonanceForge", "SampleExported", "铸样完成 · WAV + 声源铭牌 / {0} 秒 / 48 kHz / 16-bit stereo"),
         FText::AsNumber(SampleExportDurationSeconds));
     return FReply::Handled();
 }
 
+void FResonanceForgeEditorModule::RefreshRecentSampleLabels()
+{
+    RecentSampleLabels.Reset();
+    const FString ExportDirectory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("ResonanceForge"), TEXT("Exports"));
+    TArray<FString> LabelFiles;
+    IFileManager::Get().FindFiles(LabelFiles, *FPaths::Combine(ExportDirectory, TEXT("*.rfrecipe.json")), true, false);
+    for (const FString& LabelFile : LabelFiles)
+    {
+        FRecentSampleLabel& Label = RecentSampleLabels.AddDefaulted_GetRef();
+        Label.Path = FPaths::Combine(ExportDirectory, LabelFile);
+        Label.Timestamp = IFileManager::Get().GetTimeStamp(*Label.Path);
+        const FString DisplayName = LabelFile.Replace(TEXT(".rfrecipe.json"), TEXT(""));
+        Label.Summary = FText::FromString(DisplayName);
+
+        FString LabelJson;
+        TSharedPtr<FJsonObject> Root;
+        if (FFileHelper::LoadFileToString(LabelJson, *Label.Path)
+            && FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(LabelJson), Root)
+            && Root.IsValid()
+            && Root->HasTypedField<EJson::Object>(TEXT("audio"))
+            && Root->HasTypedField<EJson::Object>(TEXT("source")))
+        {
+            const TSharedPtr<FJsonObject> Audio = Root->GetObjectField(TEXT("audio"));
+            const TSharedPtr<FJsonObject> Source = Root->GetObjectField(TEXT("source"));
+            if (Root->HasTypedField<EJson::Object>(TEXT("generator")))
+            {
+                FString GeneratedAtUtc;
+                FDateTime GeneratedTimestamp;
+                if (Root->GetObjectField(TEXT("generator"))->TryGetStringField(TEXT("generatedAtUtc"), GeneratedAtUtc)
+                    && FDateTime::ParseIso8601(*GeneratedAtUtc, GeneratedTimestamp))
+                {
+                    Label.Timestamp = GeneratedTimestamp;
+                }
+            }
+            FString Preset;
+            FString Model;
+            double Note = 0.0;
+            double Duration = 0.0;
+            double TailDb = 0.0;
+            if (Source->TryGetStringField(TEXT("preset"), Preset)
+                && Source->TryGetStringField(TEXT("model"), Model)
+                && Source->TryGetNumberField(TEXT("midiNote"), Note)
+                && Audio->TryGetNumberField(TEXT("durationSeconds"), Duration)
+                && Audio->TryGetNumberField(TEXT("tailRelativeDb"), TailDb))
+            {
+                Label.Summary = FText::Format(
+                    NSLOCTEXT("ResonanceForge", "RecentLabelSummary", "{0}\n{1} · {2} · Note {3} · {4} 秒 · 尾音 {5} dB"),
+                    FText::FromString(DisplayName),
+                    FText::FromString(Preset),
+                    Model == TEXT("WaveguideString")
+                        ? NSLOCTEXT("ResonanceForge", "RecentWaveguide", "波导弦")
+                        : NSLOCTEXT("ResonanceForge", "RecentModal", "模态体"),
+                    FText::AsNumber(FMath::RoundToInt(Note)),
+                    FText::AsNumber(Duration),
+                    FText::AsNumber(FMath::RoundToInt(TailDb)));
+            }
+        }
+    }
+    RecentSampleLabels.Sort([](const FRecentSampleLabel& A, const FRecentSampleLabel& B)
+    {
+        if (A.Timestamp == B.Timestamp)
+        {
+            return A.Path > B.Path;
+        }
+        return A.Timestamp > B.Timestamp;
+    });
+    if (RecentSampleLabels.Num() > 3)
+    {
+        RecentSampleLabels.SetNum(3);
+    }
+}
+
+bool FResonanceForgeEditorModule::HasRecentSampleLabel(const int32 LabelIndex) const
+{
+    return RecentSampleLabels.IsValidIndex(LabelIndex);
+}
+
+FText FResonanceForgeEditorModule::GetRecentSampleLabelText(const int32 LabelIndex) const
+{
+    if (!RecentSampleLabels.IsValidIndex(LabelIndex))
+    {
+        return NSLOCTEXT("ResonanceForge", "RecentLabelEmpty", "空铭牌\n铸样后自动上架");
+    }
+    const FString SelectedLabelPath = LastSampleExportPath.IsEmpty()
+        ? FString()
+        : FPaths::ConvertRelativePathToFull(FPaths::ChangeExtension(LastSampleExportPath, TEXT("rfrecipe.json")));
+    if (FPaths::ConvertRelativePathToFull(RecentSampleLabels[LabelIndex].Path).Equals(SelectedLabelPath, ESearchCase::IgnoreCase))
+    {
+        return FText::Format(
+            NSLOCTEXT("ResonanceForge", "RecentLabelSelected", "◆ 当前回炉 · {0}"),
+            RecentSampleLabels[LabelIndex].Summary);
+    }
+    return RecentSampleLabels[LabelIndex].Summary;
+}
+
 FReply FResonanceForgeEditorModule::ReforgeLatestSampleLabel()
+{
+    RefreshRecentSampleLabels();
+    if (!RecentSampleLabels.IsValidIndex(0))
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "ReforgeNoLabel", "铭牌回炉失败 · 铸样目录中还没有 .rfrecipe.json");
+        return FReply::Handled();
+    }
+    return ReforgeSampleLabelFromPath(RecentSampleLabels[0].Path);
+}
+
+FReply FResonanceForgeEditorModule::ReforgeRecentSampleLabel(const int32 LabelIndex)
+{
+    RefreshRecentSampleLabels();
+    if (!RecentSampleLabels.IsValidIndex(LabelIndex))
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "ReforgeEmptySlot", "铭牌回炉失败 · 这个架位还没有声源版本");
+        return FReply::Handled();
+    }
+    return ReforgeSampleLabelFromPath(RecentSampleLabels[LabelIndex].Path);
+}
+
+FReply FResonanceForgeEditorModule::ReforgeSampleLabelFromPath(const FString& LatestLabelPath)
 {
     auto Fail = [this](const FText& Message)
     {
@@ -1286,29 +1404,17 @@ FReply FResonanceForgeEditorModule::ReforgeLatestSampleLabel()
     }
 
     const FString ExportDirectory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("ResonanceForge"), TEXT("Exports"));
-    TArray<FString> LabelFiles;
-    IFileManager::Get().FindFiles(LabelFiles, *FPaths::Combine(ExportDirectory, TEXT("*.rfrecipe.json")), true, false);
-    FString LatestLabelPath;
-    FDateTime LatestTimestamp = FDateTime::MinValue();
-    for (const FString& LabelFile : LabelFiles)
+    const FString CanonicalLabelPath = FPaths::ConvertRelativePathToFull(LatestLabelPath);
+    const FString CanonicalExportDirectory = FPaths::ConvertRelativePathToFull(ExportDirectory);
+    if (!CanonicalLabelPath.StartsWith(CanonicalExportDirectory + TEXT("/"), ESearchCase::IgnoreCase)
+        && !CanonicalLabelPath.StartsWith(CanonicalExportDirectory + TEXT("\\"), ESearchCase::IgnoreCase))
     {
-        const FString CandidatePath = FPaths::Combine(ExportDirectory, LabelFile);
-        const FDateTime CandidateTimestamp = IFileManager::Get().GetTimeStamp(*CandidatePath);
-        if (LatestLabelPath.IsEmpty() || CandidateTimestamp > LatestTimestamp
-            || (CandidateTimestamp == LatestTimestamp && CandidatePath > LatestLabelPath))
-        {
-            LatestLabelPath = CandidatePath;
-            LatestTimestamp = CandidateTimestamp;
-        }
-    }
-    if (LatestLabelPath.IsEmpty())
-    {
-        return Fail(NSLOCTEXT("ResonanceForge", "ReforgeNoLabel", "铭牌回炉失败 · 铸样目录中还没有 .rfrecipe.json"));
+        return Fail(NSLOCTEXT("ResonanceForge", "ReforgeOutsideExport", "铭牌回炉失败 · 文件不在本工程铸样目录中"));
     }
 
     FString LabelJson;
     TSharedPtr<FJsonObject> Root;
-    if (!FFileHelper::LoadFileToString(LabelJson, *LatestLabelPath)
+    if (!FFileHelper::LoadFileToString(LabelJson, *CanonicalLabelPath)
         || !FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(LabelJson), Root)
         || !Root.IsValid())
     {
@@ -1778,6 +1884,7 @@ FText FResonanceForgeEditorModule::GetComparisonText() const
 
 TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTabArgs& Args)
 {
+    RefreshRecentSampleLabels();
     using namespace ResonanceForgeEditor;
 
     if (const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
@@ -2461,6 +2568,39 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                                 [SNew(STextBlock).Text_Raw(this, &FResonanceForgeEditorModule::GetSampleExportStatusText).ColorAndOpacity(Glass)]
                                 + SHorizontalBox::Slot().AutoWidth()
                                 [SNew(STextBlock).Text(FText::FromString(TEXT("48 kHz · 16-bit · stereo · Saved/ResonanceForge/Exports"))).ColorAndOpacity(Muted)]
+                            ]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 14, 0, 0)
+                            [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "LabelRack", "铭牌架"), NSLOCTEXT("ResonanceForge", "LabelRackDetail", "最近三份铸样自动上架；铭牌写着声音身份，点击即可把那一版送回炉膛。"))]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
+                            [
+                                SNew(SHorizontalBox)
+                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(0, 0, 5, 0)
+                                [
+                                    SNew(SButton)
+                                    .Text_Lambda([this]{ return GetRecentSampleLabelText(0); })
+                                    .IsEnabled_Lambda([this]{ return HasRecentSampleLabel(0); })
+                                    .ContentPadding(FMargin(10, 8))
+                                    .ButtonColorAndOpacity(ResonanceForgeEditor::Steel * 0.44f)
+                                    .OnClicked_Lambda([this]{ return ReforgeRecentSampleLabel(0); })
+                                ]
+                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(5, 0)
+                                [
+                                    SNew(SButton)
+                                    .Text_Lambda([this]{ return GetRecentSampleLabelText(1); })
+                                    .IsEnabled_Lambda([this]{ return HasRecentSampleLabel(1); })
+                                    .ContentPadding(FMargin(10, 8))
+                                    .ButtonColorAndOpacity(ResonanceForgeEditor::Wood * 0.44f)
+                                    .OnClicked_Lambda([this]{ return ReforgeRecentSampleLabel(1); })
+                                ]
+                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(5, 0, 0, 0)
+                                [
+                                    SNew(SButton)
+                                    .Text_Lambda([this]{ return GetRecentSampleLabelText(2); })
+                                    .IsEnabled_Lambda([this]{ return HasRecentSampleLabel(2); })
+                                    .ContentPadding(FMargin(10, 8))
+                                    .ButtonColorAndOpacity(ResonanceForgeEditor::Glass * 0.44f)
+                                    .OnClicked_Lambda([this]{ return ReforgeRecentSampleLabel(2); })
+                                ]
                             ]
                         ]
                     ]

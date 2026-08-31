@@ -38,6 +38,8 @@ private:
     FReply ForgeSharedRecipeAsset();
     FReply ExportCurrentSample();
     FReply ReforgeLatestSampleLabel();
+    FReply ReforgeRecentSampleLabel(int32 LabelIndex);
+    FReply ReforgeSampleLabelFromPath(const FString& LabelPath);
     FReply RevealSampleExport();
     FReply CaptureWorkbenchScreenshot();
     void QueueAutomatedCapture();
@@ -66,6 +68,9 @@ private:
     FText GetKeybedStatusText() const;
     FText GetSampleExportStatusText() const;
     FText GetSampleTailStatusText() const;
+    FText GetRecentSampleLabelText(int32 LabelIndex) const;
+    bool HasRecentSampleLabel(int32 LabelIndex) const;
+    void RefreshRecentSampleLabels();
     bool HasRecipeSlot(int32 SlotIndex) const;
     bool ReadRecipeSlot(int32 SlotIndex, FName& OutPreset, EResonanceModelType& OutModel, float& OutEnergy, float& OutBrightness, float& OutSize, float& OutSustain, float& OutDamping, float& OutCoupling) const;
 
@@ -116,5 +121,12 @@ private:
     float LastSampleTailDb = -96.0f;
     float LastSampleDurationSeconds = 0.0f;
     double LastSampleReforgedSeconds = -1000.0;
+    struct FRecentSampleLabel
+    {
+        FString Path;
+        FText Summary;
+        FDateTime Timestamp;
+    };
+    TArray<FRecentSampleLabel> RecentSampleLabels;
     FText LastStatus;
 };
