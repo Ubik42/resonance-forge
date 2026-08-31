@@ -206,15 +206,21 @@ void AResonanceForgeImpactInstrumentActor::HandleMeshHit(
         return;
     }
 
-    const float Energy = ComputeImpactEnergy(NormalImpulse.Size(), MinimumImpulse, ImpulseSensitivity);
+    LastCollisionImpulse = NormalImpulse.Size();
+    const FVector OtherVelocity = OtherComponent ? OtherComponent->GetComponentVelocity() : FVector::ZeroVector;
+    LastCollisionRelativeSpeed = (OtherVelocity - InstrumentMesh->GetComponentVelocity()).Size();
+    ++CollisionSerial;
+
+    const float Energy = ComputeImpactEnergy(LastCollisionImpulse, MinimumImpulse, ImpulseSensitivity);
+    LastCollisionEnergy = Energy;
+    LastCollisionBrightness = ComputeImpactBrightness(LastCollisionRelativeSpeed);
+    bLastCollisionPassedThreshold = Energy > 0.0f;
     if (Energy <= 0.0f)
     {
         return;
     }
 
-    const FVector OtherVelocity = OtherComponent ? OtherComponent->GetComponentVelocity() : FVector::ZeroVector;
-    const float RelativeSpeed = (OtherVelocity - InstrumentMesh->GetComponentVelocity()).Size();
-    TriggerInstrument(Energy, ComputeImpactBrightness(RelativeSpeed), 60, ComputeNormalizedStrikePosition(Hit.ImpactPoint));
+    TriggerInstrument(Energy, LastCollisionBrightness, 60, ComputeNormalizedStrikePosition(Hit.ImpactPoint));
 }
 
 void AResonanceForgeImpactInstrumentActor::HandleKeyboardTrigger()

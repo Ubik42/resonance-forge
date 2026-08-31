@@ -11,6 +11,7 @@
 #include "SResonanceBowStroke.h"
 #include "SResonanceRecipeCompare.h"
 #include "SResonanceWwiseRouteLoom.h"
+#include "SResonanceImpactAnvil.h"
 
 #include "Editor.h"
 #include "Audio.h"
@@ -1518,6 +1519,56 @@ FText FResonanceForgeEditorModule::GetWwiseStatusText() const
     return FText::FromString(Instrument->WwiseBridge->GetIntegrationStatus());
 }
 
+FText FResonanceForgeEditorModule::GetImpactCalibrationNameText() const
+{
+    const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+    if (!Instrument)
+    {
+        return NSLOCTEXT("ResonanceForge", "ImpactCalibrationWaiting", "等待共振对象");
+    }
+    if (FMath::IsNearlyEqual(Instrument->MinimumImpulse, 180.0f, 1.0f)
+        && FMath::IsNearlyEqual(Instrument->ImpulseSensitivity, 0.00032f, 0.000001f))
+    {
+        return NSLOCTEXT("ResonanceForge", "ImpactCalibrationLight", "轻件 · 小碰撞也能起声");
+    }
+    if (FMath::IsNearlyEqual(Instrument->MinimumImpulse, 650.0f, 1.0f)
+        && FMath::IsNearlyEqual(Instrument->ImpulseSensitivity, 0.00012f, 0.000001f))
+    {
+        return NSLOCTEXT("ResonanceForge", "ImpactCalibrationProp", "道具 · 演示场景基准");
+    }
+    if (FMath::IsNearlyEqual(Instrument->MinimumImpulse, 1800.0f, 1.0f)
+        && FMath::IsNearlyEqual(Instrument->ImpulseSensitivity, 0.000045f, 0.000001f))
+    {
+        return NSLOCTEXT("ResonanceForge", "ImpactCalibrationHeavy", "重构件 · 过滤零碎碰擦");
+    }
+    return NSLOCTEXT("ResonanceForge", "ImpactCalibrationCustom", "自定义标定");
+}
+
+FReply FResonanceForgeEditorModule::SetImpactCalibration(
+    const float MinimumImpulse,
+    const float Sensitivity,
+    const FText& CalibrationName)
+{
+    AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+    if (!Instrument)
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "ImpactCalibrationNoObject", "无法标定 · 请先选择一个共振对象");
+        return FReply::Handled();
+    }
+    Instrument->Modify();
+    Instrument->MinimumImpulse = FMath::Max(0.0f, MinimumImpulse);
+    Instrument->ImpulseSensitivity = FMath::Max(0.000001f, Sensitivity);
+    Instrument->MarkPackageDirty();
+    SetFlowStation(0);
+    LastStatus = FText::Format(
+        NSLOCTEXT("ResonanceForge", "ImpactCalibrationApplied", "已换上「{0}」砝码 · 门槛 {1} / 半响约 {2} / 满响约 {3}"),
+        CalibrationName,
+        FText::AsNumber(FMath::RoundToInt(Instrument->MinimumImpulse)),
+        FText::AsNumber(FMath::RoundToInt(Instrument->MinimumImpulse + 0.5f / Instrument->ImpulseSensitivity)),
+        FText::AsNumber(FMath::RoundToInt(Instrument->MinimumImpulse + 1.0f / Instrument->ImpulseSensitivity)));
+    return FReply::Handled();
+}
+
 FText FResonanceForgeEditorModule::GetWwiseRouteSourceText() const
 {
     const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
@@ -2811,6 +2862,41 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
             ];
     };
 
+    auto ResolveImpactReadout = [this]() -> const AResonanceForgeImpactInstrumentActor*
+    {
+        return ObservedImpactActor.IsValid() ? ObservedImpactActor.Get() : ResolveInstrument();
+    };
+
+    auto ImpactCalibrationButton = [this](
+        const float MinimumImpulse,
+        const float Sensitivity,
+        const FText& Label,
+        const FText& Detail,
+        const FLinearColor& Color)
+    {
+        return SNew(SButton)
+            .ContentPadding(FMargin(12, 8))
+            .ButtonColorAndOpacity_Lambda([this, MinimumImpulse, Sensitivity, Color]
+            {
+                const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+                const bool bSelected = Instrument
+                    && FMath::IsNearlyEqual(Instrument->MinimumImpulse, MinimumImpulse, 1.0f)
+                    && FMath::IsNearlyEqual(Instrument->ImpulseSensitivity, Sensitivity, 0.000001f);
+                return bSelected ? Color * 0.52f : FLinearColor(0.035f, 0.031f, 0.026f, 1.0f);
+            })
+            .OnClicked_Lambda([this, MinimumImpulse, Sensitivity, Label]
+            {
+                return SetImpactCalibration(MinimumImpulse, Sensitivity, Label);
+            })
+            [
+                SNew(SVerticalBox)
+                + SVerticalBox::Slot().AutoHeight()
+                [SNew(STextBlock).Text(Label).Font(FAppStyle::GetFontStyle(TEXT("BoldFont")))]
+                + SVerticalBox::Slot().AutoHeight().Padding(0, 2, 0, 0)
+                [SNew(STextBlock).Text(Detail).ColorAndOpacity(Muted)]
+            ];
+    };
+
     auto ExcitationGestureButton = [this](const EResonanceExcitationType Type, const FText& Label, const FText& Detail, const FLinearColor& Color)
     {
         return SNew(SButton)
@@ -3091,6 +3177,71 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                             [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "ReadSelection", "读取当前选择")).OnClicked_Raw(this, &FResonanceForgeEditorModule::SyncFromSelection)]
                             + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
                             [SNew(STextBlock).Text_Raw(this, &FResonanceForgeEditorModule::GetWwiseStatusText).ColorAndOpacity(Glass)]
+                        ]
+                    ]
+                    + SVerticalBox::Slot().AutoHeight().Padding(22, 0, 22, 12)
+                    [
+                        SNew(SBorder)
+                        .BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel")))
+                        .BorderBackgroundColor(FLinearColor(0.030f, 0.022f, 0.015f, 1.0f))
+                        .Padding(FMargin(12, 10))
+                        [
+                            SNew(SVerticalBox)
+                            + SVerticalBox::Slot().AutoHeight()
+                            [
+                                SNew(SResonanceImpactAnvil)
+                                .MinimumImpulse_Lambda([ResolveImpactReadout]
+                                {
+                                    const AResonanceForgeImpactInstrumentActor* Instrument = ResolveImpactReadout();
+                                    return Instrument ? Instrument->MinimumImpulse : 650.0f;
+                                })
+                                .Sensitivity_Lambda([ResolveImpactReadout]
+                                {
+                                    const AResonanceForgeImpactInstrumentActor* Instrument = ResolveImpactReadout();
+                                    return Instrument ? Instrument->ImpulseSensitivity : 0.00012f;
+                                })
+                                .LastImpulse_Lambda([ResolveImpactReadout]
+                                {
+                                    const AResonanceForgeImpactInstrumentActor* Instrument = ResolveImpactReadout();
+                                    return Instrument ? Instrument->LastCollisionImpulse : 0.0f;
+                                })
+                                .LastRelativeSpeed_Lambda([ResolveImpactReadout]
+                                {
+                                    const AResonanceForgeImpactInstrumentActor* Instrument = ResolveImpactReadout();
+                                    return Instrument ? Instrument->LastCollisionRelativeSpeed : 0.0f;
+                                })
+                                .LastEnergy_Lambda([ResolveImpactReadout]
+                                {
+                                    const AResonanceForgeImpactInstrumentActor* Instrument = ResolveImpactReadout();
+                                    return Instrument ? Instrument->LastCollisionEnergy : 0.0f;
+                                })
+                                .LastBrightness_Lambda([ResolveImpactReadout]
+                                {
+                                    const AResonanceForgeImpactInstrumentActor* Instrument = ResolveImpactReadout();
+                                    return Instrument ? Instrument->LastCollisionBrightness : 0.0f;
+                                })
+                                .HasCollision_Lambda([ResolveImpactReadout]
+                                {
+                                    const AResonanceForgeImpactInstrumentActor* Instrument = ResolveImpactReadout();
+                                    return Instrument && Instrument->CollisionSerial > 0;
+                                })
+                                .PassedThreshold_Lambda([ResolveImpactReadout]
+                                {
+                                    const AResonanceForgeImpactInstrumentActor* Instrument = ResolveImpactReadout();
+                                    return Instrument && Instrument->bLastCollisionPassedThreshold;
+                                })
+                                .CalibrationName_Raw(this, &FResonanceForgeEditorModule::GetImpactCalibrationNameText)
+                            ]
+                            + SVerticalBox::Slot().AutoHeight().Padding(4, 8, 4, 0)
+                            [
+                                SNew(SHorizontalBox)
+                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(0, 0, 5, 0)
+                                [ImpactCalibrationButton(180.0f, 0.00032f, NSLOCTEXT("ResonanceForge", "CalibrateLight", "轻件"), NSLOCTEXT("ResonanceForge", "CalibrateLightDetail", "手持小物与碎片"), Glass)]
+                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(5, 0)
+                                [ImpactCalibrationButton(650.0f, 0.00012f, NSLOCTEXT("ResonanceForge", "CalibrateProp", "道具"), NSLOCTEXT("ResonanceForge", "CalibratePropDetail", "落球、箱体与机关"), Wood)]
+                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(5, 0, 0, 0)
+                                [ImpactCalibrationButton(1800.0f, 0.000045f, NSLOCTEXT("ResonanceForge", "CalibrateHeavy", "重构件"), NSLOCTEXT("ResonanceForge", "CalibrateHeavyDetail", "门板、梁柱与机械"), Steel)]
+                            ]
                         ]
                     ]
                     + SVerticalBox::Slot().AutoHeight().Padding(22, 0, 22, 18)

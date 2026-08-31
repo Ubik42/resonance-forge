@@ -68,6 +68,7 @@ private:
     FReply RefreshMidiDevices();
     FReply ConnectSelectedMidiDevice();
     FReply DisconnectMidiDevice();
+    FReply SetImpactCalibration(float MinimumImpulse, float Sensitivity, const FText& CalibrationName);
     FReply ForgeSharedRecipeAsset();
     FReply ForgeWwiseRoutingProfile();
     FReply ExportCurrentSample();
@@ -90,6 +91,7 @@ private:
     FText GetRecipeSlotDetailText(int32 SlotIndex) const;
     FText GetMidiStatusText() const;
     FText GetWwiseStatusText() const;
+    FText GetImpactCalibrationNameText() const;
     FText GetWwiseRouteSourceText() const;
     FText GetWwiseEventText(int32 MaterialIndex) const;
     FText GetWwiseRtpcText(int32 ParameterIndex) const;

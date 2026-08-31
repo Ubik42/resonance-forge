@@ -121,9 +121,13 @@ for actor in actor_subsystem.get_all_level_actors():
         actor.light_component.set_intensity(1.55)
     elif label == "RF_04_数字波导弦":
         actor.native_synth.apply_material_profile(shared_waveguide_profile)
+        actor.set_editor_property("minimum_impulse", 650.0)
+        actor.set_editor_property("impulse_sensitivity", 0.00012)
         waveguide_profile_path = actor.native_synth.get_editor_property("material_profile").get_path_name()
         actor.wwise_bridge.apply_routing_profile(shared_wwise_route)
     elif isinstance(actor, unreal.ResonanceForgeImpactInstrumentActor):
+        actor.set_editor_property("minimum_impulse", 650.0)
+        actor.set_editor_property("impulse_sensitivity", 0.00012)
         actor.wwise_bridge.apply_routing_profile(shared_wwise_route)
 
 if not waveguide_profile_path or waveguide_profile_path.split(".")[0] != SHARED_PROFILE_PATH:

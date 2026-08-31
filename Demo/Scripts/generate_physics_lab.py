@@ -259,6 +259,8 @@ waveguide.set_actor_scale3d(unreal.Vector(3.25, 0.20, 0.05))
 set_prop(waveguide, "resonance_preset", unreal.Name("硬木"))
 set_prop(waveguide, "synthesis_model", unreal.ResonanceModelType.WAVEGUIDE_STRING)
 set_prop(waveguide, "object_size", 0.46)
+set_prop(waveguide, "minimum_impulse", 650.0)
+set_prop(waveguide, "impulse_sensitivity", 0.00012)
 set_prop(waveguide, "enable_keyboard_trigger", False)
 waveguide.instrument_mesh.set_static_mesh(cube_mesh)
 waveguide.instrument_mesh.set_material(0, materials["WoodAccent"])
@@ -322,6 +324,13 @@ report = {
     "wwise_events": ["Play_RF_Impact_Steel", "Play_RF_Impact_Wood", "Play_RF_Impact_Glass"],
     "wwise_rtpcs": ["RF_ImpactEnergy", "RF_ImpactBrightness", "RF_ObjectSize"],
     "waveguide_actor": waveguide.get_actor_label(),
+    "impact_calibration": {
+        "name": "道具",
+        "minimum_impulse": 650.0,
+        "sensitivity": 0.00012,
+        "half_energy_impulse": 4816.67,
+        "full_energy_impulse": 8983.33,
+    },
     "shared_profile": shared_waveguide_profile.get_path_name(),
     "shared_wwise_route": shared_wwise_route.get_path_name(),
     "shared_wwise_route_complete": shared_wwise_route.is_complete(),
