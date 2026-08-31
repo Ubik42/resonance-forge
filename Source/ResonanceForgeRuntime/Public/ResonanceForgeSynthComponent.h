@@ -22,6 +22,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台", meta=(ClampMin="0.25", ClampMax="4.0"))
     float PitchScale = 1.0f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|模态撞击体", meta=(TitleProperty="FrequencyHz"))
+    TArray<FResonanceMode> CustomModes;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|声学模型")
     EResonanceModelType SynthesisModel = EResonanceModelType::ModalImpact;
 
@@ -48,6 +51,15 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="共振铸造台")
     void ApplyMaterialProfile(UResonanceMaterialProfile* NewProfile);
+
+    UFUNCTION(BlueprintCallable, Category="共振铸造台")
+    void SetCustomModes(const TArray<FResonanceMode>& NewModes);
+
+    UFUNCTION(BlueprintCallable, Category="共振铸造台")
+    void ClearCustomModes();
+
+    UFUNCTION(BlueprintPure, Category="共振铸造台")
+    TArray<FResonanceMode> GetEffectiveModes() const;
 
     UFUNCTION(BlueprintPure, Category="共振铸造台")
     static TArray<FName> GetBuiltInPresetNames();
@@ -105,7 +117,8 @@ private:
         bool bActive = false;
     };
 
-    void RebuildModes();
+    void RequestModeRebuild();
+    void RebuildModesFrom(const TArray<FResonanceMode>& SourceModes);
     void ApplyStrike(const FStrikeEvent& Event);
     void InitializeWaveguideVoices();
     void StartWaveguideVoice(const FStrikeEvent& Event);

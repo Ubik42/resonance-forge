@@ -17,6 +17,9 @@ private:
     void ApplyPreset(const FName PresetName);
     void ApplyModel(EResonanceModelType ModelType);
     void ApplyWaveguideParameters();
+    void ApplyModalModes(bool bAudition, const FText& ChangeLabel);
+    void ResetModalModesToPreset();
+    void SelectModalMode(int32 ModeIndex);
     void AuditionCurrentSound(const FText& ChangeLabel);
     FReply SyncFromSelection();
     FReply TriggerPreview();
@@ -47,6 +50,9 @@ private:
     FText GetWwiseVolumeText() const;
     FText GetWwiseLowpassText() const;
     FText GetWwisePitchText() const;
+    FText GetSelectedModeFrequencyText() const;
+    FText GetSelectedModeGainText() const;
+    FText GetSelectedModeDecayText() const;
     bool HasRecipeSlot(int32 SlotIndex) const;
     bool ReadRecipeSlot(int32 SlotIndex, FName& OutPreset, EResonanceModelType& OutModel, float& OutEnergy, float& OutBrightness, float& OutSize, float& OutSustain, float& OutDamping, float& OutCoupling) const;
 
@@ -58,6 +64,8 @@ private:
     float WaveguideSustain = 0.90f;
     float WaveguideDamping = 0.36f;
     float WaveguideCoupling = 0.22f;
+    TArray<FResonanceMode> ActiveModes;
+    int32 SelectedModeIndex = 0;
     bool bHasReference = false;
     FName ReferencePreset = NAME_None;
     EResonanceModelType ReferenceModel = EResonanceModelType::ModalImpact;
@@ -67,6 +75,7 @@ private:
     float ReferenceSustain = 0.90f;
     float ReferenceDamping = 0.36f;
     float ReferenceCoupling = 0.22f;
+    TArray<FResonanceMode> ReferenceModes;
     TArray<TSharedPtr<FString>> MidiDeviceOptions;
     TArray<int32> MidiDeviceIds;
     TSharedPtr<FString> SelectedMidiDevice;

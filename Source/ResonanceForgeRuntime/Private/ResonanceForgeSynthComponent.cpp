@@ -34,7 +34,7 @@ UResonanceForgeSynthComponent::UResonanceForgeSynthComponent(const FObjectInitia
 bool UResonanceForgeSynthComponent::Init(int32& SampleRate)
 {
     RenderSampleRate = static_cast<float>(SampleRate);
-    RebuildModes();
+    RebuildModesFrom(GetEffectiveModes());
     InitializeWaveguideVoices();
     return true;
 }
@@ -88,7 +88,7 @@ int32 UResonanceForgeSynthComponent::ComputeWaveguideDelaySamples(const float Fr
 bool UResonanceForgeSynthComponent::RenderWaveguideForTest(const int32 MidiNote, const int32 NumFrames, TArray<float>& OutSamples)
 {
     RenderSampleRate = 48000.0f;
-    RebuildModes();
+    RebuildModesFrom(GetEffectiveModes());
     InitializeWaveguideVoices();
     SynthesisModel = EResonanceModelType::WaveguideString;
     Strike(0.9f, 0.68f, MidiNote);
@@ -106,6 +106,7 @@ void UResonanceForgeSynthComponent::SetSynthesisModel(const EResonanceModelType 
 void UResonanceForgeSynthComponent::ApplyMaterialProfile(UResonanceMaterialProfile* NewProfile)
 {
     MaterialProfile = NewProfile;
+    CustomModes.Reset();
     if (MaterialProfile)
     {
         SynthesisModel = MaterialProfile->ModelType;
@@ -113,13 +114,49 @@ void UResonanceForgeSynthComponent::ApplyMaterialProfile(UResonanceMaterialProfi
         StringDamping = MaterialProfile->StringDamping;
         BodyCoupling = MaterialProfile->BodyCoupling;
     }
-    RebuildModes();
+    RequestModeRebuild();
+}
+
+void UResonanceForgeSynthComponent::SetCustomModes(const TArray<FResonanceMode>& NewModes)
+{
+    CustomModes.Reset(FMath::Min(NewModes.Num(), 16));
+    for (const FResonanceMode& Source : NewModes)
+    {
+        if (CustomModes.Num() >= 16)
+        {
+            break;
+        }
+        FResonanceMode& Mode = CustomModes.AddDefaulted_GetRef();
+        Mode.FrequencyHz = FMath::Clamp(Source.FrequencyHz, 40.0f, 12000.0f);
+        Mode.Gain = FMath::Clamp(Source.Gain, 0.0f, 1.5f);
+        Mode.DecaySeconds = FMath::Clamp(Source.DecaySeconds, 0.03f, 8.0f);
+    }
+    RequestModeRebuild();
+}
+
+void UResonanceForgeSynthComponent::ClearCustomModes()
+{
+    CustomModes.Reset();
+    RequestModeRebuild();
+}
+
+TArray<FResonanceMode> UResonanceForgeSynthComponent::GetEffectiveModes() const
+{
+    if (!CustomModes.IsEmpty())
+    {
+        return CustomModes;
+    }
+    if (MaterialProfile && !MaterialProfile->Modes.IsEmpty())
+    {
+        return MaterialProfile->Modes;
+    }
+    return BuiltInModes;
 }
 
 void UResonanceForgeSynthComponent::LoadBuiltInPreset(const FName PresetName)
 {
     BuiltInModes = GetBuiltInModes(PresetName);
-    RebuildModes();
+    RequestModeRebuild();
 }
 
 void UResonanceForgeSynthComponent::InitializeWaveguideVoices()
@@ -135,12 +172,17 @@ void UResonanceForgeSynthComponent::InitializeWaveguideVoices()
     }
 }
 
-void UResonanceForgeSynthComponent::RebuildModes()
+void UResonanceForgeSynthComponent::RequestModeRebuild()
 {
-    const TArray<FResonanceMode>& SourceModes = MaterialProfile && !MaterialProfile->Modes.IsEmpty()
-        ? MaterialProfile->Modes
-        : BuiltInModes;
+    const TArray<FResonanceMode> Snapshot = GetEffectiveModes();
+    SynthCommand([this, Snapshot]
+    {
+        RebuildModesFrom(Snapshot);
+    });
+}
 
+void UResonanceForgeSynthComponent::RebuildModesFrom(const TArray<FResonanceMode>& SourceModes)
+{
     ActiveModes.Reset(SourceModes.Num());
     for (const FResonanceMode& Source : SourceModes)
     {

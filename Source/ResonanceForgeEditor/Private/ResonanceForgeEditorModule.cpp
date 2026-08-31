@@ -1,5 +1,6 @@
 #include "ResonanceForgeEditorModule.h"
 #include "SResonanceForgeVisualizer.h"
+#include "SResonanceModeRack.h"
 
 #include "Editor.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -149,10 +150,32 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
                 FTickerDelegate::CreateLambda([this](float)
                 {
                     CaptureWorkbenchImage(TEXT("resonance-forge-workbench-details.png"));
-                    if (FParse::Param(FCommandLine::Get(), TEXT("ResonanceForgeCaptureAndExit")))
+                    ApplyModel(EResonanceModelType::ModalImpact);
+                    ApplyPreset(TEXT("硬木"));
+                    SelectedModeIndex = FMath::Min(2, ActiveModes.Num() - 1);
+                    if (ActiveModes.IsValidIndex(SelectedModeIndex))
                     {
-                        FPlatformMisc::RequestExit(false);
+                        ActiveModes[SelectedModeIndex].FrequencyHz *= 1.16f;
+                        ActiveModes[SelectedModeIndex].Gain = 1.18f;
+                        ActiveModes[SelectedModeIndex].DecaySeconds *= 1.42f;
+                        ApplyModalModes(false, FText::GetEmpty());
                     }
+                    ClearReference();
+                    if (WorkbenchScrollBox.IsValid())
+                    {
+                        WorkbenchScrollBox->SetScrollOffset(420.0f);
+                    }
+                    FTSTicker::GetCoreTicker().AddTicker(
+                        FTickerDelegate::CreateLambda([this](float)
+                        {
+                            CaptureWorkbenchImage(TEXT("resonance-forge-mode-rack.png"));
+                            if (FParse::Param(FCommandLine::Get(), TEXT("ResonanceForgeCaptureAndExit")))
+                            {
+                                FPlatformMisc::RequestExit(false);
+                            }
+                            return false;
+                        }),
+                        1.0f);
                     return false;
                 }),
                 1.0f);
@@ -250,6 +273,8 @@ AResonanceForgeImpactInstrumentActor* FResonanceForgeEditorModule::ResolveInstru
 void FResonanceForgeEditorModule::ApplyPreset(const FName PresetName)
 {
     ActivePreset = PresetName;
+    ActiveModes = UResonanceForgeSynthComponent::GetBuiltInModes(PresetName);
+    SelectedModeIndex = FMath::Clamp(SelectedModeIndex, 0, FMath::Max(0, ActiveModes.Num() - 1));
     AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
     if (!Instrument)
     {
@@ -274,6 +299,7 @@ void FResonanceForgeEditorModule::ApplyPreset(const FName PresetName)
         }
     }
     Instrument->RerunConstructionScripts();
+    Instrument->NativeSynth->SetCustomModes(ActiveModes);
     Instrument->MarkPackageDirty();
     LastStatus = FText::Format(NSLOCTEXT("ResonanceForge", "Applied", "已应用「{0}」· 视觉材质与共振预设同步"), FText::FromName(PresetName));
 }
@@ -292,6 +318,7 @@ void FResonanceForgeEditorModule::ApplyModel(const EResonanceModelType ModelType
     Instrument->SynthesisModel = ModelType;
     Instrument->NativeSynth->ApplyMaterialProfile(nullptr);
     Instrument->NativeSynth->SetSynthesisModel(ModelType);
+    Instrument->NativeSynth->SetCustomModes(ActiveModes);
     ApplyWaveguideParameters();
     Instrument->MarkPackageDirty();
     LastStatus = ModelType == EResonanceModelType::WaveguideString
@@ -309,6 +336,38 @@ void FResonanceForgeEditorModule::ApplyWaveguideParameters()
             FMath::Clamp(WaveguideSustain, 0.0f, 1.0f));
         Instrument->NativeSynth->StringDamping = FMath::Clamp(WaveguideDamping, 0.0f, 1.0f);
         Instrument->NativeSynth->BodyCoupling = FMath::Clamp(WaveguideCoupling, 0.0f, 1.0f);
+    }
+}
+
+void FResonanceForgeEditorModule::ApplyModalModes(const bool bAudition, const FText& ChangeLabel)
+{
+    if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
+    {
+        Instrument->Modify();
+        Instrument->NativeSynth->SetCustomModes(ActiveModes);
+        Instrument->MarkPackageDirty();
+        if (bAudition)
+        {
+            AuditionCurrentSound(ChangeLabel);
+        }
+    }
+}
+
+void FResonanceForgeEditorModule::ResetModalModesToPreset()
+{
+    ActiveModes = UResonanceForgeSynthComponent::GetBuiltInModes(ActivePreset);
+    SelectedModeIndex = 0;
+    ApplyModalModes(true, NSLOCTEXT("ResonanceForge", "ModesResetAudition", "共振齿列已归炉"));
+}
+
+void FResonanceForgeEditorModule::SelectModalMode(const int32 ModeIndex)
+{
+    if (ActiveModes.IsValidIndex(ModeIndex))
+    {
+        SelectedModeIndex = ModeIndex;
+        LastStatus = FText::Format(
+            NSLOCTEXT("ResonanceForge", "ModeSelected", "已夹住第 {0} 根共振齿 · 调整频率、重量或余响后松手试听"),
+            FText::AsNumber(ModeIndex + 1));
     }
 }
 
@@ -348,6 +407,8 @@ FReply FResonanceForgeEditorModule::SyncFromSelection()
                 Instrument->NativeSynth->StringDecay);
             WaveguideDamping = Instrument->NativeSynth->StringDamping;
             WaveguideCoupling = Instrument->NativeSynth->BodyCoupling;
+            ActiveModes = Instrument->NativeSynth->GetEffectiveModes();
+            SelectedModeIndex = FMath::Clamp(SelectedModeIndex, 0, FMath::Max(0, ActiveModes.Num() - 1));
         }
         LastStatus = FText::Format(
             NSLOCTEXT("ResonanceForge", "SelectionSynced", "已读取「{0}」· 现在可以调整模型并试听"),
@@ -408,6 +469,7 @@ FReply FResonanceForgeEditorModule::PinReference()
     ReferenceSustain = WaveguideSustain;
     ReferenceDamping = WaveguideDamping;
     ReferenceCoupling = WaveguideCoupling;
+    ReferenceModes = ActiveModes;
     LastStatus = NSLOCTEXT("ResonanceForge", "ReferencePinned", "参考声纹已钉住 · 继续换材质或调整参数，紫色轮廓会保留用于比较");
     return FReply::Handled();
 }
@@ -428,6 +490,7 @@ FReply FResonanceForgeEditorModule::SwapAndPreviewReference()
     const float PreviousSustain = WaveguideSustain;
     const float PreviousDamping = WaveguideDamping;
     const float PreviousCoupling = WaveguideCoupling;
+    const TArray<FResonanceMode> PreviousModes = ActiveModes;
 
     ActivePreset = ReferencePreset;
     ActiveModel = ReferenceModel;
@@ -437,6 +500,7 @@ FReply FResonanceForgeEditorModule::SwapAndPreviewReference()
     WaveguideSustain = ReferenceSustain;
     WaveguideDamping = ReferenceDamping;
     WaveguideCoupling = ReferenceCoupling;
+    ActiveModes = ReferenceModes;
 
     ReferencePreset = PreviousPreset;
     ReferenceModel = PreviousModel;
@@ -446,9 +510,13 @@ FReply FResonanceForgeEditorModule::SwapAndPreviewReference()
     ReferenceSustain = PreviousSustain;
     ReferenceDamping = PreviousDamping;
     ReferenceCoupling = PreviousCoupling;
+    ReferenceModes = PreviousModes;
 
+    const TArray<FResonanceMode> DesiredModes = ActiveModes;
     ApplyModel(ActiveModel);
     ApplyPreset(ActivePreset);
+    ActiveModes = DesiredModes;
+    ApplyModalModes(false, FText::GetEmpty());
     TriggerPreview();
     LastStatus = FText::Format(
         NSLOCTEXT("ResonanceForge", "ReferenceSwapped", "正在试听「{0}」· 再按一次即可切回另一版"),
@@ -778,6 +846,27 @@ FText FResonanceForgeEditorModule::GetWwisePitchText() const
     return FText::FromString(FString::Printf(TEXT("移调约 %+.0f cent"), PitchCent));
 }
 
+FText FResonanceForgeEditorModule::GetSelectedModeFrequencyText() const
+{
+    return ActiveModes.IsValidIndex(SelectedModeIndex)
+        ? FText::FromString(FString::Printf(TEXT("%.0f Hz"), ActiveModes[SelectedModeIndex].FrequencyHz))
+        : FText::FromString(TEXT("—"));
+}
+
+FText FResonanceForgeEditorModule::GetSelectedModeGainText() const
+{
+    return ActiveModes.IsValidIndex(SelectedModeIndex)
+        ? FText::FromString(FString::Printf(TEXT("%.2f"), ActiveModes[SelectedModeIndex].Gain))
+        : FText::FromString(TEXT("—"));
+}
+
+FText FResonanceForgeEditorModule::GetSelectedModeDecayText() const
+{
+    return ActiveModes.IsValidIndex(SelectedModeIndex)
+        ? FText::FromString(FString::Printf(TEXT("%.2f 秒"), ActiveModes[SelectedModeIndex].DecaySeconds))
+        : FText::FromString(TEXT("—"));
+}
+
 FReply FResonanceForgeEditorModule::ForgeSharedRecipeAsset()
 {
     AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
@@ -819,7 +908,9 @@ FReply FResonanceForgeEditorModule::ForgeSharedRecipeAsset()
     Profile->DisplayName = FText::FromString(DisplayName);
     Profile->SourcePreset = ActivePreset;
     Profile->ModelType = ActiveModel;
-    Profile->Modes = UResonanceForgeSynthComponent::GetBuiltInModes(ActivePreset);
+    Profile->Modes = ActiveModes.IsEmpty()
+        ? UResonanceForgeSynthComponent::GetBuiltInModes(ActivePreset)
+        : ActiveModes;
     Profile->StringDecay = FMath::Lerp(
         ResonanceForgeEditor::WaveguideDecayMin,
         ResonanceForgeEditor::WaveguideDecayMax,
@@ -944,6 +1035,18 @@ FText FResonanceForgeEditorModule::GetComparisonText() const
     const int32 SustainDelta = FMath::RoundToInt((WaveguideSustain - ReferenceSustain) * 100.0f);
     const int32 DampingDelta = FMath::RoundToInt((WaveguideDamping - ReferenceDamping) * 100.0f);
     const int32 CouplingDelta = FMath::RoundToInt((WaveguideCoupling - ReferenceCoupling) * 100.0f);
+    int32 ChangedModeCount = FMath::Abs(ActiveModes.Num() - ReferenceModes.Num());
+    for (int32 Index = 0; Index < FMath::Min(ActiveModes.Num(), ReferenceModes.Num()); ++Index)
+    {
+        const FResonanceMode& Current = ActiveModes[Index];
+        const FResonanceMode& Reference = ReferenceModes[Index];
+        if (!FMath::IsNearlyEqual(Current.FrequencyHz, Reference.FrequencyHz, 0.5f)
+            || !FMath::IsNearlyEqual(Current.Gain, Reference.Gain, 0.005f)
+            || !FMath::IsNearlyEqual(Current.DecaySeconds, Reference.DecaySeconds, 0.005f))
+        {
+            ++ChangedModeCount;
+        }
+    }
     const auto SignedPercent = [](int32 Value)
     {
         return FText::FromString(FString::Printf(TEXT("%+d"), Value));
@@ -955,11 +1058,12 @@ FText FResonanceForgeEditorModule::GetComparisonText() const
             FText::FromName(ReferencePreset), SignedPercent(SustainDelta), SignedPercent(DampingDelta), SignedPercent(CouplingDelta));
     }
     return FText::Format(
-        NSLOCTEXT("ResonanceForge", "ReferenceDifference", "参考「{0}」 · 能量 {1}%  明亮 {2}%  尺度 {3}%"),
+        NSLOCTEXT("ResonanceForge", "ReferenceDifference", "参考「{0}」 · 能量 {1}%  明亮 {2}%  尺度 {3}%  ·  变化 {4} 根共振齿"),
         FText::FromName(ReferencePreset),
         SignedPercent(EnergyDelta),
         SignedPercent(BrightnessDelta),
-        SignedPercent(SizeDelta));
+        SignedPercent(SizeDelta),
+        FText::AsNumber(ChangedModeCount));
 }
 
 TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTabArgs& Args)
@@ -980,6 +1084,8 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                 Instrument->NativeSynth->StringDecay);
             WaveguideDamping = Instrument->NativeSynth->StringDamping;
             WaveguideCoupling = Instrument->NativeSynth->BodyCoupling;
+            ActiveModes = Instrument->NativeSynth->GetEffectiveModes();
+            SelectedModeIndex = FMath::Clamp(SelectedModeIndex, 0, FMath::Max(0, ActiveModes.Num() - 1));
         }
         if (Instrument->WwiseBridge)
         {
@@ -1133,6 +1239,70 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                     AuditionCurrentSound(FText::Format(
                         NSLOCTEXT("ResonanceForge", "WaveguideParameterAudition", "{0}调整完成"),
                         Name));
+                })
+                .SliderBarColor(Color)
+                .SliderHandleColor(Color)
+            ];
+    };
+
+    auto ModeParameterRow = [this](const int32 Parameter, const FText& Name, const FText& Detail, const FLinearColor& Color)
+    {
+        auto GetNormalized = [this, Parameter]()
+        {
+            if (!ActiveModes.IsValidIndex(SelectedModeIndex))
+            {
+                return 0.0f;
+            }
+            const FResonanceMode& Mode = ActiveModes[SelectedModeIndex];
+            if (Parameter == 0)
+            {
+                return FMath::GetRangePct(FMath::Loge(100.0f), FMath::Loge(8000.0f), FMath::Loge(FMath::Clamp(Mode.FrequencyHz, 100.0f, 8000.0f)));
+            }
+            return Parameter == 1
+                ? FMath::Clamp(Mode.Gain / 1.5f, 0.0f, 1.0f)
+                : FMath::GetRangePct(0.03f, 3.0f, FMath::Clamp(Mode.DecaySeconds, 0.03f, 3.0f));
+        };
+        return SNew(SVerticalBox)
+            + SVerticalBox::Slot().AutoHeight()
+            [
+                SNew(SHorizontalBox)
+                + SHorizontalBox::Slot().FillWidth(1.0f)
+                [SNew(STextBlock).Text(Name).Font(FAppStyle::GetFontStyle(TEXT("BoldFont")))]
+                + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 10, 0)
+                [SNew(STextBlock).Text(Detail).ColorAndOpacity(Muted)]
+                + SHorizontalBox::Slot().AutoWidth()
+                [SNew(STextBlock).Text_Lambda([this, Parameter]
+                {
+                    if (Parameter == 0) return GetSelectedModeFrequencyText();
+                    return Parameter == 1 ? GetSelectedModeGainText() : GetSelectedModeDecayText();
+                }).ColorAndOpacity(Color).Font(FAppStyle::GetFontStyle(TEXT("BoldFont")))]
+            ]
+            + SVerticalBox::Slot().AutoHeight().Padding(0, 7, 0, 0)
+            [
+                SNew(SSlider)
+                .Value_Lambda(GetNormalized)
+                .OnValueChanged_Lambda([this, Parameter](const float NewValue)
+                {
+                    if (!ActiveModes.IsValidIndex(SelectedModeIndex)) return;
+                    FResonanceMode& Mode = ActiveModes[SelectedModeIndex];
+                    if (Parameter == 0)
+                    {
+                        Mode.FrequencyHz = FMath::Exp(FMath::Lerp(FMath::Loge(100.0f), FMath::Loge(8000.0f), NewValue));
+                    }
+                    else if (Parameter == 1)
+                    {
+                        Mode.Gain = NewValue * 1.5f;
+                    }
+                    else
+                    {
+                        Mode.DecaySeconds = FMath::Lerp(0.03f, 3.0f, NewValue);
+                    }
+                    ApplyModalModes(false, FText::GetEmpty());
+                })
+                .OnMouseCaptureEnd_Lambda([this, Name]
+                {
+                    AuditionCurrentSound(FText::Format(
+                        NSLOCTEXT("ResonanceForge", "ModeParameterAudition", "共振齿「{0}」调整完成"), Name));
                 })
                 .SliderBarColor(Color)
                 .SliderHandleColor(Color)
@@ -1319,6 +1489,51 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                                 [WaveguideParameterRow(NSLOCTEXT("ResonanceForge", "Damping", "弦路阻尼"), NSLOCTEXT("ResonanceForge", "DampingDetail", "高频耗散"), &WaveguideDamping, Steel)]
                                 + SHorizontalBox::Slot().FillWidth(1.0f).Padding(10, 0, 0, 0)
                                 [WaveguideParameterRow(NSLOCTEXT("ResonanceForge", "Coupling", "箱体耦合"), NSLOCTEXT("ResonanceForge", "CouplingDetail", "弦体传能"), &WaveguideCoupling, Glass)]
+                            ]
+                        ]
+                    ]
+                    + SVerticalBox::Slot().AutoHeight().Padding(22, 2, 22, 12)
+                    [
+                        SNew(SBorder)
+                        .Visibility_Lambda([this]
+                        {
+                            return ActiveModel == EResonanceModelType::ModalImpact ? EVisibility::Visible : EVisibility::Collapsed;
+                        })
+                        .BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel")))
+                        .BorderBackgroundColor(FLinearColor(0.038f, 0.050f, 0.048f, 1.0f))
+                        .Padding(FMargin(14, 12))
+                        [
+                            SNew(SVerticalBox)
+                            + SVerticalBox::Slot().AutoHeight()
+                            [
+                                SNew(SHorizontalBox)
+                                + SHorizontalBox::Slot().FillWidth(1.0f)
+                                [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "ModeRack", "共振齿列"), NSLOCTEXT("ResonanceForge", "ModeRackDetail", "点击一根齿把它夹住；高度是重量，短尾是余响，横向位置是频率。"))]
+                                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+                                [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "ResetModeRack", "按材质重新排齿")).OnClicked_Lambda([this]{ ResetModalModesToPreset(); return FReply::Handled(); })]
+                            ]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 2)
+                            [
+                                SNew(SBorder)
+                                .BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel")))
+                                .BorderBackgroundColor(FLinearColor(0.018f, 0.025f, 0.025f, 1.0f))
+                                .Padding(FMargin(8, 4))
+                                [
+                                    SNew(SResonanceModeRack)
+                                    .Modes_Lambda([this]{ return ActiveModes; })
+                                    .SelectedMode_Lambda([this]{ return SelectedModeIndex; })
+                                    .OnModeSelected(FOnResonanceModeSelected::CreateRaw(this, &FResonanceForgeEditorModule::SelectModalMode))
+                                ]
+                            ]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
+                            [
+                                SNew(SHorizontalBox)
+                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(0, 0, 10, 0)
+                                [ModeParameterRow(0, NSLOCTEXT("ResonanceForge", "ModeFrequency", "齿位"), NSLOCTEXT("ResonanceForge", "ModeFrequencyDetail", "频率"), Wood)]
+                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(10, 0)
+                                [ModeParameterRow(1, NSLOCTEXT("ResonanceForge", "ModeWeight", "齿重"), NSLOCTEXT("ResonanceForge", "ModeWeightDetail", "响度权重"), Steel)]
+                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(10, 0, 0, 0)
+                                [ModeParameterRow(2, NSLOCTEXT("ResonanceForge", "ModeTail", "余响"), NSLOCTEXT("ResonanceForge", "ModeTailDetail", "衰减时间"), Glass)]
                             ]
                         ]
                     ]
