@@ -2,6 +2,7 @@
 
 #include "Modules/ModuleManager.h"
 #include "ResonanceMaterialProfile.h"
+#include "ResonanceForgeImpactInstrumentActor.h"
 #include "Widgets/Input/SComboBox.h"
 #include "Containers/Ticker.h"
 
@@ -27,6 +28,7 @@ private:
     void AuditionCurrentSound(const FText& ChangeLabel);
     FReply SyncFromSelection();
     FReply TriggerPreview();
+    FReply SetListenMode(EResonanceForgeListenMode NewMode);
     FReply TriggerStrikePreset(float Energy, float Brightness, const FText& GestureName);
     FReply PinReference();
     FReply SwapAndPreviewReference();
@@ -60,6 +62,7 @@ private:
     FText GetWwiseVolumeText() const;
     FText GetWwiseLowpassText() const;
     FText GetWwisePitchText() const;
+    FText GetListenModeText() const;
     FText GetSelectedModeFrequencyText() const;
     FText GetSelectedModeGainText() const;
     FText GetSelectedModeDecayText() const;
@@ -85,6 +88,7 @@ private:
     float WaveguideDamping = 0.36f;
     float WaveguideCoupling = 0.22f;
     float WaveguidePickup = 0.35f;
+    EResonanceForgeListenMode ListenMode = EResonanceForgeListenMode::Layered;
     TArray<FResonanceMode> ActiveModes;
     int32 SelectedModeIndex = 0;
     bool bHasReference = false;

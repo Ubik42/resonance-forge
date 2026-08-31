@@ -73,6 +73,16 @@ float AResonanceForgeImpactInstrumentActor::ComputeImpactBrightness(const float 
     return FMath::Clamp(FMath::Sqrt(FMath::Max(0.0f, RelativeSpeed) / 2400.0f), 0.12f, 1.0f);
 }
 
+bool AResonanceForgeImpactInstrumentActor::ListenModeIncludesNative(const EResonanceForgeListenMode Mode)
+{
+    return Mode == EResonanceForgeListenMode::NativeOnly || Mode == EResonanceForgeListenMode::Layered;
+}
+
+bool AResonanceForgeImpactInstrumentActor::ListenModeIncludesWwise(const EResonanceForgeListenMode Mode)
+{
+    return Mode == EResonanceForgeListenMode::WwiseOnly || Mode == EResonanceForgeListenMode::Layered;
+}
+
 int32 AResonanceForgeImpactInstrumentActor::TriggerInstrument(
     const float Energy,
     const float Brightness,
@@ -97,7 +107,15 @@ int32 AResonanceForgeImpactInstrumentActor::TriggerInstrument(
 
     LastTriggerTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
     LastImpactWorldSeconds = static_cast<float>(LastTriggerTime);
-    const int32 PlayingId = WwiseBridge->TriggerImpact(Parameters, NativeSynth);
+    int32 PlayingId = 0;
+    if (ListenModeIncludesNative(ListenMode) && NativeSynth)
+    {
+        NativeSynth->Strike(Parameters.Energy, Parameters.Brightness, Parameters.MidiNote, Parameters.StrikePosition);
+    }
+    if (ListenModeIncludesWwise(ListenMode) && WwiseBridge)
+    {
+        PlayingId = WwiseBridge->TriggerImpact(Parameters, nullptr);
+    }
     const FLinearColor FlashColor = ResonancePreset == TEXT("硬木")
         ? FLinearColor(1.0f, 0.24f, 0.035f)
         : ResonancePreset == TEXT("薄玻璃")

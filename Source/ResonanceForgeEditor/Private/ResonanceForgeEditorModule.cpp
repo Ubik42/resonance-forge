@@ -528,11 +528,13 @@ void FResonanceForgeEditorModule::TriggerKeybedNote(const int32 MidiNote, const 
     {
         Instrument->ObjectSize = PreviewSize;
         ApplyWaveguideParameters();
+        Instrument->ListenMode = ListenMode;
         Instrument->TriggerInstrument(SafeVelocity, PreviewBrightness, SafeNote, PreviewStrikePosition);
         LastStatus = FText::Format(
-            NSLOCTEXT("ResonanceForge", "KeybedPlayed", "试音键床 · Note {0} / 力度 {1}% · 已发送 UE 声源与 Wwise"),
+            NSLOCTEXT("ResonanceForge", "KeybedPlayed", "试音键床 · Note {0} / 力度 {1}% · 监听 {2}"),
             FText::AsNumber(SafeNote),
-            FText::AsNumber(FMath::RoundToInt(SafeVelocity * 100.0f)));
+            FText::AsNumber(FMath::RoundToInt(SafeVelocity * 100.0f)),
+            GetListenModeText());
     }
     else
     {
@@ -546,13 +548,15 @@ void FResonanceForgeEditorModule::AuditionCurrentSound(const FText& ChangeLabel)
     {
         Instrument->ObjectSize = PreviewSize;
         ApplyWaveguideParameters();
+        Instrument->ListenMode = ListenMode;
         Instrument->TriggerInstrument(PreviewEnergy, PreviewBrightness, 60, PreviewStrikePosition);
         LastStatus = FText::Format(
-            NSLOCTEXT("ResonanceForge", "AuditionedChange", "{0} · 已试听  能量 {1}% / 明亮度 {2}% / 尺度 {3}%"),
+            NSLOCTEXT("ResonanceForge", "AuditionedChange", "{0} · 已试听  能量 {1}% / 明亮度 {2}% / 尺度 {3}% · {4}"),
             ChangeLabel,
             FText::AsNumber(FMath::RoundToInt(PreviewEnergy * 100.0f)),
             FText::AsNumber(FMath::RoundToInt(PreviewBrightness * 100.0f)),
-            FText::AsNumber(FMath::RoundToInt(PreviewSize * 100.0f)));
+            FText::AsNumber(FMath::RoundToInt(PreviewSize * 100.0f)),
+            GetListenModeText());
     }
     else
     {
@@ -568,6 +572,7 @@ FReply FResonanceForgeEditorModule::SyncFromSelection()
         ActiveModel = SharedProfile ? SharedProfile->ModelType : Instrument->SynthesisModel;
         ActivePreset = SharedProfile ? SharedProfile->SourcePreset : Instrument->ResonancePreset;
         PreviewSize = Instrument->ObjectSize;
+        ListenMode = Instrument->ListenMode;
         PreviewStrikePosition = Instrument->LastStrikePosition;
         if (Instrument->NativeSynth)
         {
@@ -602,6 +607,23 @@ FReply FResonanceForgeEditorModule::TriggerPreview()
     return FReply::Handled();
 }
 
+FReply FResonanceForgeEditorModule::SetListenMode(const EResonanceForgeListenMode NewMode)
+{
+    ListenMode = NewMode;
+    if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
+    {
+        Instrument->Modify();
+        Instrument->ListenMode = ListenMode;
+        Instrument->MarkPackageDirty();
+        AuditionCurrentSound(NSLOCTEXT("ResonanceForge", "ListenGateAudition", "监听闸门已切换"));
+    }
+    else
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "ListenGateMissing", "监听闸门等待共振体 · 请先打开试听场景");
+    }
+    return FReply::Handled();
+}
+
 FReply FResonanceForgeEditorModule::TriggerStrikePreset(
     const float Energy,
     const float Brightness,
@@ -614,13 +636,15 @@ FReply FResonanceForgeEditorModule::TriggerStrikePreset(
     {
         Instrument->ObjectSize = PreviewSize;
         ApplyWaveguideParameters();
+        Instrument->ListenMode = ListenMode;
         Instrument->TriggerInstrument(PreviewEnergy, PreviewBrightness, 60, PreviewStrikePosition);
         LastStatus = FText::Format(
-            NSLOCTEXT("ResonanceForge", "StrikePresetTriggered", "{0}已触发 · {1} / {2} / {3}"),
+            NSLOCTEXT("ResonanceForge", "StrikePresetTriggered", "{0}已触发 · {1} / {2} / {3} · {4}"),
             GestureName,
             GetWwiseVolumeText(),
             GetWwiseLowpassText(),
-            GetWwisePitchText());
+            GetWwisePitchText(),
+            GetListenModeText());
     }
     else
     {
@@ -1040,6 +1064,19 @@ FText FResonanceForgeEditorModule::GetWwisePitchText() const
         ? FMath::Lerp(420.0f, 0.0f, ResonanceForgeEditor::SmoothCurve(Size / 0.50f))
         : FMath::Lerp(0.0f, -520.0f, ResonanceForgeEditor::SmoothCurve((Size - 0.50f) / 0.50f));
     return FText::FromString(FString::Printf(TEXT("移调约 %+.0f cent"), PitchCent));
+}
+
+FText FResonanceForgeEditorModule::GetListenModeText() const
+{
+    switch (ListenMode)
+    {
+    case EResonanceForgeListenMode::NativeOnly:
+        return NSLOCTEXT("ResonanceForge", "ListenNativeText", "原声炉");
+    case EResonanceForgeListenMode::WwiseOnly:
+        return NSLOCTEXT("ResonanceForge", "ListenWwiseText", "Wwise 出口");
+    default:
+        return NSLOCTEXT("ResonanceForge", "ListenLayeredText", "双路叠听");
+    }
 }
 
 FText FResonanceForgeEditorModule::GetSelectedModeFrequencyText() const
@@ -1856,6 +1893,18 @@ FText FResonanceForgeEditorModule::GetResonanceText() const
 
 FText FResonanceForgeEditorModule::GetOutputRouteText() const
 {
+    if (ListenMode == EResonanceForgeListenMode::NativeOnly)
+    {
+        return ActiveModel == EResonanceModelType::WaveguideString
+            ? NSLOCTEXT("ResonanceForge", "NativeWaveguideRoute", "UE 原声炉 / 数字波导弦")
+            : NSLOCTEXT("ResonanceForge", "NativeModalRoute", "UE 原声炉 / 模态撞击体");
+    }
+    if (ListenMode == EResonanceForgeListenMode::Layered)
+    {
+        return FText::Format(
+            NSLOCTEXT("ResonanceForge", "LayeredOutputRoute", "UE 原声 + {0} / 3 RTPC"),
+            FText::FromString(ResonanceForgeEditor::GetWwiseEventName(ActivePreset)));
+    }
     return FText::Format(
         NSLOCTEXT("ResonanceForge", "OutputMaterialRoute", "{0} → {1} / 3 RTPC"),
         FText::FromName(ActivePreset),
@@ -1933,6 +1982,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
         ActivePreset = SharedProfile ? SharedProfile->SourcePreset : Instrument->ResonancePreset;
         PreviewSize = Instrument->ObjectSize;
         PreviewStrikePosition = Instrument->LastStrikePosition;
+        ListenMode = Instrument->ListenMode;
         if (Instrument->NativeSynth)
         {
             WaveguideSustain = FMath::GetRangePct(
@@ -1975,6 +2025,24 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                 SNew(SVerticalBox)
                 + SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Text(Label).Font(FAppStyle::GetFontStyle(TEXT("BoldFont")))]
                 + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)[SNew(STextBlock).Text(Detail).ColorAndOpacity(Muted).AutoWrapText(true)]
+            ];
+    };
+
+    auto ListenGateButton = [this](const EResonanceForgeListenMode Mode, const FText& Label, const FText& Detail, const FLinearColor& Color)
+    {
+        return SNew(SButton)
+            .ContentPadding(FMargin(12, 9))
+            .ButtonColorAndOpacity_Lambda([this, Mode, Color]
+            {
+                return ListenMode == Mode ? Color * 0.55f : FLinearColor(0.035f, 0.042f, 0.041f, 1.0f);
+            })
+            .OnClicked_Lambda([this, Mode]{ return SetListenMode(Mode); })
+            [
+                SNew(SVerticalBox)
+                + SVerticalBox::Slot().AutoHeight()
+                [SNew(STextBlock).Text(Label).Font(FAppStyle::GetFontStyle(TEXT("BoldFont")))]
+                + SVerticalBox::Slot().AutoHeight().Padding(0, 3, 0, 0)
+                [SNew(STextBlock).Text(Detail).ColorAndOpacity(Muted).AutoWrapText(true)]
             ];
     };
 
@@ -2227,7 +2295,25 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                             + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(8, 0)
                             [SNew(STextBlock).Text(FText::FromString(TEXT("›"))).Font(FAppStyle::GetFontStyle(TEXT("HeadingSmall"))).ColorAndOpacity(Muted)]
                             + SHorizontalBox::Slot().FillWidth(0.95f)
-                            [RecipeStage(NSLOCTEXT("ResonanceForge", "OutputNode", "Wwise 材质出口"), TAttribute<FText>::CreateLambda([this]{ return GetOutputRouteText(); }), Cyan)]
+                            [RecipeStage(NSLOCTEXT("ResonanceForge", "OutputNode", "声音出口"), TAttribute<FText>::CreateLambda([this]{ return GetOutputRouteText(); }), Cyan)]
+                        ]
+                    ]
+                    + SVerticalBox::Slot().AutoHeight().Padding(22, 0, 22, 14)
+                    [
+                        SNew(SBorder)
+                        .BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel")))
+                        .BorderBackgroundColor(FLinearColor(0.025f, 0.032f, 0.031f, 1.0f))
+                        .Padding(FMargin(12, 10))
+                        [
+                            SNew(SHorizontalBox)
+                            + SHorizontalBox::Slot().FillWidth(0.65f).VAlign(VAlign_Center).Padding(0, 0, 16, 0)
+                            [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "ListenGate", "监听闸门"), NSLOCTEXT("ResonanceForge", "ListenGateDetail", "先单听链路，再用双路叠听检查层叠关系。"))]
+                            + SHorizontalBox::Slot().FillWidth(1.0f).Padding(0, 0, 6, 0)
+                            [ListenGateButton(EResonanceForgeListenMode::NativeOnly, NSLOCTEXT("ResonanceForge", "NativeGate", "原声炉"), NSLOCTEXT("ResonanceForge", "NativeGateDetail", "只听 UE 物理声源"), Wood)]
+                            + SHorizontalBox::Slot().FillWidth(1.0f).Padding(0, 0, 6, 0)
+                            [ListenGateButton(EResonanceForgeListenMode::WwiseOnly, NSLOCTEXT("ResonanceForge", "WwiseGate", "Wwise 出口"), NSLOCTEXT("ResonanceForge", "WwiseGateDetail", "只听 Event 与 RTPC"), Glass)]
+                            + SHorizontalBox::Slot().FillWidth(1.0f)
+                            [ListenGateButton(EResonanceForgeListenMode::Layered, NSLOCTEXT("ResonanceForge", "LayeredGate", "双路叠听"), NSLOCTEXT("ResonanceForge", "LayeredGateDetail", "检查原声与中间件层叠"), Cyan)]
                         ]
                     ]
                     + SVerticalBox::Slot().AutoHeight().Padding(22, 0, 22, 12)

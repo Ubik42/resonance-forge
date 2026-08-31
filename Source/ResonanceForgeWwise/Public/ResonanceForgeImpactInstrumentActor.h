@@ -19,6 +19,14 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(
     float, ObjectSize,
     int32, MidiNote);
 
+UENUM(BlueprintType)
+enum class EResonanceForgeListenMode : uint8
+{
+    NativeOnly UMETA(DisplayName="原声炉"),
+    WwiseOnly UMETA(DisplayName="Wwise 出口"),
+    Layered UMETA(DisplayName="双路叠听")
+};
+
 UCLASS(BlueprintType, Blueprintable, meta=(DisplayName="共振铸造台撞击乐器"))
 class RESONANCEFORGEWWISE_API AResonanceForgeImpactInstrumentActor final : public AActor
 {
@@ -41,6 +49,9 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|声学模型")
     EResonanceModelType SynthesisModel = EResonanceModelType::ModalImpact;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|监听", meta=(DisplayName="监听闸门"))
+    EResonanceForgeListenMode ListenMode = EResonanceForgeListenMode::Layered;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|撞击", meta=(ClampMin="0.0"))
     float MinimumImpulse = 800.0f;
@@ -119,6 +130,12 @@ public:
 
     UFUNCTION(BlueprintPure, Category="共振铸造台|撞击")
     static float ComputeImpactBrightness(float RelativeSpeed);
+
+    UFUNCTION(BlueprintPure, Category="共振铸造台|监听")
+    static bool ListenModeIncludesNative(EResonanceForgeListenMode Mode);
+
+    UFUNCTION(BlueprintPure, Category="共振铸造台|监听")
+    static bool ListenModeIncludesWwise(EResonanceForgeListenMode Mode);
 
 protected:
     virtual void BeginPlay() override;

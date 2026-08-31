@@ -15,6 +15,12 @@ bool FResonanceForgeImpactMappingTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("阈值后的冲量映射为能量"), AResonanceForgeImpactInstrumentActor::ComputeImpactEnergy(1300.0f, 800.0f, 0.001f), 0.5f);
     TestEqual(TEXT("能量上限为 1"), AResonanceForgeImpactInstrumentActor::ComputeImpactEnergy(4000.0f, 800.0f, 0.001f), 1.0f);
     TestTrue(TEXT("高速撞击更明亮"), AResonanceForgeImpactInstrumentActor::ComputeImpactBrightness(2000.0f) > AResonanceForgeImpactInstrumentActor::ComputeImpactBrightness(200.0f));
+    TestTrue(TEXT("原声炉只包含原生 Synth"), AResonanceForgeImpactInstrumentActor::ListenModeIncludesNative(EResonanceForgeListenMode::NativeOnly));
+    TestFalse(TEXT("原声炉不会发布 Wwise"), AResonanceForgeImpactInstrumentActor::ListenModeIncludesWwise(EResonanceForgeListenMode::NativeOnly));
+    TestFalse(TEXT("Wwise 出口不会叠加原生 Synth"), AResonanceForgeImpactInstrumentActor::ListenModeIncludesNative(EResonanceForgeListenMode::WwiseOnly));
+    TestTrue(TEXT("Wwise 出口会发布中间件"), AResonanceForgeImpactInstrumentActor::ListenModeIncludesWwise(EResonanceForgeListenMode::WwiseOnly));
+    TestTrue(TEXT("双路叠听包含原生 Synth"), AResonanceForgeImpactInstrumentActor::ListenModeIncludesNative(EResonanceForgeListenMode::Layered));
+    TestTrue(TEXT("双路叠听包含 Wwise"), AResonanceForgeImpactInstrumentActor::ListenModeIncludesWwise(EResonanceForgeListenMode::Layered));
     return true;
 }
 

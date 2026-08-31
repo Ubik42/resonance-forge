@@ -84,6 +84,8 @@ UE 5.8 Demo 使用 Launcher 当前提供的 2025.1 Integration。2026.1 保留�
 - UE 侧会根据材质选择三个独立 Event 之一，并真实发送三个 RTPC；Wwise 端已为每个材质 Container 建立音量、Pitch 与 Low-pass 曲线。这里有意使用直观的独立 Event 路由，没有把 Switch Container 当作展示复杂度；当前尚未加入压缩器与最终响度校准。
 - 铸样台会在 WAV 旁生成 `.rfrecipe.json` 声源铭牌，记录建议 Event 和三个 RTPC 输入，便于交接；它不会调用 WAAPI 导入、修改 Wwise Work Unit 或渲染 Wwise 效果链。
 - 数字波导的拾音位置属于 UE 原始声源 DSP，并随本地配方、共享资产和声源铭牌保存；当前不会虚构为第四个 Wwise RTPC。若后续需要在 Wwise 中实时自动化，再单独设计参数契约与 Authoring 曲线。
+- 工作台“监听闸门”在 `AResonanceForgeImpactInstrumentActor::TriggerInstrument` 统一分流：原声炉只触发 UE Synth，Wwise 出口只发布 Event / RTPC，双路叠听分别触发两条链。面板、试音键床、MIDI、键盘与 PIE 碰撞不会各自维护一套分支。
+- 监听模式用于调音与排错，不属于可交付声源配方；离线 WAV 仍只渲染 UE 物理声源，避免把实时 Wwise 总线或双路叠听误写成原始素材。
 - 铭牌回炉时只恢复 UE 声源参数；Wwise Event 会根据已校验的材质预设重新推导，不直接信任 JSON 中可能过时的 Event 字符串。
 - 作品展示优先保留真实工作台、场景联动与 Wwise Profiler 截图，不要求为这个轻量工具单独录制视频。
 - 2026.1 仅作为独立研究环境；Demo 在 Audiokinetic 发布兼容版本前继续锁定 2025.1 Integration。
