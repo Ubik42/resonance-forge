@@ -40,6 +40,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|数字波导弦", meta=(ClampMin="0.0", ClampMax="1.0", DisplayName="拾音位置"))
     float PickupPosition = 0.35f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|数字波导弦", meta=(DisplayName="起振手势"))
+    EResonanceExcitationType ExcitationType = EResonanceExcitationType::Pick;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|数字波导弦", meta=(ClampMin="1", ClampMax="16"))
     int32 MaxStringVoices = 8;
 
@@ -90,6 +93,7 @@ public:
         float StringDamping,
         float BodyCoupling,
         float PickupPosition,
+        EResonanceExcitationType ExcitationType,
         float DurationSeconds,
         int32 SampleRate,
         TArray<float>& OutInterleavedStereo);
@@ -113,6 +117,7 @@ private:
         float Damping;
         float Coupling;
         float Pickup;
+        EResonanceExcitationType ExcitationType;
         float PitchScale;
         float StrikePosition;
     };

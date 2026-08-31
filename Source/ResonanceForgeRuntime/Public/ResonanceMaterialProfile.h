@@ -11,6 +11,14 @@ enum class EResonanceModelType : uint8
     WaveguideString UMETA(DisplayName="数字波导弦")
 };
 
+UENUM(BlueprintType)
+enum class EResonanceExcitationType : uint8
+{
+    Finger UMETA(DisplayName="指腹"),
+    Pick UMETA(DisplayName="拨片"),
+    Hammer UMETA(DisplayName="锤击")
+};
+
 USTRUCT(BlueprintType)
 struct RESONANCEFORGERUNTIME_API FResonanceMode
 {
@@ -61,4 +69,7 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="数字波导弦", meta=(ClampMin="0.0", ClampMax="1.0", EditCondition="ModelType == EResonanceModelType::WaveguideString", EditConditionHides))
     float PickupPosition = 0.35f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="数字波导弦", meta=(EditCondition="ModelType == EResonanceModelType::WaveguideString", EditConditionHides, DisplayName="起振手势"))
+    EResonanceExcitationType ExcitationType = EResonanceExcitationType::Pick;
 };

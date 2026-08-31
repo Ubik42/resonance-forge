@@ -24,6 +24,7 @@ private:
     void SelectModalMode(int32 ModeIndex);
     void ApplyStrikePosition(float NewPosition, bool bFinished);
     void ApplyWaveguidePickup(float NewPosition, bool bFinished);
+    FReply SetWaveguideExcitation(EResonanceExcitationType NewType);
     void TriggerKeybedNote(int32 MidiNote, float Velocity);
     void AuditionCurrentSound(const FText& ChangeLabel);
     FReply SyncFromSelection();
@@ -63,6 +64,7 @@ private:
     FText GetWwiseLowpassText() const;
     FText GetWwisePitchText() const;
     FText GetListenModeText() const;
+    FText GetWaveguideExcitationText() const;
     FText GetSelectedModeFrequencyText() const;
     FText GetSelectedModeGainText() const;
     FText GetSelectedModeDecayText() const;
@@ -76,7 +78,7 @@ private:
     bool HasRecentSampleLabel(int32 LabelIndex) const;
     void RefreshRecentSampleLabels();
     bool HasRecipeSlot(int32 SlotIndex) const;
-    bool ReadRecipeSlot(int32 SlotIndex, FName& OutPreset, EResonanceModelType& OutModel, float& OutEnergy, float& OutBrightness, float& OutSize, float& OutSustain, float& OutDamping, float& OutCoupling, float& OutPickup) const;
+    bool ReadRecipeSlot(int32 SlotIndex, FName& OutPreset, EResonanceModelType& OutModel, float& OutEnergy, float& OutBrightness, float& OutSize, float& OutSustain, float& OutDamping, float& OutCoupling, float& OutPickup, EResonanceExcitationType& OutExcitation) const;
 
     FName ActivePreset = TEXT("拉丝钢");
     EResonanceModelType ActiveModel = EResonanceModelType::ModalImpact;
@@ -88,6 +90,7 @@ private:
     float WaveguideDamping = 0.36f;
     float WaveguideCoupling = 0.22f;
     float WaveguidePickup = 0.35f;
+    EResonanceExcitationType WaveguideExcitation = EResonanceExcitationType::Pick;
     EResonanceForgeListenMode ListenMode = EResonanceForgeListenMode::Layered;
     TArray<FResonanceMode> ActiveModes;
     int32 SelectedModeIndex = 0;
@@ -102,6 +105,7 @@ private:
     float ReferenceDamping = 0.36f;
     float ReferenceCoupling = 0.22f;
     float ReferencePickup = 0.35f;
+    EResonanceExcitationType ReferenceExcitation = EResonanceExcitationType::Pick;
     TArray<FResonanceMode> ReferenceModes;
     TArray<TSharedPtr<FString>> MidiDeviceOptions;
     TArray<int32> MidiDeviceIds;
@@ -121,7 +125,7 @@ private:
     float LastKeybedVelocity = 0.0f;
     double LastKeybedPlayedSeconds = -1000.0;
     FString SharedRecipeName = TEXT("新声学配方");
-    FString SampleExportName = TEXT("RF_StringCenter_G3");
+    FString SampleExportName = TEXT("RF_FingerString_G3");
     float SampleExportDurationSeconds = 3.0f;
     FString LastSampleExportPath;
     TArray<float> LastSampleEnvelope;

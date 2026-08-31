@@ -79,6 +79,7 @@ def make_long_tail_wood_string_profile():
     set_prop(profile, "string_damping", 0.22)
     set_prop(profile, "body_coupling", 0.44)
     set_prop(profile, "pickup_position", 0.82)
+    set_prop(profile, "excitation_type", unreal.ResonanceExcitationType.FINGER)
     if not asset_library.save_loaded_asset(profile, False):
         raise RuntimeError("长尾木弦共享配方保存失败")
     return profile
@@ -285,6 +286,8 @@ report = {
         "string_decay": shared_waveguide_profile.get_editor_property("string_decay"),
         "string_damping": shared_waveguide_profile.get_editor_property("string_damping"),
         "body_coupling": shared_waveguide_profile.get_editor_property("body_coupling"),
+        "pickup_position": shared_waveguide_profile.get_editor_property("pickup_position"),
+        "excitation_type": str(shared_waveguide_profile.get_editor_property("excitation_type")).split(".")[-1].split(":")[0].title(),
     },
     "visual_story": "材质碰撞台与数字波导弦按钢、木、玻璃路由到 Wwise Event，并共享 RTPC 输出",
     "physics_balls": [

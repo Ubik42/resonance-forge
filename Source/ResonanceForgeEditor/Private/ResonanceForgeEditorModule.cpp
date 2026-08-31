@@ -166,7 +166,8 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
         WaveguideDamping = 0.52f;
         WaveguideCoupling = 0.26f;
         WaveguidePickup = 0.82f;
-        SampleExportName = TEXT("RF_StringCenter_G3");
+        WaveguideExcitation = EResonanceExcitationType::Finger;
+        SampleExportName = TEXT("RF_FingerString_G3");
         ApplyWaveguideParameters();
         TriggerKeybedNote(55, 0.76f);
     }
@@ -178,20 +179,20 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
             CaptureWorkbenchScreenshot();
             if (WorkbenchScrollBox.IsValid())
             {
-                WorkbenchScrollBox->SetScrollOffset(500.0f);
+                WorkbenchScrollBox->SetScrollOffset(620.0f);
             }
             FTSTicker::GetCoreTicker().AddTicker(
                 FTickerDelegate::CreateLambda([this](float)
                 {
                     CaptureWorkbenchImage(TEXT("resonance-forge-keybed.png"));
                     ExportCurrentSample();
-                    const FString CenterLabelPath = FPaths::ChangeExtension(LastSampleExportPath, TEXT("rfrecipe.json"));
-                    SampleExportName = TEXT("RF_StringBridge_G3");
-                    WaveguidePickup = 0.08f;
+                    const FString FingerLabelPath = FPaths::ChangeExtension(LastSampleExportPath, TEXT("rfrecipe.json"));
+                    SampleExportName = TEXT("RF_HammerString_G3");
+                    WaveguideExcitation = EResonanceExcitationType::Hammer;
                     ApplyWaveguideParameters();
                     ExportCurrentSample();
-                    ReforgeSampleLabelFromPath(CenterLabelPath);
-                    SampleExportName = TEXT("RF_StringCenter_G3");
+                    ReforgeSampleLabelFromPath(FingerLabelPath);
+                    SampleExportName = TEXT("RF_FingerString_G3");
                     if (WorkbenchScrollBox.IsValid())
                     {
                         WorkbenchScrollBox->ScrollToEnd();
@@ -455,6 +456,7 @@ void FResonanceForgeEditorModule::ApplyWaveguideParameters()
         Instrument->NativeSynth->StringDamping = FMath::Clamp(WaveguideDamping, 0.0f, 1.0f);
         Instrument->NativeSynth->BodyCoupling = FMath::Clamp(WaveguideCoupling, 0.0f, 1.0f);
         Instrument->NativeSynth->PickupPosition = FMath::Clamp(WaveguidePickup, 0.0f, 1.0f);
+        Instrument->NativeSynth->ExcitationType = WaveguideExcitation;
     }
 }
 
@@ -466,6 +468,16 @@ void FResonanceForgeEditorModule::ApplyWaveguidePickup(const float NewPosition, 
     {
         AuditionCurrentSound(NSLOCTEXT("ResonanceForge", "PickupPositionAudition", "拾音位置调整完成"));
     }
+}
+
+FReply FResonanceForgeEditorModule::SetWaveguideExcitation(const EResonanceExcitationType NewType)
+{
+    WaveguideExcitation = NewType;
+    ApplyWaveguideParameters();
+    AuditionCurrentSound(FText::Format(
+        NSLOCTEXT("ResonanceForge", "ExcitationGestureAudition", "起振手势「{0}」"),
+        GetWaveguideExcitationText()));
+    return FReply::Handled();
 }
 
 void FResonanceForgeEditorModule::ApplyModalModes(const bool bAudition, const FText& ChangeLabel)
@@ -583,6 +595,7 @@ FReply FResonanceForgeEditorModule::SyncFromSelection()
             WaveguideDamping = Instrument->NativeSynth->StringDamping;
             WaveguideCoupling = Instrument->NativeSynth->BodyCoupling;
             WaveguidePickup = Instrument->NativeSynth->PickupPosition;
+            WaveguideExcitation = Instrument->NativeSynth->ExcitationType;
             ActiveModes = Instrument->NativeSynth->GetEffectiveModes();
             SelectedModeIndex = FMath::Clamp(SelectedModeIndex, 0, FMath::Max(0, ActiveModes.Num() - 1));
         }
@@ -666,6 +679,7 @@ FReply FResonanceForgeEditorModule::PinReference()
     ReferenceDamping = WaveguideDamping;
     ReferenceCoupling = WaveguideCoupling;
     ReferencePickup = WaveguidePickup;
+    ReferenceExcitation = WaveguideExcitation;
     ReferenceModes = ActiveModes;
     LastStatus = NSLOCTEXT("ResonanceForge", "ReferencePinned", "参考声纹已钉住 · 继续换材质或调整参数，紫色轮廓会保留用于比较");
     return FReply::Handled();
@@ -689,6 +703,7 @@ FReply FResonanceForgeEditorModule::SwapAndPreviewReference()
     const float PreviousDamping = WaveguideDamping;
     const float PreviousCoupling = WaveguideCoupling;
     const float PreviousPickup = WaveguidePickup;
+    const EResonanceExcitationType PreviousExcitation = WaveguideExcitation;
     const TArray<FResonanceMode> PreviousModes = ActiveModes;
 
     ActivePreset = ReferencePreset;
@@ -701,6 +716,7 @@ FReply FResonanceForgeEditorModule::SwapAndPreviewReference()
     WaveguideDamping = ReferenceDamping;
     WaveguideCoupling = ReferenceCoupling;
     WaveguidePickup = ReferencePickup;
+    WaveguideExcitation = ReferenceExcitation;
     ActiveModes = ReferenceModes;
 
     ReferencePreset = PreviousPreset;
@@ -713,6 +729,7 @@ FReply FResonanceForgeEditorModule::SwapAndPreviewReference()
     ReferenceDamping = PreviousDamping;
     ReferenceCoupling = PreviousCoupling;
     ReferencePickup = PreviousPickup;
+    ReferenceExcitation = PreviousExcitation;
     ReferenceModes = PreviousModes;
 
     const TArray<FResonanceMode> DesiredModes = ActiveModes;
@@ -745,7 +762,8 @@ bool FResonanceForgeEditorModule::ReadRecipeSlot(
     float& OutSustain,
     float& OutDamping,
     float& OutCoupling,
-    float& OutPickup) const
+    float& OutPickup,
+    EResonanceExcitationType& OutExcitation) const
 {
     if (!GConfig || SlotIndex < 0 || SlotIndex > 2)
     {
@@ -762,6 +780,7 @@ bool FResonanceForgeEditorModule::ReadRecipeSlot(
 
     FString PresetString;
     int32 ModelValue = 0;
+    int32 ExcitationValue = static_cast<int32>(EResonanceExcitationType::Pick);
     GConfig->GetString(*Section, *(Prefix + TEXT(".Preset")), PresetString, GEditorPerProjectIni);
     GConfig->GetInt(*Section, *(Prefix + TEXT(".Model")), ModelValue, GEditorPerProjectIni);
     GConfig->GetFloat(*Section, *(Prefix + TEXT(".Energy")), OutEnergy, GEditorPerProjectIni);
@@ -775,6 +794,7 @@ bool FResonanceForgeEditorModule::ReadRecipeSlot(
     GConfig->GetFloat(*Section, *(Prefix + TEXT(".Damping")), OutDamping, GEditorPerProjectIni);
     GConfig->GetFloat(*Section, *(Prefix + TEXT(".Coupling")), OutCoupling, GEditorPerProjectIni);
     GConfig->GetFloat(*Section, *(Prefix + TEXT(".Pickup")), OutPickup, GEditorPerProjectIni);
+    GConfig->GetInt(*Section, *(Prefix + TEXT(".Excitation")), ExcitationValue, GEditorPerProjectIni);
     OutPreset = PresetString.IsEmpty() ? FName(TEXT("拉丝钢")) : FName(*PresetString);
     OutModel = ModelValue == static_cast<int32>(EResonanceModelType::WaveguideString)
         ? EResonanceModelType::WaveguideString
@@ -786,6 +806,11 @@ bool FResonanceForgeEditorModule::ReadRecipeSlot(
     OutDamping = FMath::Clamp(OutDamping, 0.0f, 1.0f);
     OutCoupling = FMath::Clamp(OutCoupling, 0.0f, 1.0f);
     OutPickup = FMath::Clamp(OutPickup, 0.0f, 1.0f);
+    OutExcitation = ExcitationValue == static_cast<int32>(EResonanceExcitationType::Finger)
+        ? EResonanceExcitationType::Finger
+        : ExcitationValue == static_cast<int32>(EResonanceExcitationType::Hammer)
+            ? EResonanceExcitationType::Hammer
+            : EResonanceExcitationType::Pick;
     return true;
 }
 
@@ -800,7 +825,8 @@ bool FResonanceForgeEditorModule::HasRecipeSlot(const int32 SlotIndex) const
     float Damping = 0.0f;
     float Coupling = 0.0f;
     float Pickup = 0.0f;
-    return ReadRecipeSlot(SlotIndex, Preset, Model, Energy, Brightness, Size, Sustain, Damping, Coupling, Pickup);
+    EResonanceExcitationType Excitation = EResonanceExcitationType::Pick;
+    return ReadRecipeSlot(SlotIndex, Preset, Model, Energy, Brightness, Size, Sustain, Damping, Coupling, Pickup, Excitation);
 }
 
 FText FResonanceForgeEditorModule::GetRecipeSlotText(const int32 SlotIndex) const
@@ -815,7 +841,8 @@ FText FResonanceForgeEditorModule::GetRecipeSlotText(const int32 SlotIndex) cons
     float Damping = 0.0f;
     float Coupling = 0.0f;
     float Pickup = 0.0f;
-    if (!ReadRecipeSlot(SlotIndex, Preset, Model, Energy, Brightness, Size, Sustain, Damping, Coupling, Pickup))
+    EResonanceExcitationType Excitation = EResonanceExcitationType::Pick;
+    if (!ReadRecipeSlot(SlotIndex, Preset, Model, Energy, Brightness, Size, Sustain, Damping, Coupling, Pickup, Excitation))
     {
         return FText::Format(NSLOCTEXT("ResonanceForge", "EmptyRecipeSlot", "{0} · 空"), FText::FromString(SlotNames[SlotIndex]));
     }
@@ -848,6 +875,7 @@ FReply FResonanceForgeEditorModule::SaveRecipeSlot(const int32 SlotIndex)
     GConfig->SetFloat(*Section, *(Prefix + TEXT(".Damping")), WaveguideDamping, GEditorPerProjectIni);
     GConfig->SetFloat(*Section, *(Prefix + TEXT(".Coupling")), WaveguideCoupling, GEditorPerProjectIni);
     GConfig->SetFloat(*Section, *(Prefix + TEXT(".Pickup")), WaveguidePickup, GEditorPerProjectIni);
+    GConfig->SetInt(*Section, *(Prefix + TEXT(".Excitation")), static_cast<int32>(WaveguideExcitation), GEditorPerProjectIni);
     GConfig->Flush(false, GEditorPerProjectIni);
     LastStatus = FText::Format(
         NSLOCTEXT("ResonanceForge", "RecipeSaved", "已把当前声音存入{0} · 仅保存在本机工程设置中"),
@@ -866,7 +894,8 @@ FReply FResonanceForgeEditorModule::RecallRecipeSlot(const int32 SlotIndex)
     float Damping = 0.0f;
     float Coupling = 0.0f;
     float Pickup = 0.0f;
-    if (!ReadRecipeSlot(SlotIndex, Preset, Model, Energy, Brightness, Size, Sustain, Damping, Coupling, Pickup))
+    EResonanceExcitationType Excitation = EResonanceExcitationType::Pick;
+    if (!ReadRecipeSlot(SlotIndex, Preset, Model, Energy, Brightness, Size, Sustain, Damping, Coupling, Pickup, Excitation))
     {
         LastStatus = NSLOCTEXT("ResonanceForge", "RecipeSlotEmpty", "这个配方槽还是空的 · 先把当前声音存进去");
         return FReply::Handled();
@@ -881,6 +910,7 @@ FReply FResonanceForgeEditorModule::RecallRecipeSlot(const int32 SlotIndex)
     WaveguideDamping = Damping;
     WaveguideCoupling = Coupling;
     WaveguidePickup = Pickup;
+    WaveguideExcitation = Excitation;
     const FString RecipeSection(TEXT("ResonanceForge.UserRecipes"));
     const FString RecipePrefix = FString::Printf(TEXT("Slot%d"), SlotIndex + 1);
     PreviewStrikePosition = 0.5f;
@@ -1079,6 +1109,19 @@ FText FResonanceForgeEditorModule::GetListenModeText() const
     }
 }
 
+FText FResonanceForgeEditorModule::GetWaveguideExcitationText() const
+{
+    switch (WaveguideExcitation)
+    {
+    case EResonanceExcitationType::Finger:
+        return NSLOCTEXT("ResonanceForge", "ExcitationFingerText", "指腹");
+    case EResonanceExcitationType::Hammer:
+        return NSLOCTEXT("ResonanceForge", "ExcitationHammerText", "锤击");
+    default:
+        return NSLOCTEXT("ResonanceForge", "ExcitationPickText", "拨片");
+    }
+}
+
 FText FResonanceForgeEditorModule::GetSelectedModeFrequencyText() const
 {
     return ActiveModes.IsValidIndex(SelectedModeIndex)
@@ -1180,6 +1223,7 @@ FReply FResonanceForgeEditorModule::ExportCurrentSample()
         WaveguideDamping,
         WaveguideCoupling,
         WaveguidePickup,
+        WaveguideExcitation,
         SampleExportDurationSeconds,
         48000,
         Samples);
@@ -1305,6 +1349,10 @@ FReply FResonanceForgeEditorModule::ExportCurrentSample()
     Waveguide->SetNumberField(TEXT("damping"), WaveguideDamping);
     Waveguide->SetNumberField(TEXT("bodyCoupling"), WaveguideCoupling);
     Waveguide->SetNumberField(TEXT("pickupPosition"), WaveguidePickup);
+    Waveguide->SetStringField(TEXT("excitation"),
+        WaveguideExcitation == EResonanceExcitationType::Finger ? TEXT("Finger")
+        : WaveguideExcitation == EResonanceExcitationType::Hammer ? TEXT("Hammer")
+        : TEXT("Pick"));
     Root->SetObjectField(TEXT("waveguide"), Waveguide);
 
     const TSharedRef<FJsonObject> Wwise = MakeShared<FJsonObject>();
@@ -1378,19 +1426,31 @@ void FResonanceForgeEditorModule::RefreshRecentSampleLabels()
             double Note = 0.0;
             double Duration = 0.0;
             double TailDb = 0.0;
+            FString ExcitationName(TEXT("Pick"));
+            if (Root->HasTypedField<EJson::Object>(TEXT("waveguide")))
+            {
+                Root->GetObjectField(TEXT("waveguide"))->TryGetStringField(TEXT("excitation"), ExcitationName);
+            }
             if (Source->TryGetStringField(TEXT("preset"), Preset)
                 && Source->TryGetStringField(TEXT("model"), Model)
                 && Source->TryGetNumberField(TEXT("midiNote"), Note)
                 && Audio->TryGetNumberField(TEXT("durationSeconds"), Duration)
                 && Audio->TryGetNumberField(TEXT("tailRelativeDb"), TailDb))
             {
+                const FText ModelSummary = Model == TEXT("WaveguideString")
+                    ? FText::Format(
+                        NSLOCTEXT("ResonanceForge", "RecentWaveguideGesture", "波导弦/{0}"),
+                        ExcitationName == TEXT("Finger")
+                            ? NSLOCTEXT("ResonanceForge", "RecentFinger", "指腹")
+                            : ExcitationName == TEXT("Hammer")
+                                ? NSLOCTEXT("ResonanceForge", "RecentHammer", "锤击")
+                                : NSLOCTEXT("ResonanceForge", "RecentPick", "拨片"))
+                    : NSLOCTEXT("ResonanceForge", "RecentModal", "模态体");
                 Label.Summary = FText::Format(
                     NSLOCTEXT("ResonanceForge", "RecentLabelSummary", "{0}\n{1} · {2} · Note {3} · {4} 秒 · 尾音 {5} dB"),
                     FText::FromString(DisplayName),
                     FText::FromString(Preset),
-                    Model == TEXT("WaveguideString")
-                        ? NSLOCTEXT("ResonanceForge", "RecentWaveguide", "波导弦")
-                        : NSLOCTEXT("ResonanceForge", "RecentModal", "模态体"),
+                    ModelSummary,
                     FText::AsNumber(FMath::RoundToInt(Note)),
                     FText::AsNumber(Duration),
                     FText::AsNumber(FMath::RoundToInt(TailDb)));
@@ -1631,6 +1691,7 @@ FReply FResonanceForgeEditorModule::ReforgeSampleLabelFromPath(const FString& La
     double Damping = 0.0;
     double Coupling = 0.0;
     double Pickup = 0.35;
+    FString ExcitationName(TEXT("Pick"));
     if (!ReadFinite(WaveguideObject, TEXT("sustainNormalized"), Sustain)
         || !ReadFinite(WaveguideObject, TEXT("damping"), Damping)
         || !ReadFinite(WaveguideObject, TEXT("bodyCoupling"), Coupling)
@@ -1642,6 +1703,12 @@ FReply FResonanceForgeEditorModule::ReforgeSampleLabelFromPath(const FString& La
         && (!ReadFinite(WaveguideObject, TEXT("pickupPosition"), Pickup) || !InRange(Pickup, 0.0, 1.0)))
     {
         return Fail(NSLOCTEXT("ResonanceForge", "ReforgeInvalidPickup", "铭牌回炉失败 · 拾音位置越界"));
+    }
+    if (WaveguideObject->HasField(TEXT("excitation"))
+        && (!WaveguideObject->TryGetStringField(TEXT("excitation"), ExcitationName)
+            || (ExcitationName != TEXT("Finger") && ExcitationName != TEXT("Pick") && ExcitationName != TEXT("Hammer"))))
+    {
+        return Fail(NSLOCTEXT("ResonanceForge", "ReforgeInvalidExcitation", "铭牌回炉失败 · 起振手势不受当前版本支持"));
     }
 
     const TArray<TSharedPtr<FJsonValue>>* ModeValues = nullptr;
@@ -1686,6 +1753,11 @@ FReply FResonanceForgeEditorModule::ReforgeSampleLabelFromPath(const FString& La
     WaveguideDamping = static_cast<float>(Damping);
     WaveguideCoupling = static_cast<float>(Coupling);
     WaveguidePickup = static_cast<float>(Pickup);
+    WaveguideExcitation = ExcitationName == TEXT("Finger")
+        ? EResonanceExcitationType::Finger
+        : ExcitationName == TEXT("Hammer")
+            ? EResonanceExcitationType::Hammer
+            : EResonanceExcitationType::Pick;
     LastSampleEnvelope = MoveTemp(ImportedEnvelope);
     LastSampleTailDb = static_cast<float>(TailDb);
     LastSampleDurationSeconds = static_cast<float>(Duration);
@@ -1811,6 +1883,7 @@ FReply FResonanceForgeEditorModule::ForgeSharedRecipeAsset()
     Profile->StringDamping = FMath::Clamp(WaveguideDamping, 0.0f, 1.0f);
     Profile->BodyCoupling = FMath::Clamp(WaveguideCoupling, 0.0f, 1.0f);
     Profile->PickupPosition = FMath::Clamp(WaveguidePickup, 0.0f, 1.0f);
+    Profile->ExcitationType = WaveguideExcitation;
 
     FAssetRegistryModule::AssetCreated(Profile);
     Package->MarkPackageDirty();
@@ -1880,7 +1953,9 @@ FText FResonanceForgeEditorModule::GetSelectionText() const
 FText FResonanceForgeEditorModule::GetExcitationText() const
 {
     return ActiveModel == EResonanceModelType::WaveguideString
-        ? NSLOCTEXT("ResonanceForge", "StringExcitation", "拨弦噪声 / MIDI 力度")
+        ? FText::Format(
+            NSLOCTEXT("ResonanceForge", "StringExcitation", "{0}起振 / MIDI 力度"),
+            GetWaveguideExcitationText())
         : NSLOCTEXT("ResonanceForge", "ImpactExcitation", "物理碰撞 / 冲量、速度与落点");
 }
 
@@ -1914,7 +1989,7 @@ FText FResonanceForgeEditorModule::GetOutputRouteText() const
 FText FResonanceForgeEditorModule::GetPrimaryActionText() const
 {
     return ActiveModel == EResonanceModelType::WaveguideString
-        ? NSLOCTEXT("ResonanceForge", "PluckNow", "拨动当前弦")
+        ? NSLOCTEXT("ResonanceForge", "PluckNow", "激发当前弦")
         : NSLOCTEXT("ResonanceForge", "StrikeNow", "敲击当前对象");
 }
 
@@ -1956,9 +2031,17 @@ FText FResonanceForgeEditorModule::GetComparisonText() const
     };
     if (ActiveModel == EResonanceModelType::WaveguideString || ReferenceModel == EResonanceModelType::WaveguideString)
     {
+        const auto GestureText = [](const EResonanceExcitationType Type)
+        {
+            return Type == EResonanceExcitationType::Finger
+                ? NSLOCTEXT("ResonanceForge", "CompareFinger", "指腹")
+                : Type == EResonanceExcitationType::Hammer
+                    ? NSLOCTEXT("ResonanceForge", "CompareHammer", "锤击")
+                    : NSLOCTEXT("ResonanceForge", "ComparePick", "拨片");
+        };
         return FText::Format(
-            NSLOCTEXT("ResonanceForge", "WaveguideReferenceDifference", "参考「{0}」 · 延音 {1}%  阻尼 {2}%  耦合 {3}%  拾音 {4}%"),
-            FText::FromName(ReferencePreset), SignedPercent(SustainDelta), SignedPercent(DampingDelta), SignedPercent(CouplingDelta), SignedPercent(PickupDelta));
+            NSLOCTEXT("ResonanceForge", "WaveguideReferenceDifference", "参考「{0}」 · 延音 {1}%  阻尼 {2}%  耦合 {3}%  拾音 {4}%  · {5} → {6}"),
+            FText::FromName(ReferencePreset), SignedPercent(SustainDelta), SignedPercent(DampingDelta), SignedPercent(CouplingDelta), SignedPercent(PickupDelta), GestureText(ReferenceExcitation), GestureText(WaveguideExcitation));
     }
     return FText::Format(
         NSLOCTEXT("ResonanceForge", "ReferenceDifference", "参考「{0}」 · 能量 {1}%  明亮 {2}%  尺度 {3}%  落点 {4}%  ·  变化 {5} 根共振齿"),
@@ -1992,6 +2075,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
             WaveguideDamping = Instrument->NativeSynth->StringDamping;
             WaveguideCoupling = Instrument->NativeSynth->BodyCoupling;
             WaveguidePickup = Instrument->NativeSynth->PickupPosition;
+            WaveguideExcitation = Instrument->NativeSynth->ExcitationType;
             ActiveModes = Instrument->NativeSynth->GetEffectiveModes();
             SelectedModeIndex = FMath::Clamp(SelectedModeIndex, 0, FMath::Max(0, ActiveModes.Num() - 1));
         }
@@ -2043,6 +2127,24 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                 [SNew(STextBlock).Text(Label).Font(FAppStyle::GetFontStyle(TEXT("BoldFont")))]
                 + SVerticalBox::Slot().AutoHeight().Padding(0, 3, 0, 0)
                 [SNew(STextBlock).Text(Detail).ColorAndOpacity(Muted).AutoWrapText(true)]
+            ];
+    };
+
+    auto ExcitationGestureButton = [this](const EResonanceExcitationType Type, const FText& Label, const FText& Detail, const FLinearColor& Color)
+    {
+        return SNew(SButton)
+            .ContentPadding(FMargin(11, 8))
+            .ButtonColorAndOpacity_Lambda([this, Type, Color]
+            {
+                return WaveguideExcitation == Type ? Color * 0.55f : FLinearColor(0.035f, 0.030f, 0.025f, 1.0f);
+            })
+            .OnClicked_Lambda([this, Type]{ return SetWaveguideExcitation(Type); })
+            [
+                SNew(SVerticalBox)
+                + SVerticalBox::Slot().AutoHeight()
+                [SNew(STextBlock).Text(Label).Font(FAppStyle::GetFontStyle(TEXT("BoldFont")))]
+                + SVerticalBox::Slot().AutoHeight().Padding(0, 2, 0, 0)
+                [SNew(STextBlock).Text(Detail).ColorAndOpacity(Muted)]
             ];
     };
 
@@ -2251,7 +2353,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                         [
                             SNew(SVerticalBox)
                             + SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Text(NSLOCTEXT("ResonanceForge", "Title", "共振铸造台")).Font(FAppStyle::GetFontStyle(TEXT("HeadingMedium")))]
-                            + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)[SNew(STextBlock).Text(NSLOCTEXT("ResonanceForge", "Subtitle", "把碰撞与拨弦，锻造成能进入游戏的声音。")).ColorAndOpacity(Muted)]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)[SNew(STextBlock).Text(NSLOCTEXT("ResonanceForge", "Subtitle", "把碰撞与弦振，锻造成能进入游戏的声音。")).ColorAndOpacity(Muted)]
                         ]
                         + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
                         [
@@ -2337,6 +2439,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                                     .Damping_Lambda([this]{ return WaveguideDamping; })
                                     .Coupling_Lambda([this]{ return WaveguideCoupling; })
                                     .Pickup_Lambda([this]{ return WaveguidePickup; })
+                                    .ExcitationType_Lambda([this]{ return WaveguideExcitation; })
                                     .HasReference_Lambda([this]{ return bHasReference; })
                                     .ReferenceModelType_Lambda([this]{ return ReferenceModel; })
                                     .ReferencePresetName_Lambda([this]{ return ReferencePreset; })
@@ -2347,6 +2450,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                                     .ReferenceDamping_Lambda([this]{ return ReferenceDamping; })
                                     .ReferenceCoupling_Lambda([this]{ return ReferenceCoupling; })
                                     .ReferencePickup_Lambda([this]{ return ReferencePickup; })
+                                    .ReferenceExcitationType_Lambda([this]{ return ReferenceExcitation; })
                                 ]
                             ]
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
@@ -2369,7 +2473,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 7)
                             [ModelButton(EResonanceModelType::ModalImpact, NSLOCTEXT("ResonanceForge", "Modal", "模态撞击体"), NSLOCTEXT("ResonanceForge", "ModalHelp", "钢、木、玻璃的离散共振峰"), Cyan)]
                             + SVerticalBox::Slot().AutoHeight()
-                            [ModelButton(EResonanceModelType::WaveguideString, NSLOCTEXT("ResonanceForge", "String", "数字波导弦"), NSLOCTEXT("ResonanceForge", "StringHelp", "噪声激励、延迟线传播与阻尼反馈"), Wood)]
+                            [ModelButton(EResonanceModelType::WaveguideString, NSLOCTEXT("ResonanceForge", "String", "数字波导弦"), NSLOCTEXT("ResonanceForge", "StringHelp", "手势起振、延迟线传播与阻尼反馈"), Wood)]
                         ]
                     ]
                     + SVerticalBox::Slot().AutoHeight().Padding(22, 4, 22, 12)
@@ -2458,6 +2562,24 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                             SNew(SVerticalBox)
                             + SVerticalBox::Slot().AutoHeight()
                             [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "StringBed", "弦床"), NSLOCTEXT("ResonanceForge", "StringBedDetail", "拖动时观察弦路与声纹，松手试听一次；避免连续激励盖住参数差异。"))]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
+                            [
+                                SNew(SBorder)
+                                .BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel")))
+                                .BorderBackgroundColor(FLinearColor(0.030f, 0.024f, 0.019f, 1.0f))
+                                .Padding(FMargin(9, 7))
+                                [
+                                    SNew(SHorizontalBox)
+                                    + SHorizontalBox::Slot().FillWidth(0.58f).VAlign(VAlign_Center).Padding(0, 0, 12, 0)
+                                    [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "ExcitationRack", "起振手势架"), NSLOCTEXT("ResonanceForge", "ExcitationRackDetail", "同一根弦，换一种进入弦路的力。"))]
+                                    + SHorizontalBox::Slot().FillWidth(1.0f).Padding(0, 0, 5, 0)
+                                    [ExcitationGestureButton(EResonanceExcitationType::Finger, NSLOCTEXT("ResonanceForge", "FingerGesture", "指腹"), NSLOCTEXT("ResonanceForge", "FingerGestureDetail", "柔和位移"), Wood)]
+                                    + SHorizontalBox::Slot().FillWidth(1.0f).Padding(0, 0, 5, 0)
+                                    [ExcitationGestureButton(EResonanceExcitationType::Pick, NSLOCTEXT("ResonanceForge", "PickGesture", "拨片"), NSLOCTEXT("ResonanceForge", "PickGestureDetail", "噪声脉冲"), Steel)]
+                                    + SHorizontalBox::Slot().FillWidth(1.0f)
+                                    [ExcitationGestureButton(EResonanceExcitationType::Hammer, NSLOCTEXT("ResonanceForge", "HammerGesture", "锤击"), NSLOCTEXT("ResonanceForge", "HammerGestureDetail", "局部冲击"), Glass)]
+                                ]
+                            ]
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 12, 0, 0)
                             [
                                 SNew(SHorizontalBox)

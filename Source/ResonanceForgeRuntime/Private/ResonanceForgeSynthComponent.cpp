@@ -55,6 +55,7 @@ void UResonanceForgeSynthComponent::Strike(
         Profile ? Profile->StringDamping : StringDamping,
         Profile ? Profile->BodyCoupling : BodyCoupling,
         Profile ? Profile->PickupPosition : PickupPosition,
+        Profile ? Profile->ExcitationType : ExcitationType,
         PitchScale,
         FMath::Clamp(StrikePosition, 0.0f, 1.0f)
     });
@@ -109,6 +110,7 @@ bool UResonanceForgeSynthComponent::RenderOfflinePreview(
     const float InStringDamping,
     const float InBodyCoupling,
     const float InPickupPosition,
+    const EResonanceExcitationType InExcitationType,
     const float DurationSeconds,
     const int32 SampleRate,
     TArray<float>& OutInterleavedStereo)
@@ -127,6 +129,7 @@ bool UResonanceForgeSynthComponent::RenderOfflinePreview(
     OfflineSynth->StringDamping = FMath::Clamp(InStringDamping, 0.0f, 1.0f);
     OfflineSynth->BodyCoupling = FMath::Clamp(InBodyCoupling, 0.0f, 1.0f);
     OfflineSynth->PickupPosition = FMath::Clamp(InPickupPosition, 0.0f, 1.0f);
+    OfflineSynth->ExcitationType = InExcitationType;
     OfflineSynth->PitchScale = FMath::Lerp(1.35f, 0.72f, FMath::Clamp(ObjectSize, 0.0f, 1.0f));
     OfflineSynth->CustomModes = Modes;
     OfflineSynth->RebuildModesFrom(Modes.IsEmpty() ? GetBuiltInModes(TEXT("拉丝钢")) : Modes);
@@ -168,6 +171,7 @@ void UResonanceForgeSynthComponent::ApplyMaterialProfile(UResonanceMaterialProfi
         StringDamping = MaterialProfile->StringDamping;
         BodyCoupling = MaterialProfile->BodyCoupling;
         PickupPosition = MaterialProfile->PickupPosition;
+        ExcitationType = MaterialProfile->ExcitationType;
     }
     RequestModeRebuild();
 }
@@ -322,11 +326,35 @@ void UResonanceForgeSynthComponent::StartWaveguideVoice(const FStrikeEvent& Even
     Target->bActive = true;
 
     float PreviousNoise = 0.0f;
+    float PreviousSmoothedNoise = 0.0f;
+    const float HammerCenter = FMath::Lerp(0.16f, 0.84f, FMath::Clamp(Event.StrikePosition, 0.0f, 1.0f));
+    const float HammerWidth = FMath::Lerp(0.085f, 0.030f, Event.Brightness);
     for (int32 Index = 0; Index < Target->DelaySamples; ++Index)
     {
         const float Noise = NextNoiseSample(Target->NoiseState);
-        const float ShapedNoise = FMath::Lerp(0.5f * (Noise + PreviousNoise), Noise, Event.Brightness);
-        Target->DelayBuffer[Index] = ShapedNoise * Target->Gain * 0.62f;
+        const float T = Target->DelaySamples > 1
+            ? static_cast<float>(Index) / static_cast<float>(Target->DelaySamples - 1)
+            : 0.0f;
+        float Excitation = 0.0f;
+        if (Event.ExcitationType == EResonanceExcitationType::Finger)
+        {
+            const float SmoothedNoise = 0.50f * PreviousSmoothedNoise + 0.25f * (Noise + PreviousNoise);
+            const float SpatialEnvelope = FMath::Sin(PI * T);
+            Excitation = FMath::Lerp(SmoothedNoise, Noise, 0.10f + Event.Brightness * 0.28f)
+                * SpatialEnvelope * 0.72f;
+            PreviousSmoothedNoise = SmoothedNoise;
+        }
+        else if (Event.ExcitationType == EResonanceExcitationType::Hammer)
+        {
+            const float Distance = (T - HammerCenter) / FMath::Max(0.01f, HammerWidth);
+            const float BipolarPulse = -Distance * FMath::Exp(-0.5f * Distance * Distance);
+            Excitation = BipolarPulse * (0.78f + Event.Brightness * 0.26f) + Noise * 0.055f;
+        }
+        else
+        {
+            Excitation = FMath::Lerp(0.5f * (Noise + PreviousNoise), Noise, Event.Brightness) * 0.62f;
+        }
+        Target->DelayBuffer[Index] = Excitation * Target->Gain;
         PreviousNoise = Noise;
     }
 }
