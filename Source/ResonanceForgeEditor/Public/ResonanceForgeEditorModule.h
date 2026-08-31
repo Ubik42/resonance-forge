@@ -2,6 +2,7 @@
 
 #include "Modules/ModuleManager.h"
 #include "ResonanceMaterialProfile.h"
+#include "Widgets/Input/SComboBox.h"
 
 class FResonanceForgeEditorModule final : public IModuleInterface
 {
@@ -22,6 +23,9 @@ private:
     FReply ClearReference();
     FReply SaveRecipeSlot(int32 SlotIndex);
     FReply RecallRecipeSlot(int32 SlotIndex);
+    FReply RefreshMidiDevices();
+    FReply ConnectSelectedMidiDevice();
+    FReply DisconnectMidiDevice();
     FReply OpenDemoMap();
     FText GetSelectionText() const;
     FText GetExcitationText() const;
@@ -30,6 +34,8 @@ private:
     FText GetStatusText() const;
     FText GetComparisonText() const;
     FText GetRecipeSlotText(int32 SlotIndex) const;
+    FText GetMidiStatusText() const;
+    FText GetWwiseStatusText() const;
     bool HasRecipeSlot(int32 SlotIndex) const;
     bool ReadRecipeSlot(int32 SlotIndex, FName& OutPreset, EResonanceModelType& OutModel, float& OutEnergy, float& OutBrightness, float& OutSize) const;
 
@@ -44,5 +50,9 @@ private:
     float ReferenceEnergy = 0.0f;
     float ReferenceBrightness = 0.0f;
     float ReferenceSize = 0.0f;
+    TArray<TSharedPtr<FString>> MidiDeviceOptions;
+    TArray<int32> MidiDeviceIds;
+    TSharedPtr<FString> SelectedMidiDevice;
+    TSharedPtr<SComboBox<TSharedPtr<FString>>> MidiDeviceCombo;
     FText LastStatus;
 };

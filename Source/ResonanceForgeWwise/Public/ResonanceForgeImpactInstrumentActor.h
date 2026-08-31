@@ -63,6 +63,18 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|MIDI", meta=(ClampMin="0.0", ClampMax="1.0"))
     float MidiBrightness = 0.55f;
 
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="共振铸造台|MIDI")
+    int32 LastMidiNote = -1;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="共振铸造台|MIDI")
+    int32 LastMidiVelocity = 0;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="共振铸造台|MIDI")
+    int32 LastMidiControl = -1;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="共振铸造台|MIDI")
+    int32 LastMidiControlValue = 0;
+
     UPROPERTY(BlueprintAssignable, Category="共振铸造台|事件")
     FOnResonanceImpactTriggered OnImpactTriggered;
 
@@ -77,6 +89,9 @@ public:
 
     UFUNCTION(BlueprintPure, Category="共振铸造台|MIDI")
     bool IsMidiConnected() const;
+
+    UFUNCTION(BlueprintPure, Category="共振铸造台|MIDI")
+    FString GetConnectedMidiDeviceName() const;
 
     UFUNCTION(BlueprintPure, Category="共振铸造台|撞击")
     static float ComputeImpactEnergy(float ImpulseMagnitude, float MinimumRequiredImpulse, float Sensitivity);

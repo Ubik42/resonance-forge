@@ -6,9 +6,11 @@
 #include "EngineUtils.h"
 #include "Framework/Docking/TabManager.h"
 #include "Materials/MaterialInterface.h"
+#include "MIDIDeviceManager.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/PackageName.h"
 #include "../../ResonanceForgeWwise/Public/ResonanceForgeImpactInstrumentActor.h"
+#include "../../ResonanceForgeWwise/Public/ResonanceForgeWwiseBridgeComponent.h"
 #include "ResonanceForgeSynthComponent.h"
 #include "Styling/AppStyle.h"
 #include "LevelEditorSubsystem.h"
@@ -178,6 +180,10 @@ FReply FResonanceForgeEditorModule::SyncFromSelection()
         LastStatus = FText::Format(
             NSLOCTEXT("ResonanceForge", "SelectionSynced", "已读取「{0}」· 现在可以调整模型并试听"),
             FText::FromString(Instrument->GetActorLabel()));
+        if (Instrument->WwiseBridge)
+        {
+            Instrument->WwiseBridge->AutoBindDemoAssets();
+        }
     }
     else
     {
@@ -382,6 +388,126 @@ FReply FResonanceForgeEditorModule::RecallRecipeSlot(const int32 SlotIndex)
     return FReply::Handled();
 }
 
+FReply FResonanceForgeEditorModule::RefreshMidiDevices()
+{
+    if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
+    {
+        Instrument->DisconnectMidiInput();
+    }
+
+    TArray<FMIDIDeviceInfo> InputDevices;
+    TArray<FMIDIDeviceInfo> OutputDevices;
+    UMIDIDeviceManager::FindAllMIDIDeviceInfo(InputDevices, OutputDevices);
+    MidiDeviceOptions.Reset();
+    MidiDeviceIds.Reset();
+    SelectedMidiDevice.Reset();
+
+    int32 PreferredIndex = INDEX_NONE;
+    for (const FMIDIDeviceInfo& Device : InputDevices)
+    {
+        FString Label = FString::Printf(TEXT("%s · ID %d"), *Device.DeviceName, Device.DeviceID);
+        if (Device.bIsAlreadyInUse)
+        {
+            Label += TEXT(" · 正在占用");
+        }
+        MidiDeviceOptions.Add(MakeShared<FString>(MoveTemp(Label)));
+        MidiDeviceIds.Add(Device.DeviceID);
+        if (PreferredIndex == INDEX_NONE && (Device.bIsDefaultDevice || !Device.bIsAlreadyInUse))
+        {
+            PreferredIndex = MidiDeviceOptions.Num() - 1;
+        }
+    }
+
+    if (PreferredIndex == INDEX_NONE && !MidiDeviceOptions.IsEmpty())
+    {
+        PreferredIndex = 0;
+    }
+    if (PreferredIndex != INDEX_NONE)
+    {
+        SelectedMidiDevice = MidiDeviceOptions[PreferredIndex];
+    }
+    if (MidiDeviceCombo.IsValid())
+    {
+        MidiDeviceCombo->RefreshOptions();
+        MidiDeviceCombo->SetSelectedItem(SelectedMidiDevice);
+    }
+
+    LastStatus = MidiDeviceOptions.IsEmpty()
+        ? NSLOCTEXT("ResonanceForge", "NoMidiDevices", "没有发现 MIDI 输入设备 · 连接设备后点击刷新")
+        : FText::Format(NSLOCTEXT("ResonanceForge", "MidiDevicesFound", "发现 {0} 个 MIDI 输入设备 · 已选择可用设备"), FText::AsNumber(MidiDeviceOptions.Num()));
+    return FReply::Handled();
+}
+
+FReply FResonanceForgeEditorModule::ConnectSelectedMidiDevice()
+{
+    const int32 OptionIndex = MidiDeviceOptions.IndexOfByKey(SelectedMidiDevice);
+    AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+    if (!Instrument)
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "MidiNoInstrument", "无法连接 MIDI · 请先打开试听场景并选择一个共振体");
+        return FReply::Handled();
+    }
+    if (!MidiDeviceIds.IsValidIndex(OptionIndex))
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "MidiNoSelection", "还没有可连接的 MIDI 输入设备");
+        return FReply::Handled();
+    }
+
+    const bool bConnected = Instrument->ConnectMidiInput(MidiDeviceIds[OptionIndex]);
+    LastStatus = bConnected
+        ? NSLOCTEXT("ResonanceForge", "MidiConnected", "MIDI 已连接 · Note On 控制音高与力度，CC1 塑造明亮度")
+        : NSLOCTEXT("ResonanceForge", "MidiConnectFailed", "MIDI 连接失败 · 设备可能正被其他程序占用");
+    return FReply::Handled();
+}
+
+FReply FResonanceForgeEditorModule::DisconnectMidiDevice()
+{
+    if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
+    {
+        Instrument->DisconnectMidiInput();
+    }
+    LastStatus = NSLOCTEXT("ResonanceForge", "MidiDisconnected", "MIDI 已断开");
+    return FReply::Handled();
+}
+
+FText FResonanceForgeEditorModule::GetMidiStatusText() const
+{
+    const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+    if (!Instrument || !Instrument->IsMidiConnected())
+    {
+        return MidiDeviceOptions.IsEmpty()
+            ? NSLOCTEXT("ResonanceForge", "MidiWaiting", "等待 MIDI 输入设备")
+            : NSLOCTEXT("ResonanceForge", "MidiReadyToConnect", "设备已发现 · 连接后按键即可演奏");
+    }
+
+    if (Instrument->LastMidiNote >= 0)
+    {
+        return FText::Format(
+            NSLOCTEXT("ResonanceForge", "MidiLiveActivity", "{0} · Note {1} / Velocity {2} · CC1 {3}"),
+            FText::FromString(Instrument->GetConnectedMidiDeviceName()),
+            FText::AsNumber(Instrument->LastMidiNote),
+            FText::AsNumber(Instrument->LastMidiVelocity),
+            FText::AsNumber(Instrument->LastMidiControlValue));
+    }
+    return FText::Format(
+        NSLOCTEXT("ResonanceForge", "MidiConnectedWaiting", "{0} · 已连接，等待演奏"),
+        FText::FromString(Instrument->GetConnectedMidiDeviceName()));
+}
+
+FText FResonanceForgeEditorModule::GetWwiseStatusText() const
+{
+    const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+    if (!Instrument || !Instrument->WwiseBridge)
+    {
+        return NSLOCTEXT("ResonanceForge", "WwiseWaitingForObject", "Wwise 等待场景对象");
+    }
+
+    const FString Status = Instrument->WwiseBridge->GetIntegrationStatus();
+    return Status == TEXT("Wwise 桥接已就绪")
+        ? NSLOCTEXT("ResonanceForge", "WwiseReady", "Wwise 已就绪 · 1 Event / 3 RTPC")
+        : FText::FromString(Status);
+}
+
 FReply FResonanceForgeEditorModule::OpenDemoMap()
 {
     if (GEditor)
@@ -471,6 +597,14 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
     {
         ActiveModel = Instrument->SynthesisModel;
         ActivePreset = Instrument->ResonancePreset;
+        if (Instrument->WwiseBridge)
+        {
+            Instrument->WwiseBridge->AutoBindDemoAssets();
+        }
+    }
+    if (MidiDeviceOptions.IsEmpty())
+    {
+        RefreshMidiDevices();
     }
 
     auto ModelButton = [this](const EResonanceModelType ModelType, const FText& Label, const FText& Detail, const FLinearColor& Color)
@@ -580,7 +714,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                             + SHorizontalBox::Slot().AutoWidth().Padding(12, 0, 10, 0).VAlign(VAlign_Center)
                             [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "ReadSelection", "读取当前选择")).OnClicked_Raw(this, &FResonanceForgeEditorModule::SyncFromSelection)]
                             + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-                            [SNew(STextBlock).Text(NSLOCTEXT("ResonanceForge", "Online", "Wwise 已连接 · 1 Event / 3 RTPC")).ColorAndOpacity(Glass)]
+                            [SNew(STextBlock).Text_Raw(this, &FResonanceForgeEditorModule::GetWwiseStatusText).ColorAndOpacity(Glass)]
                         ]
                     ]
                     + SVerticalBox::Slot().AutoHeight().Padding(22, 0, 22, 18)
@@ -655,6 +789,46 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                             [ModelButton(EResonanceModelType::WaveguideString, NSLOCTEXT("ResonanceForge", "String", "数字波导弦"), NSLOCTEXT("ResonanceForge", "StringHelp", "噪声激励、延迟线传播与阻尼反馈"), Wood)]
                         ]
                     ]
+                    + SVerticalBox::Slot().AutoHeight().Padding(22, 4, 22, 12)
+                    [
+                        SNew(SBorder)
+                        .BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel")))
+                        .BorderBackgroundColor(FLinearColor(0.030f, 0.040f, 0.036f, 1.0f))
+                        .Padding(FMargin(14, 12))
+                        [
+                            SNew(SHorizontalBox)
+                            + SHorizontalBox::Slot().FillWidth(0.82f).VAlign(VAlign_Center)
+                            [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "MidiPerformance", "演奏入口"), NSLOCTEXT("ResonanceForge", "MidiMapping", "琴键 Note On → 音高与力度  ·  调制轮 CC1 → 明亮度"))]
+                            + SHorizontalBox::Slot().FillWidth(1.15f).Padding(16, 0, 8, 0).VAlign(VAlign_Center)
+                            [
+                                SAssignNew(MidiDeviceCombo, SComboBox<TSharedPtr<FString>>)
+                                .OptionsSource(&MidiDeviceOptions)
+                                .InitiallySelectedItem(SelectedMidiDevice)
+                                .OnGenerateWidget_Lambda([](TSharedPtr<FString> Item)
+                                {
+                                    return SNew(STextBlock).Text(FText::FromString(Item.IsValid() ? *Item : TEXT("未知设备")));
+                                })
+                                .OnSelectionChanged_Lambda([this](TSharedPtr<FString> Item, ESelectInfo::Type)
+                                {
+                                    SelectedMidiDevice = Item;
+                                })
+                                [
+                                    SNew(STextBlock).Text_Lambda([this]
+                                    {
+                                        return FText::FromString(SelectedMidiDevice.IsValid() ? *SelectedMidiDevice : TEXT("未发现 MIDI 输入"));
+                                    })
+                                ]
+                            ]
+                            + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0).VAlign(VAlign_Center)
+                            [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "RefreshMidi", "刷新")).OnClicked_Raw(this, &FResonanceForgeEditorModule::RefreshMidiDevices)]
+                            + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0).VAlign(VAlign_Center)
+                            [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "ConnectMidi", "连接")).IsEnabled_Lambda([this]{ return SelectedMidiDevice.IsValid(); }).OnClicked_Raw(this, &FResonanceForgeEditorModule::ConnectSelectedMidiDevice)]
+                            + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+                            [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "DisconnectMidi", "断开")).OnClicked_Raw(this, &FResonanceForgeEditorModule::DisconnectMidiDevice)]
+                        ]
+                    ]
+                    + SVerticalBox::Slot().AutoHeight().Padding(36, 0, 36, 12)
+                    [SNew(STextBlock).Text_Raw(this, &FResonanceForgeEditorModule::GetMidiStatusText).ColorAndOpacity(Glass)]
                     + SVerticalBox::Slot().AutoHeight().Padding(22, 4, 22, 12)
                     [
                         SNew(SHorizontalBox)

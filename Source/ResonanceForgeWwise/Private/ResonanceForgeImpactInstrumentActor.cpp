@@ -163,6 +163,11 @@ bool AResonanceForgeImpactInstrumentActor::IsMidiConnected() const
     return MidiController != nullptr;
 }
 
+FString AResonanceForgeImpactInstrumentActor::GetConnectedMidiDeviceName() const
+{
+    return MidiController ? MidiController->GetDeviceName() : FString();
+}
+
 void AResonanceForgeImpactInstrumentActor::HandleMidiEvent(
     UMIDIDeviceController* Controller,
     const int32 Timestamp,
@@ -174,10 +179,14 @@ void AResonanceForgeImpactInstrumentActor::HandleMidiEvent(
 {
     if (EventType == EMIDIEventType::ControlChange && ControlId == 1)
     {
+        LastMidiControl = ControlId;
+        LastMidiControlValue = Velocity;
         MidiBrightness = FMath::Clamp(Velocity / 127.0f, 0.0f, 1.0f);
     }
     else if (EventType == EMIDIEventType::NoteOn && Velocity > 0)
     {
+        LastMidiNote = ControlId;
+        LastMidiVelocity = Velocity;
         TriggerInstrument(Velocity / 127.0f, MidiBrightness, ControlId);
     }
 }

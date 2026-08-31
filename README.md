@@ -8,7 +8,7 @@
 ![Unreal Engine 5.8](https://img.shields.io/badge/Unreal_Engine-5.8.1-0E1128?logo=unrealengine&logoColor=white)
 ![Wwise 2025.1](https://img.shields.io/badge/Wwise-2025.1-00549F)
 ![Platform](https://img.shields.io/badge/Platform-Windows_Editor-0078D4?logo=windows&logoColor=white)
-![Version](https://img.shields.io/badge/Version-0.5.0-D96B2B)
+![Version](https://img.shields.io/badge/Version-0.6.0-D96B2B)
 ![License](https://img.shields.io/badge/License-MIT-2EA44F)
 
 </div>
@@ -22,7 +22,7 @@
 - **两类实时物理声源**：模态撞击体与八复音数字波导弦。
 - **真实场景输入**：碰撞冲量、相对速度和物体尺寸直接影响声音。
 - **UE × Wwise 双路径**：UE 原生合成可独立试听，同时发布 Wwise Event 与 3 个 RTPC。
-- **可演奏**：MIDI Note On 控制音高与力度，CC1 控制音色明亮度。
+- **可演奏**：面板可发现并连接 MIDI 输入设备；Note On 控制音高与力度，CC1 控制音色明亮度，并显示实时演奏状态。
 - **声纹炉膛**：用随模型、材质与演奏参数实时变化的声学指纹理解声音，而不是只看抽象滑杆。
 - **A/B 声纹比较**：钉住一次参考声纹，再更换材质或参数；“交换并试听 A/B”可在两个版本间往返切换。
 - **本地配方架**：甲、乙、丙三个槽位保存模型、材质和演奏参数，重开编辑器后仍可召回。
@@ -104,7 +104,8 @@ flowchart LR
 6. 点击“钉住当前声纹”，再切换材质或参数，比较橙色参考轮廓与当前声纹。
 7. 点击“交换并试听 A/B”在两版之间往返切换；每次交换都会立即触发当前版本。
 8. 使用“配方架”把满意的版本存入甲、乙或丙槽，需要时一键召回到当前对象。
-9. 进入 PIE，观察落球碰撞并在 Wwise Profiler 中检查 RTPC。
+9. 有 MIDI 键盘时，在“演奏入口”选择设备并点击“连接”；弹奏键盘或推动调制轮观察 Note、Velocity 与 CC1。
+10. 进入 PIE，观察落球碰撞并在 Wwise Profiler 中检查 RTPC。
 
 配方槽写入 Unreal 的本机工程用户设置，不会生成需要提交的团队资产；适合保存个人试听草案。需要团队共享的正式声学资产仍应使用 `UResonanceMaterialProfile`。
 
@@ -142,6 +143,16 @@ flowchart LR
 | RTPC | `RF_ImpactEnergy` | 碰撞冲量 / MIDI Velocity |
 | RTPC | `RF_ImpactBrightness` | 相对速度 / MIDI CC1 |
 | RTPC | `RF_ObjectSize` | 场景对象共振尺度 |
+
+## MIDI 映射
+
+| 输入 | 作用 |
+| --- | --- |
+| Note On 音符 | 数字波导弦音高；模态模型也可作为移调激励 |
+| Note On Velocity | 激励能量，并同步到 `RF_ImpactEnergy` |
+| CC1 调制轮 | 音色明亮度，并同步到 `RF_ImpactBrightness` |
+
+MIDI 设备是可选输入。没有硬件时，面板试听按钮、键盘触发和物理碰撞仍可独立工作。
 
 ## 工程结构
 
