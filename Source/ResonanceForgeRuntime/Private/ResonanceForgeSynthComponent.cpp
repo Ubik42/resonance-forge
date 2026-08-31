@@ -64,6 +64,19 @@ TArray<EResonanceModelType> UResonanceForgeSynthComponent::GetSupportedModels()
     return {EResonanceModelType::ModalImpact, EResonanceModelType::WaveguideString};
 }
 
+TArray<FResonanceMode> UResonanceForgeSynthComponent::GetBuiltInModes(const FName PresetName)
+{
+    if (PresetName == TEXT("硬木"))
+    {
+        return ResonanceForge::MakeModes({172.0f, 286.0f, 451.0f, 708.0f, 1098.0f, 1710.0f}, 0.54f);
+    }
+    if (PresetName == TEXT("薄玻璃"))
+    {
+        return ResonanceForge::MakeModes({392.0f, 615.0f, 933.0f, 1417.0f, 2150.0f, 3270.0f, 4860.0f}, 1.35f);
+    }
+    return ResonanceForge::MakeModes({224.0f, 361.0f, 587.0f, 927.0f, 1438.0f, 2215.0f, 3390.0f, 5120.0f}, 1.05f);
+}
+
 int32 UResonanceForgeSynthComponent::ComputeWaveguideDelaySamples(const float FrequencyHz, const float SampleRate)
 {
     const float SafeSampleRate = FMath::Max(8000.0f, SampleRate);
@@ -90,20 +103,22 @@ void UResonanceForgeSynthComponent::SetSynthesisModel(const EResonanceModelType 
     SynthesisModel = NewModel;
 }
 
+void UResonanceForgeSynthComponent::ApplyMaterialProfile(UResonanceMaterialProfile* NewProfile)
+{
+    MaterialProfile = NewProfile;
+    if (MaterialProfile)
+    {
+        SynthesisModel = MaterialProfile->ModelType;
+        StringDecay = MaterialProfile->StringDecay;
+        StringDamping = MaterialProfile->StringDamping;
+        BodyCoupling = MaterialProfile->BodyCoupling;
+    }
+    RebuildModes();
+}
+
 void UResonanceForgeSynthComponent::LoadBuiltInPreset(const FName PresetName)
 {
-    if (PresetName == TEXT("硬木"))
-    {
-        BuiltInModes = ResonanceForge::MakeModes({172.0f, 286.0f, 451.0f, 708.0f, 1098.0f, 1710.0f}, 0.54f);
-    }
-    else if (PresetName == TEXT("薄玻璃"))
-    {
-        BuiltInModes = ResonanceForge::MakeModes({392.0f, 615.0f, 933.0f, 1417.0f, 2150.0f, 3270.0f, 4860.0f}, 1.35f);
-    }
-    else
-    {
-        BuiltInModes = ResonanceForge::MakeModes({224.0f, 361.0f, 587.0f, 927.0f, 1438.0f, 2215.0f, 3390.0f, 5120.0f}, 1.05f);
-    }
+    BuiltInModes = GetBuiltInModes(PresetName);
     RebuildModes();
 }
 

@@ -8,7 +8,7 @@ public class ResonanceForgeEditor : ModuleRules
         PrivateDependencyModuleNames.AddRange(new[]
         {
             "Core", "CoreUObject", "Engine", "UnrealEd", "LevelEditor", "Slate", "SlateCore",
-            "ToolMenus", "Projects", "InputCore", "MIDIDevice",
+            "ToolMenus", "Projects", "InputCore", "MIDIDevice", "AssetRegistry",
             "ResonanceForgeRuntime", "ResonanceForgeWwise"
         });
     }

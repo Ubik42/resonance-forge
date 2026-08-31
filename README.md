@@ -8,7 +8,7 @@
 ![Unreal Engine 5.8](https://img.shields.io/badge/Unreal_Engine-5.8.1-0E1128?logo=unrealengine&logoColor=white)
 ![Wwise 2025.1](https://img.shields.io/badge/Wwise-2025.1-00549F)
 ![Platform](https://img.shields.io/badge/Platform-Windows_Editor-0078D4?logo=windows&logoColor=white)
-![Version](https://img.shields.io/badge/Version-0.7.0-D96B2B)
+![Version](https://img.shields.io/badge/Version-0.8.0-D96B2B)
 ![License](https://img.shields.io/badge/License-MIT-2EA44F)
 
 </div>
@@ -27,6 +27,7 @@
 - **A/B 声纹比较**：钉住一次参考声纹，再更换材质或参数；“交换并试听 A/B”可在两个版本间往返切换。
 - **本地配方架**：甲、乙、丙三个槽位保存模型、材质和演奏参数，重开编辑器后仍可召回。
 - **可塑形的数字弦**：“弦床”直接控制回响长度、弦路阻尼和箱体耦合，声音、声纹、A/B 参考与配方槽使用同一组参数。
+- **团队共享资产**：把当前声音“铸印”为 `UResonanceMaterialProfile`，保存进 Content、挂到当前对象并交给版本控制。
 - **编辑器工作流**：中文 Slate 面板按“对象 → 激励 → 共振 → 出口”组织一件声音的配方。
 - **可重复验证**：测试音频、PBR 贴图、演示地图和复检报告均可由脚本重建。
 
@@ -109,9 +110,19 @@ flowchart LR
 8. 使用“配方架”把满意的版本存入甲、乙或丙槽，需要时一键召回到当前对象。
 9. 有 MIDI 键盘时，在“演奏入口”选择设备并点击“连接”；弹奏键盘或推动调制轮观察 Note、Velocity 与 CC1。
 10. 切换到“数字波导弦”，调节弦床中的回响长度、弦路阻尼和箱体耦合，观察声纹与听感同步变化。
-11. 进入 PIE，观察落球碰撞并在 Wwise Profiler 中检查 RTPC。
+11. 为满意版本输入名称，点击“铸印为 Content 资产”，将它转成团队可复用的正式配方。
+12. 进入 PIE，观察落球碰撞并在 Wwise Profiler 中检查 RTPC。
 
 配方槽写入 Unreal 的本机工程用户设置，不会生成需要提交的团队资产；适合保存个人试听草案。需要团队共享的正式声学资产仍应使用 `UResonanceMaterialProfile`。
+
+### 从个人草案到团队资产
+
+“配方架”承担两种不同用途：
+
+- **甲、乙、丙槽**：保存在本机 `EditorPerProjectUserSettings`，适合临时试音和个人 A/B，不进入版本控制。
+- **铸印为 Content 资产**：在 `/Game/ResonanceForge/Profiles` 生成 `UResonanceMaterialProfile`，保存来源材质、模型、离散模态和波导参数，并立即应用到当前对象。重名时自动追加编号。
+
+切换回拉丝钢、硬木、薄玻璃或另一种模型时，工作台会解除当前共享资产，明确回到内置预设，避免两套参数暗中叠加。
 
 ## 演示场景
 

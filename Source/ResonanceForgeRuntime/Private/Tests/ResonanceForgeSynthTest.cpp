@@ -21,12 +21,30 @@ bool FResonanceForgePresetTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("保留模态撞击体"), Models.Contains(EResonanceModelType::ModalImpact));
     TestTrue(TEXT("加入数字波导弦"), Models.Contains(EResonanceModelType::WaveguideString));
 
+    const TArray<FResonanceMode> SteelModes = UResonanceForgeSynthComponent::GetBuiltInModes(TEXT("拉丝钢"));
+    const TArray<FResonanceMode> WoodModes = UResonanceForgeSynthComponent::GetBuiltInModes(TEXT("硬木"));
+    const TArray<FResonanceMode> GlassModes = UResonanceForgeSynthComponent::GetBuiltInModes(TEXT("薄玻璃"));
+    TestEqual(TEXT("共享配方可取得拉丝钢八个模态"), SteelModes.Num(), 8);
+    TestEqual(TEXT("共享配方可取得硬木六个模态"), WoodModes.Num(), 6);
+    TestEqual(TEXT("共享配方可取得薄玻璃七个模态"), GlassModes.Num(), 7);
+    TestTrue(TEXT("三种材质拥有不同的第一共振频率"), !FMath::IsNearlyEqual(SteelModes[0].FrequencyHz, WoodModes[0].FrequencyHz));
+
     TestEqual(TEXT("A4 在 48 kHz 下的波导长度接近 109 个采样"),
         UResonanceForgeSynthComponent::ComputeWaveguideDelaySamples(440.0f, 48000.0f), 109);
     TestEqual(TEXT("非法高频仍保留至少两个采样的稳定延迟"),
         UResonanceForgeSynthComponent::ComputeWaveguideDelaySamples(100000.0f, 48000.0f), 2);
 
     UResonanceForgeSynthComponent* Synth = NewObject<UResonanceForgeSynthComponent>();
+    UResonanceMaterialProfile* SharedProfile = NewObject<UResonanceMaterialProfile>();
+    SharedProfile->ModelType = EResonanceModelType::WaveguideString;
+    SharedProfile->Modes = WoodModes;
+    SharedProfile->StringDecay = 0.991f;
+    SharedProfile->StringDamping = 0.48f;
+    SharedProfile->BodyCoupling = 0.31f;
+    Synth->ApplyMaterialProfile(SharedProfile);
+    TestEqual(TEXT("共享资产能够切换合成模型"), Synth->SynthesisModel, EResonanceModelType::WaveguideString);
+    TestTrue(TEXT("共享资产能够写入弦路阻尼"), FMath::IsNearlyEqual(Synth->StringDamping, 0.48f));
+    TestTrue(TEXT("共享资产能够写入箱体耦合"), FMath::IsNearlyEqual(Synth->BodyCoupling, 0.31f));
     TArray<float> RenderedSamples;
     TestTrue(TEXT("数字波导弦能够离线生成测试缓冲"), Synth->RenderWaveguideForTest(60, 4096, RenderedSamples));
     float Peak = 0.0f;

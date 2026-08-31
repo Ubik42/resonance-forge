@@ -46,11 +46,17 @@ public:
     UFUNCTION(BlueprintCallable, Category="共振铸造台")
     void SetSynthesisModel(EResonanceModelType NewModel);
 
+    UFUNCTION(BlueprintCallable, Category="共振铸造台")
+    void ApplyMaterialProfile(UResonanceMaterialProfile* NewProfile);
+
     UFUNCTION(BlueprintPure, Category="共振铸造台")
     static TArray<FName> GetBuiltInPresetNames();
 
     UFUNCTION(BlueprintPure, Category="共振铸造台")
     static TArray<EResonanceModelType> GetSupportedModels();
+
+    UFUNCTION(BlueprintPure, Category="共振铸造台")
+    static TArray<FResonanceMode> GetBuiltInModes(FName PresetName);
 
     static int32 ComputeWaveguideDelaySamples(float FrequencyHz, float SampleRate);
 

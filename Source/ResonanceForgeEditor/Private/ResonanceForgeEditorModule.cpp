@@ -2,6 +2,7 @@
 #include "SResonanceForgeVisualizer.h"
 
 #include "Editor.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/Selection.h"
 #include "EngineUtils.h"
 #include "Framework/Docking/TabManager.h"
@@ -9,15 +10,18 @@
 #include "MIDIDeviceManager.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/PackageName.h"
+#include "ObjectTools.h"
 #include "../../ResonanceForgeWwise/Public/ResonanceForgeImpactInstrumentActor.h"
 #include "../../ResonanceForgeWwise/Public/ResonanceForgeWwiseBridgeComponent.h"
 #include "ResonanceForgeSynthComponent.h"
 #include "Styling/AppStyle.h"
 #include "LevelEditorSubsystem.h"
 #include "ToolMenus.h"
+#include "UObject/SavePackage.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SSlider.h"
+#include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SGridPanel.h"
 #include "Widgets/Layout/SScrollBox.h"
@@ -141,6 +145,7 @@ void FResonanceForgeEditorModule::ApplyPreset(const FName PresetName)
 
     Instrument->Modify();
     Instrument->ResonancePreset = PresetName;
+    Instrument->NativeSynth->ApplyMaterialProfile(nullptr);
     if (const FString* MaterialPath = MaterialPaths.Find(PresetName))
     {
         if (UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, **MaterialPath))
@@ -165,6 +170,7 @@ void FResonanceForgeEditorModule::ApplyModel(const EResonanceModelType ModelType
 
     Instrument->Modify();
     Instrument->SynthesisModel = ModelType;
+    Instrument->NativeSynth->ApplyMaterialProfile(nullptr);
     Instrument->NativeSynth->SetSynthesisModel(ModelType);
     ApplyWaveguideParameters();
     Instrument->MarkPackageDirty();
@@ -190,8 +196,9 @@ FReply FResonanceForgeEditorModule::SyncFromSelection()
 {
     if (const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
     {
-        ActiveModel = Instrument->SynthesisModel;
-        ActivePreset = Instrument->ResonancePreset;
+        const UResonanceMaterialProfile* SharedProfile = Instrument->NativeSynth ? Instrument->NativeSynth->MaterialProfile : nullptr;
+        ActiveModel = SharedProfile ? SharedProfile->ModelType : Instrument->SynthesisModel;
+        ActivePreset = SharedProfile ? SharedProfile->SourcePreset : Instrument->ResonancePreset;
         PreviewSize = Instrument->ObjectSize;
         if (Instrument->NativeSynth)
         {
@@ -574,6 +581,82 @@ FText FResonanceForgeEditorModule::GetWwiseStatusText() const
         : FText::FromString(Status);
 }
 
+FReply FResonanceForgeEditorModule::ForgeSharedRecipeAsset()
+{
+    AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+    if (!Instrument)
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "SharedRecipeNoInstrument", "无法铸印共享配方 · 请先打开试听场景并选择一个共振体");
+        return FReply::Handled();
+    }
+
+    FString DisplayName = SharedRecipeName.TrimStartAndEnd();
+    if (DisplayName.IsEmpty())
+    {
+        DisplayName = TEXT("新声学配方");
+    }
+    FString BaseAssetName = ObjectTools::SanitizeObjectName(TEXT("DA_RF_") + DisplayName);
+    if (BaseAssetName.IsEmpty())
+    {
+        BaseAssetName = TEXT("DA_RF_SharedRecipe");
+    }
+
+    const FString RootPath(TEXT("/Game/ResonanceForge/Profiles/"));
+    FString AssetName = BaseAssetName;
+    FString PackageName = RootPath + AssetName;
+    for (int32 Suffix = 2; FPackageName::DoesPackageExist(PackageName); ++Suffix)
+    {
+        AssetName = FString::Printf(TEXT("%s_%02d"), *BaseAssetName, Suffix);
+        PackageName = RootPath + AssetName;
+    }
+
+    UPackage* Package = CreatePackage(*PackageName);
+    UResonanceMaterialProfile* Profile = NewObject<UResonanceMaterialProfile>(
+        Package, *AssetName, RF_Public | RF_Standalone);
+    if (!Profile)
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "SharedRecipeCreateFailed", "共享配方创建失败");
+        return FReply::Handled();
+    }
+
+    Profile->DisplayName = FText::FromString(DisplayName);
+    Profile->SourcePreset = ActivePreset;
+    Profile->ModelType = ActiveModel;
+    Profile->Modes = UResonanceForgeSynthComponent::GetBuiltInModes(ActivePreset);
+    Profile->StringDecay = FMath::Lerp(
+        ResonanceForgeEditor::WaveguideDecayMin,
+        ResonanceForgeEditor::WaveguideDecayMax,
+        FMath::Clamp(WaveguideSustain, 0.0f, 1.0f));
+    Profile->StringDamping = FMath::Clamp(WaveguideDamping, 0.0f, 1.0f);
+    Profile->BodyCoupling = FMath::Clamp(WaveguideCoupling, 0.0f, 1.0f);
+
+    FAssetRegistryModule::AssetCreated(Profile);
+    Package->MarkPackageDirty();
+    const FString Filename = FPackageName::LongPackageNameToFilename(
+        PackageName, FPackageName::GetAssetPackageExtension());
+    FSavePackageArgs SaveArgs;
+    SaveArgs.TopLevelFlags = RF_Public | RF_Standalone;
+    SaveArgs.SaveFlags = SAVE_NoError;
+    if (!UPackage::SavePackage(Package, Profile, *Filename, SaveArgs))
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "SharedRecipeSaveFailed", "共享配方已创建，但保存到 Content 失败");
+        return FReply::Handled();
+    }
+
+    Instrument->Modify();
+    Instrument->NativeSynth->ApplyMaterialProfile(Profile);
+    Instrument->MarkPackageDirty();
+    if (GEditor)
+    {
+        TArray<UObject*> ObjectsToSync = {Profile};
+        GEditor->SyncBrowserToObjects(ObjectsToSync);
+    }
+    LastStatus = FText::Format(
+        NSLOCTEXT("ResonanceForge", "SharedRecipeCreated", "共享配方「{0}」已铸印并挂到当前对象 · Content 浏览器已定位"),
+        FText::FromString(DisplayName));
+    return FReply::Handled();
+}
+
 FReply FResonanceForgeEditorModule::OpenDemoMap()
 {
     if (GEditor)
@@ -598,11 +681,16 @@ FText FResonanceForgeEditorModule::GetSelectionText() const
 {
     if (const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
     {
-        const FText ModelText = Instrument->SynthesisModel == EResonanceModelType::WaveguideString
+        const UResonanceMaterialProfile* SharedProfile = Instrument->NativeSynth ? Instrument->NativeSynth->MaterialProfile : nullptr;
+        const EResonanceModelType Model = SharedProfile ? SharedProfile->ModelType : Instrument->SynthesisModel;
+        const FText ModelText = Model == EResonanceModelType::WaveguideString
             ? NSLOCTEXT("ResonanceForge", "WaveguideModelName", "数字波导弦")
             : NSLOCTEXT("ResonanceForge", "ModalModelName", "模态撞击体");
+        const FText RecipeText = SharedProfile && !SharedProfile->DisplayName.IsEmpty()
+            ? SharedProfile->DisplayName
+            : FText::FromName(Instrument->ResonancePreset);
         return FText::Format(NSLOCTEXT("ResonanceForge", "Selected", "{0}  ·  {1}  ·  {2}"),
-            FText::FromString(Instrument->GetActorLabel()), ModelText, FText::FromName(Instrument->ResonancePreset));
+            FText::FromString(Instrument->GetActorLabel()), ModelText, RecipeText);
     }
     return NSLOCTEXT("ResonanceForge", "SelectionEmpty", "没有共振体 · 打开声学工坊，或在场景中选择一个共振对象");
 }
@@ -670,8 +758,9 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
 
     if (const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
     {
-        ActiveModel = Instrument->SynthesisModel;
-        ActivePreset = Instrument->ResonancePreset;
+        const UResonanceMaterialProfile* SharedProfile = Instrument->NativeSynth ? Instrument->NativeSynth->MaterialProfile : nullptr;
+        ActiveModel = SharedProfile ? SharedProfile->ModelType : Instrument->SynthesisModel;
+        ActivePreset = SharedProfile ? SharedProfile->SourcePreset : Instrument->ResonancePreset;
         PreviewSize = Instrument->ObjectSize;
         if (Instrument->NativeSynth)
         {
@@ -1011,6 +1100,21 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                             + SHorizontalBox::Slot().FillWidth(1.0f).Padding(0, 0, 6, 0)[RecipeSlot(0, Steel)]
                             + SHorizontalBox::Slot().FillWidth(1.0f).Padding(6, 0)[RecipeSlot(1, Wood)]
                             + SHorizontalBox::Slot().FillWidth(1.0f).Padding(6, 0, 0, 0)[RecipeSlot(2, Glass)]
+                        ]
+                        + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
+                        [
+                            SNew(SHorizontalBox)
+                            + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 12, 0).VAlign(VAlign_Center)
+                            [SNew(STextBlock).Text(NSLOCTEXT("ResonanceForge", "SharedRecipeLabel", "团队共享配方")).ColorAndOpacity(Muted)]
+                            + SHorizontalBox::Slot().FillWidth(1.0f).Padding(0, 0, 8, 0)
+                            [
+                                SNew(SEditableTextBox)
+                                .Text_Lambda([this]{ return FText::FromString(SharedRecipeName); })
+                                .HintText(NSLOCTEXT("ResonanceForge", "SharedRecipeHint", "例如：短促铜片"))
+                                .OnTextChanged_Lambda([this](const FText& Text){ SharedRecipeName = Text.ToString(); })
+                            ]
+                            + SHorizontalBox::Slot().AutoWidth()
+                            [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "ForgeSharedRecipe", "铸印为 Content 资产")).OnClicked_Raw(this, &FResonanceForgeEditorModule::ForgeSharedRecipeAsset)]
                         ]
                     ]
                     + SVerticalBox::Slot().AutoHeight().Padding(22, 4, 22, 12)

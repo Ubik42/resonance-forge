@@ -27,6 +27,7 @@ private:
     FReply RefreshMidiDevices();
     FReply ConnectSelectedMidiDevice();
     FReply DisconnectMidiDevice();
+    FReply ForgeSharedRecipeAsset();
     FReply OpenDemoMap();
     FText GetSelectionText() const;
     FText GetExcitationText() const;
@@ -61,5 +62,6 @@ private:
     TArray<int32> MidiDeviceIds;
     TSharedPtr<FString> SelectedMidiDevice;
     TSharedPtr<SComboBox<TSharedPtr<FString>>> MidiDeviceCombo;
+    FString SharedRecipeName = TEXT("新声学配方");
     FText LastStatus;
 };

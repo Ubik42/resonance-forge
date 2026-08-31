@@ -38,6 +38,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="材质")
     FText DisplayName;
 
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="材质")
+    FName SourcePreset = TEXT("拉丝钢");
+
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="材质", meta=(ClampMin="0.0", ClampMax="1.0"))
     float Hardness = 0.65f;
 
