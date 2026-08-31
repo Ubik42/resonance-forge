@@ -24,13 +24,13 @@
 namespace ResonanceForgeEditor
 {
     static const FName TabName(TEXT("ResonanceForgeWorkbench"));
-    static const FLinearColor Cyan(0.04f, 0.78f, 1.0f, 1.0f);
-    static const FLinearColor Steel(0.22f, 0.63f, 0.92f, 1.0f);
-    static const FLinearColor Wood(0.94f, 0.49f, 0.16f, 1.0f);
-    static const FLinearColor Glass(0.30f, 0.92f, 0.84f, 1.0f);
-    static const FLinearColor Panel(0.018f, 0.027f, 0.045f, 0.96f);
-    static const FLinearColor PanelRaised(0.032f, 0.048f, 0.075f, 1.0f);
-    static const FLinearColor Muted(0.58f, 0.67f, 0.75f, 1.0f);
+    static const FLinearColor Cyan(0.10f, 0.80f, 0.86f, 1.0f);
+    static const FLinearColor Steel(0.35f, 0.66f, 0.88f, 1.0f);
+    static const FLinearColor Wood(0.94f, 0.48f, 0.17f, 1.0f);
+    static const FLinearColor Glass(0.43f, 0.90f, 0.77f, 1.0f);
+    static const FLinearColor Panel(0.015f, 0.019f, 0.021f, 0.98f);
+    static const FLinearColor PanelRaised(0.035f, 0.041f, 0.040f, 1.0f);
+    static const FLinearColor Muted(0.63f, 0.66f, 0.62f, 1.0f);
 
     TSharedRef<SWidget> WorkspaceTitle(const FText& Title, const FText& Detail)
     {
@@ -41,25 +41,15 @@ namespace ResonanceForgeEditor
             [SNew(STextBlock).Text(Detail).ColorAndOpacity(Muted).AutoWrapText(true)];
     }
 
-    TSharedRef<SWidget> SignalNode(const FText& Index, const FText& Title, const TAttribute<FText>& Detail, const FLinearColor& Accent)
+    TSharedRef<SWidget> RecipeStage(const FText& Title, const TAttribute<FText>& Detail, const FLinearColor& Accent)
     {
-        return SNew(SBorder)
-            .BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel")))
-            .BorderBackgroundColor(FLinearColor(0.025f, 0.035f, 0.048f, 1.0f))
-            .Padding(FMargin(13, 11))
-            [
-                SNew(SVerticalBox)
-                + SVerticalBox::Slot().AutoHeight()
-                [
-                    SNew(SHorizontalBox)
-                    + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 8, 0)
-                    [SNew(STextBlock).Text(Index).ColorAndOpacity(Accent).Font(FAppStyle::GetFontStyle(TEXT("BoldFont")))]
-                    + SHorizontalBox::Slot().FillWidth(1.0f)
-                    [SNew(STextBlock).Text(Title).Font(FAppStyle::GetFontStyle(TEXT("BoldFont")))]
-                ]
-                + SVerticalBox::Slot().AutoHeight().Padding(0, 7, 0, 0)
-                [SNew(STextBlock).Text(Detail).ColorAndOpacity(Muted).AutoWrapText(true)]
-            ];
+        return SNew(SVerticalBox)
+            + SVerticalBox::Slot().AutoHeight()
+            [SNew(SBorder).BorderImage(FAppStyle::GetBrush(TEXT("WhiteBrush"))).BorderBackgroundColor(Accent).Padding(FMargin(0, 2))]
+            + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
+            [SNew(STextBlock).Text(Title).ColorAndOpacity(Accent).Font(FAppStyle::GetFontStyle(TEXT("BoldFont")))]
+            + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)
+            [SNew(STextBlock).Text(Detail).ColorAndOpacity(Muted).AutoWrapText(true)];
     }
 }
 
@@ -215,6 +205,25 @@ FReply FResonanceForgeEditorModule::TriggerPreview()
     return FReply::Handled();
 }
 
+FReply FResonanceForgeEditorModule::PinReference()
+{
+    bHasReference = true;
+    ReferencePreset = ActivePreset;
+    ReferenceModel = ActiveModel;
+    ReferenceEnergy = PreviewEnergy;
+    ReferenceBrightness = PreviewBrightness;
+    ReferenceSize = PreviewSize;
+    LastStatus = NSLOCTEXT("ResonanceForge", "ReferencePinned", "参考声纹已钉住 · 继续换材质或调整参数，橙色轮廓会保留用于比较");
+    return FReply::Handled();
+}
+
+FReply FResonanceForgeEditorModule::ClearReference()
+{
+    bHasReference = false;
+    LastStatus = NSLOCTEXT("ResonanceForge", "ReferenceCleared", "参考声纹已清除");
+    return FReply::Handled();
+}
+
 FReply FResonanceForgeEditorModule::OpenDemoMap()
 {
     if (GEditor)
@@ -274,6 +283,28 @@ FText FResonanceForgeEditorModule::GetStatusText() const
     return LastStatus;
 }
 
+FText FResonanceForgeEditorModule::GetComparisonText() const
+{
+    if (!bHasReference)
+    {
+        return NSLOCTEXT("ResonanceForge", "NoReference", "钉住一次声纹，再调整材质或力度进行 A/B 比较");
+    }
+
+    const int32 EnergyDelta = FMath::RoundToInt((PreviewEnergy - ReferenceEnergy) * 100.0f);
+    const int32 BrightnessDelta = FMath::RoundToInt((PreviewBrightness - ReferenceBrightness) * 100.0f);
+    const int32 SizeDelta = FMath::RoundToInt((PreviewSize - ReferenceSize) * 100.0f);
+    const auto SignedPercent = [](int32 Value)
+    {
+        return FText::FromString(FString::Printf(TEXT("%+d"), Value));
+    };
+    return FText::Format(
+        NSLOCTEXT("ResonanceForge", "ReferenceDifference", "参考「{0}」 · 能量 {1}%  明亮 {2}%  尺度 {3}%"),
+        FText::FromName(ReferencePreset),
+        SignedPercent(EnergyDelta),
+        SignedPercent(BrightnessDelta),
+        SignedPercent(SizeDelta));
+}
+
 TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTabArgs& Args)
 {
     using namespace ResonanceForgeEditor;
@@ -327,7 +358,11 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
             [
                 SNew(SHorizontalBox)
                 + SHorizontalBox::Slot().FillWidth(1.0f)[SNew(STextBlock).Text(Name).Font(FAppStyle::GetFontStyle(TEXT("BoldFont")))]
-                + SHorizontalBox::Slot().AutoWidth()[SNew(STextBlock).Text(Mapping).ColorAndOpacity(Muted)]
+                + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 12, 0)[SNew(STextBlock).Text(Mapping).ColorAndOpacity(Muted)]
+                + SHorizontalBox::Slot().AutoWidth()[SNew(STextBlock).Text_Lambda([Value]
+                {
+                    return FText::Format(NSLOCTEXT("ResonanceForge", "ParameterPercent", "{0}%"), FText::AsNumber(FMath::RoundToInt(*Value * 100.0f)));
+                }).ColorAndOpacity(Color).Font(FAppStyle::GetFontStyle(TEXT("BoldFont")))]
             ]
             + SVerticalBox::Slot().AutoHeight().Padding(0, 7, 0, 0)
             [
@@ -351,8 +386,8 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                         + SHorizontalBox::Slot().FillWidth(1.0f)
                         [
                             SNew(SVerticalBox)
-                            + SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Text(NSLOCTEXT("ResonanceForge", "Title", "声学工作台")).Font(FAppStyle::GetFontStyle(TEXT("HeadingMedium")))]
-                            + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)[SNew(STextBlock).Text(NSLOCTEXT("ResonanceForge", "Subtitle", "从场景对象出发，完成一次可听见、可发布的物理声源设计。")).ColorAndOpacity(Muted)]
+                            + SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Text(NSLOCTEXT("ResonanceForge", "Title", "共振铸造台")).Font(FAppStyle::GetFontStyle(TEXT("HeadingMedium")))]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)[SNew(STextBlock).Text(NSLOCTEXT("ResonanceForge", "Subtitle", "把碰撞与拨弦，锻造成能进入游戏的声音。")).ColorAndOpacity(Muted)]
                         ]
                         + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
                         [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "OpenMap", "打开试听场景")).ContentPadding(FMargin(14, 8)).OnClicked_Raw(this, &FResonanceForgeEditorModule::OpenDemoMap)]
@@ -373,24 +408,24 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                     [
                         SNew(SVerticalBox)
                         + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 8)
-                        [SNew(STextBlock).Text(NSLOCTEXT("ResonanceForge", "SignalChain", "当前声音链")).Font(FAppStyle::GetFontStyle(TEXT("BoldFont"))).ColorAndOpacity(Cyan)]
+                        [SNew(STextBlock).Text(NSLOCTEXT("ResonanceForge", "SignalChain", "这件声音的配方")).Font(FAppStyle::GetFontStyle(TEXT("BoldFont"))).ColorAndOpacity(Cyan)]
                         + SVerticalBox::Slot().AutoHeight()
                         [
                             SNew(SHorizontalBox)
                             + SHorizontalBox::Slot().FillWidth(1.0f)
-                            [SignalNode(FText::FromString(TEXT("01")), NSLOCTEXT("ResonanceForge", "ObjectNode", "场景对象"), TAttribute<FText>::CreateLambda([this]{ return GetSelectionText(); }), Steel)]
+                            [RecipeStage(NSLOCTEXT("ResonanceForge", "ObjectNode", "对象"), TAttribute<FText>::CreateLambda([this]{ return GetSelectionText(); }), Steel)]
                             + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(8, 0)
                             [SNew(STextBlock).Text(FText::FromString(TEXT("›"))).Font(FAppStyle::GetFontStyle(TEXT("HeadingSmall"))).ColorAndOpacity(Muted)]
                             + SHorizontalBox::Slot().FillWidth(0.82f)
-                            [SignalNode(FText::FromString(TEXT("02")), NSLOCTEXT("ResonanceForge", "ExciterNode", "施加激励"), TAttribute<FText>::CreateLambda([this]{ return GetExcitationText(); }), Wood)]
+                            [RecipeStage(NSLOCTEXT("ResonanceForge", "ExciterNode", "激励"), TAttribute<FText>::CreateLambda([this]{ return GetExcitationText(); }), Wood)]
                             + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(8, 0)
                             [SNew(STextBlock).Text(FText::FromString(TEXT("›"))).Font(FAppStyle::GetFontStyle(TEXT("HeadingSmall"))).ColorAndOpacity(Muted)]
                             + SHorizontalBox::Slot().FillWidth(0.82f)
-                            [SignalNode(FText::FromString(TEXT("03")), NSLOCTEXT("ResonanceForge", "ResonatorNode", "形成共振"), TAttribute<FText>::CreateLambda([this]{ return GetResonanceText(); }), Glass)]
+                            [RecipeStage(NSLOCTEXT("ResonanceForge", "ResonatorNode", "共振"), TAttribute<FText>::CreateLambda([this]{ return GetResonanceText(); }), Glass)]
                             + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(8, 0)
                             [SNew(STextBlock).Text(FText::FromString(TEXT("›"))).Font(FAppStyle::GetFontStyle(TEXT("HeadingSmall"))).ColorAndOpacity(Muted)]
                             + SHorizontalBox::Slot().FillWidth(0.95f)
-                            [SignalNode(FText::FromString(TEXT("04")), NSLOCTEXT("ResonanceForge", "OutputNode", "发布声音"), FText::FromString(TEXT("UE Synth + Wwise Event / RTPC")), Cyan)]
+                            [RecipeStage(NSLOCTEXT("ResonanceForge", "OutputNode", "出口"), FText::FromString(TEXT("UE 合成器 + Wwise Event / RTPC")), Cyan)]
                         ]
                     ]
                     + SVerticalBox::Slot().AutoHeight().Padding(22, 0, 22, 12)
@@ -399,7 +434,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                         + SHorizontalBox::Slot().FillWidth(1.55f).Padding(0, 0, 7, 0)
                         [
                             SNew(SVerticalBox)
-                            + SVerticalBox::Slot().AutoHeight()[WorkspaceTitle(NSLOCTEXT("ResonanceForge", "Response", "听见模型正在做什么"), NSLOCTEXT("ResonanceForge", "ResponseDetail", "模态峰描述材质的固有频率；弦线描述波在数字弦中的往返传播。"))]
+                            + SVerticalBox::Slot().AutoHeight()[WorkspaceTitle(NSLOCTEXT("ResonanceForge", "Response", "声纹炉膛"), NSLOCTEXT("ResonanceForge", "ResponseDetail", "轮廓不是装饰：尖锐起伏代表离散模态，柔顺波瓣代表数字波导的反馈传播。"))]
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
                             [
                                 SNew(SBorder).BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel"))).BorderBackgroundColor(FLinearColor::White).Padding(1)
@@ -409,7 +444,24 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                                     .PresetName_Lambda([this]{ return ActivePreset; })
                                     .Energy_Lambda([this]{ return PreviewEnergy; })
                                     .Brightness_Lambda([this]{ return PreviewBrightness; })
+                                    .Size_Lambda([this]{ return PreviewSize; })
+                                    .HasReference_Lambda([this]{ return bHasReference; })
+                                    .ReferenceModelType_Lambda([this]{ return ReferenceModel; })
+                                    .ReferencePresetName_Lambda([this]{ return ReferencePreset; })
+                                    .ReferenceEnergy_Lambda([this]{ return ReferenceEnergy; })
+                                    .ReferenceBrightness_Lambda([this]{ return ReferenceBrightness; })
+                                    .ReferenceSize_Lambda([this]{ return ReferenceSize; })
                                 ]
+                            ]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
+                            [
+                                SNew(SHorizontalBox)
+                                + SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+                                [SNew(STextBlock).Text_Raw(this, &FResonanceForgeEditorModule::GetComparisonText).ColorAndOpacity(Muted)]
+                                + SHorizontalBox::Slot().AutoWidth().Padding(8, 0)
+                                [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "PinReference", "钉住当前声纹")).OnClicked_Raw(this, &FResonanceForgeEditorModule::PinReference)]
+                                + SHorizontalBox::Slot().AutoWidth()
+                                [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "ClearReference", "清除参考")).IsEnabled_Lambda([this]{ return bHasReference; }).OnClicked_Raw(this, &FResonanceForgeEditorModule::ClearReference)]
                             ]
                         ]
                         + SHorizontalBox::Slot().FillWidth(0.95f).Padding(7, 0, 0, 0)

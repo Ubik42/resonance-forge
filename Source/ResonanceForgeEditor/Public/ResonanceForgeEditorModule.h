@@ -17,17 +17,26 @@ private:
     void ApplyModel(EResonanceModelType ModelType);
     FReply SyncFromSelection();
     FReply TriggerPreview();
+    FReply PinReference();
+    FReply ClearReference();
     FReply OpenDemoMap();
     FText GetSelectionText() const;
     FText GetExcitationText() const;
     FText GetResonanceText() const;
     FText GetPrimaryActionText() const;
     FText GetStatusText() const;
+    FText GetComparisonText() const;
 
     FName ActivePreset = TEXT("拉丝钢");
     EResonanceModelType ActiveModel = EResonanceModelType::ModalImpact;
     float PreviewEnergy = 0.78f;
     float PreviewBrightness = 0.58f;
     float PreviewSize = 0.5f;
+    bool bHasReference = false;
+    FName ReferencePreset = NAME_None;
+    EResonanceModelType ReferenceModel = EResonanceModelType::ModalImpact;
+    float ReferenceEnergy = 0.0f;
+    float ReferenceBrightness = 0.0f;
+    float ReferenceSize = 0.0f;
     FText LastStatus;
 };

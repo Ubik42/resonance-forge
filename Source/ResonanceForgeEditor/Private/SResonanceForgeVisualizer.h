@@ -13,6 +13,13 @@ public:
         SLATE_ATTRIBUTE(FName, PresetName)
         SLATE_ATTRIBUTE(float, Energy)
         SLATE_ATTRIBUTE(float, Brightness)
+        SLATE_ATTRIBUTE(float, Size)
+        SLATE_ATTRIBUTE(bool, HasReference)
+        SLATE_ATTRIBUTE(EResonanceModelType, ReferenceModelType)
+        SLATE_ATTRIBUTE(FName, ReferencePresetName)
+        SLATE_ATTRIBUTE(float, ReferenceEnergy)
+        SLATE_ATTRIBUTE(float, ReferenceBrightness)
+        SLATE_ATTRIBUTE(float, ReferenceSize)
     SLATE_END_ARGS()
 
     void Construct(const FArguments& InArgs)
@@ -21,11 +28,18 @@ public:
         PresetName = InArgs._PresetName;
         Energy = InArgs._Energy;
         Brightness = InArgs._Brightness;
+        SizeValue = InArgs._Size;
+        HasReference = InArgs._HasReference;
+        ReferenceModelType = InArgs._ReferenceModelType;
+        ReferencePresetName = InArgs._ReferencePresetName;
+        ReferenceEnergy = InArgs._ReferenceEnergy;
+        ReferenceBrightness = InArgs._ReferenceBrightness;
+        ReferenceSize = InArgs._ReferenceSize;
     }
 
     virtual FVector2D ComputeDesiredSize(float) const override
     {
-        return FVector2D(520.0f, 210.0f);
+        return FVector2D(620.0f, 280.0f);
     }
 
     virtual int32 OnPaint(
@@ -38,8 +52,8 @@ public:
         bool bParentEnabled) const override
     {
         const FVector2D Size = AllottedGeometry.GetLocalSize();
-        const FLinearColor Background(0.012f, 0.018f, 0.026f, 1.0f);
-        const FLinearColor Grid(0.10f, 0.15f, 0.18f, 0.45f);
+        const FLinearColor Background(0.010f, 0.014f, 0.018f, 1.0f);
+        const FLinearColor Grid(0.18f, 0.20f, 0.16f, 0.26f);
         const FLinearColor Accent = ModelType.Get(EResonanceModelType::ModalImpact) == EResonanceModelType::WaveguideString
             ? FLinearColor(0.98f, 0.46f, 0.12f, 1.0f)
             : FLinearColor(0.06f, 0.82f, 0.92f, 1.0f);
@@ -52,57 +66,73 @@ public:
             ESlateDrawEffect::None,
             Background);
 
-        for (int32 Index = 1; Index < 6; ++Index)
+        const FVector2f Center(static_cast<float>(Size.X * 0.5f), static_cast<float>(Size.Y * 0.51f));
+        const float Radius = FMath::Min(Size.X * 0.34f, Size.Y * 0.42f);
+        for (int32 Ring = 1; Ring <= 4; ++Ring)
         {
-            const float X = Size.X * static_cast<float>(Index) / 6.0f;
-            TArray<FVector2f> Vertical = {{X, 0.0f}, {X, static_cast<float>(Size.Y)}};
-            FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 1, AllottedGeometry.ToPaintGeometry(), Vertical, ESlateDrawEffect::None, Grid, true, 1.0f);
+            TArray<FVector2f> Circle;
+            constexpr int32 CircleSegments = 72;
+            for (int32 Index = 0; Index <= CircleSegments; ++Index)
+            {
+                const float Angle = 2.0f * PI * static_cast<float>(Index) / static_cast<float>(CircleSegments);
+                const float R = Radius * static_cast<float>(Ring) / 4.0f;
+                Circle.Add(Center + FVector2f(FMath::Cos(Angle), FMath::Sin(Angle)) * R);
+            }
+            FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 1, AllottedGeometry.ToPaintGeometry(), Circle, ESlateDrawEffect::None, Grid, true, 1.0f);
         }
-        for (int32 Index = 1; Index < 4; ++Index)
+        for (int32 Spoke = 0; Spoke < 12; ++Spoke)
         {
-            const float Y = Size.Y * static_cast<float>(Index) / 4.0f;
-            TArray<FVector2f> Horizontal = {{0.0f, Y}, {static_cast<float>(Size.X), Y}};
-            FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 1, AllottedGeometry.ToPaintGeometry(), Horizontal, ESlateDrawEffect::None, Grid, true, 1.0f);
+            const float Angle = 2.0f * PI * static_cast<float>(Spoke) / 12.0f;
+            TArray<FVector2f> Line = {Center + FVector2f(FMath::Cos(Angle), FMath::Sin(Angle)) * Radius * 0.18f, Center + FVector2f(FMath::Cos(Angle), FMath::Sin(Angle)) * Radius};
+            FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 1, AllottedGeometry.ToPaintGeometry(), Line, ESlateDrawEffect::None, Grid, true, 1.0f);
         }
 
         const float EnergyValue = FMath::Clamp(Energy.Get(0.75f), 0.0f, 1.0f);
         const float BrightnessValue = FMath::Clamp(Brightness.Get(0.55f), 0.0f, 1.0f);
-        if (ModelType.Get(EResonanceModelType::ModalImpact) == EResonanceModelType::WaveguideString)
-        {
-            TArray<FVector2f> StringPoints;
-            constexpr int32 SegmentCount = 96;
-            StringPoints.Reserve(SegmentCount);
-            for (int32 Index = 0; Index < SegmentCount; ++Index)
-            {
-                const float T = static_cast<float>(Index) / static_cast<float>(SegmentCount - 1);
-                const float Envelope = FMath::Sin(PI * T);
-                const float Harmonic = FMath::Sin(T * PI * FMath::Lerp(5.0f, 13.0f, BrightnessValue));
-                const float Y = Size.Y * 0.5f - Harmonic * Envelope * Size.Y * 0.31f * EnergyValue;
-                StringPoints.Add(FVector2f(T * Size.X, Y));
-            }
-            FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 2, AllottedGeometry.ToPaintGeometry(), StringPoints, ESlateDrawEffect::None, Accent, true, 2.2f);
-        }
-        else
-        {
-            const bool bWood = PresetName.Get(FName(TEXT("拉丝钢"))) == TEXT("硬木");
-            const bool bGlass = PresetName.Get(FName(TEXT("拉丝钢"))) == TEXT("薄玻璃");
-            const TArray<float> Peaks = bWood
-                ? TArray<float>{0.12f, 0.22f, 0.36f, 0.52f, 0.70f, 0.86f}
-                : bGlass
-                    ? TArray<float>{0.18f, 0.32f, 0.47f, 0.62f, 0.76f, 0.88f, 0.96f}
-                    : TArray<float>{0.10f, 0.20f, 0.33f, 0.47f, 0.61f, 0.74f, 0.86f, 0.95f};
-            for (int32 Index = 0; Index < Peaks.Num(); ++Index)
-            {
-                const float NormalizedIndex = Peaks.Num() > 1 ? static_cast<float>(Index) / static_cast<float>(Peaks.Num() - 1) : 0.0f;
-                const float Tilt = FMath::Lerp(1.0f - NormalizedIndex * 0.62f, 0.35f + NormalizedIndex * 0.65f, BrightnessValue);
-                const float Height = Size.Y * 0.78f * EnergyValue * Tilt;
-                const float X = Peaks[Index] * Size.X;
-                TArray<FVector2f> Peak = {{X, static_cast<float>(Size.Y - 10.0f)}, {X, static_cast<float>(Size.Y - 10.0f - Height)}};
-                FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 2, AllottedGeometry.ToPaintGeometry(), Peak, ESlateDrawEffect::None, Accent, true, Index == 0 ? 3.0f : 1.7f);
-            }
-        }
+        const float ScaleValue = FMath::Clamp(SizeValue.Get(0.5f), 0.0f, 1.0f);
 
-        return LayerId + 2;
+        auto DrawFingerprint = [&](EResonanceModelType InModel, FName InPreset, float InEnergy, float InBrightness, float InSize, const FLinearColor& Color, float Thickness, int32 DrawLayer)
+        {
+            TArray<FVector2f> Shape;
+            constexpr int32 SegmentCount = 120;
+            Shape.Reserve(SegmentCount + 1);
+            const bool bWood = InPreset == TEXT("硬木");
+            const bool bGlass = InPreset == TEXT("薄玻璃");
+            const float MaterialPhase = bWood ? 0.8f : (bGlass ? 2.1f : 0.0f);
+            for (int32 Index = 0; Index <= SegmentCount; ++Index)
+            {
+                const float T = static_cast<float>(Index) / static_cast<float>(SegmentCount);
+                const float Angle = T * 2.0f * PI - PI * 0.5f;
+                float Texture = 0.0f;
+                if (InModel == EResonanceModelType::WaveguideString)
+                {
+                    Texture = 0.12f * FMath::Sin(Angle * FMath::Lerp(3.0f, 9.0f, InBrightness));
+                    Texture += 0.08f * FMath::Sin(Angle * 2.0f + 0.4f);
+                }
+                else
+                {
+                    const float Teeth = bGlass ? 9.0f : (bWood ? 5.0f : 7.0f);
+                    Texture = 0.13f * FMath::Pow(FMath::Abs(FMath::Sin(Angle * Teeth + MaterialPhase)), 3.0f);
+                    Texture += 0.07f * FMath::Sin(Angle * (2.0f + InBrightness * 3.0f) + MaterialPhase);
+                }
+                const float Base = 0.48f + InSize * 0.20f;
+                const float Dynamic = Texture * FMath::Lerp(0.35f, 1.0f, InEnergy);
+                const float R = Radius * FMath::Clamp(Base + Dynamic, 0.2f, 0.96f);
+                Shape.Add(Center + FVector2f(FMath::Cos(Angle), FMath::Sin(Angle)) * R);
+            }
+            FSlateDrawElement::MakeLines(OutDrawElements, DrawLayer, AllottedGeometry.ToPaintGeometry(), Shape, ESlateDrawEffect::None, Color, true, Thickness);
+        };
+
+        if (HasReference.Get(false))
+        {
+            DrawFingerprint(ReferenceModelType.Get(EResonanceModelType::ModalImpact), ReferencePresetName.Get(NAME_None), ReferenceEnergy.Get(0.0f), ReferenceBrightness.Get(0.0f), ReferenceSize.Get(0.0f), FLinearColor(0.92f, 0.52f, 0.18f, 0.62f), 1.2f, LayerId + 2);
+        }
+        DrawFingerprint(ModelType.Get(EResonanceModelType::ModalImpact), PresetName.Get(TEXT("拉丝钢")), EnergyValue, BrightnessValue, ScaleValue, Accent, 2.6f, LayerId + 3);
+
+        TArray<FVector2f> CoreLine = {{Center.X - Radius * 0.12f, Center.Y}, {Center.X + Radius * 0.12f, Center.Y}};
+        FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 4, AllottedGeometry.ToPaintGeometry(), CoreLine, ESlateDrawEffect::None, FLinearColor(0.94f, 0.88f, 0.68f, 0.8f), true, 2.0f);
+
+        return LayerId + 4;
     }
 
 private:
@@ -110,4 +140,11 @@ private:
     TAttribute<FName> PresetName;
     TAttribute<float> Energy;
     TAttribute<float> Brightness;
+    TAttribute<float> SizeValue;
+    TAttribute<bool> HasReference;
+    TAttribute<EResonanceModelType> ReferenceModelType;
+    TAttribute<FName> ReferencePresetName;
+    TAttribute<float> ReferenceEnergy;
+    TAttribute<float> ReferenceBrightness;
+    TAttribute<float> ReferenceSize;
 };

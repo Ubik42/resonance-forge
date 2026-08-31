@@ -8,7 +8,7 @@
 ![Unreal Engine 5.8](https://img.shields.io/badge/Unreal_Engine-5.8.1-0E1128?logo=unrealengine&logoColor=white)
 ![Wwise 2025.1](https://img.shields.io/badge/Wwise-2025.1-00549F)
 ![Platform](https://img.shields.io/badge/Platform-Windows_Editor-0078D4?logo=windows&logoColor=white)
-![Version](https://img.shields.io/badge/Version-0.3.0-16B8C4)
+![Version](https://img.shields.io/badge/Version-0.4.0-D96B2B)
 ![License](https://img.shields.io/badge/License-MIT-2EA44F)
 
 </div>
@@ -23,7 +23,9 @@
 - **真实场景输入**：碰撞冲量、相对速度和物体尺寸直接影响声音。
 - **UE × Wwise 双路径**：UE 原生合成可独立试听，同时发布 Wwise Event 与 3 个 RTPC。
 - **可演奏**：MIDI Note On 控制音高与力度，CC1 控制音色明亮度。
-- **编辑器工作流**：中文 Slate 面板按“对象 → 激励 → 共振 → 发布”组织操作。
+- **声纹炉膛**：用随模型、材质与演奏参数实时变化的声学指纹理解声音，而不是只看抽象滑杆。
+- **A/B 声纹比较**：钉住一次参考声纹，再更换材质或参数，对照轮廓与数值差异试听。
+- **编辑器工作流**：中文 Slate 面板按“对象 → 激励 → 共振 → 出口”组织一件声音的配方。
 - **可重复验证**：测试音频、PBR 贴图、演示地图和复检报告均可由脚本重建。
 
 ## 它解决什么问题
@@ -49,12 +51,6 @@ flowchart LR
     G --> H
     H --> I[Wwise Event + RTPC]
 ```
-
-## 实机界面
-
-![UE 场景与插件联动](docs/images/resonance-forge-overview.png)
-
-上图记录了 UE 场景、插件面板与 Wwise 参数链路的真实联调状态。当前 `0.3.0` 代码已进一步改成任务导向的声音链布局，并增加“读取当前选择”、空状态和模型相关试听按钮；后续会用新版界面截图替换这张联调图。
 
 ## 两种声学模型
 
@@ -103,9 +99,10 @@ flowchart LR
 2. 在场景中选择钢、木、玻璃砧座或数字波导弦。
 3. 点击“读取当前选择”。
 4. 选择共振模型和材质预设。
-5. 调整激励能量、明亮度与共振尺度。
-6. 点击“敲击当前对象”或“拨动当前弦”。
-7. 进入 PIE，观察落球碰撞并在 Wwise Profiler 中检查 RTPC。
+5. 调整激励能量、明亮度与共振尺度，观察“声纹炉膛”的轮廓变化。
+6. 点击“钉住当前声纹”，再切换材质或参数，比较橙色参考轮廓与当前声纹。
+7. 点击“敲击当前对象”或“拨动当前弦”完成 A/B 试听。
+8. 进入 PIE，观察落球碰撞并在 Wwise Profiler 中检查 RTPC。
 
 ## 演示场景
 
@@ -188,7 +185,6 @@ ResonanceForge
 - 波导模型采用经典 Karplus–Strong 结构，不等同于 Pianoteq 一类完整钢琴物理建模系统。
 - 尚未模拟琴槌接触、踏板、弦间耦合、音板传播和复杂辐射体。
 - Wwise SDK、Unreal Integration 与 Fab 商业素材必须由使用者自行安装。
-- 当前仓库中的插件联动截图来自上一轮实机界面；`0.3.0` 新版面板截图将在下一轮人工截取后更新。
 
 ## 文档
 
