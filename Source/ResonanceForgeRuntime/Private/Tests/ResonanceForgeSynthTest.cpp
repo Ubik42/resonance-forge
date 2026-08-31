@@ -136,6 +136,26 @@ bool FResonanceForgePresetTest::RunTest(const FString& Parameters)
     AddInfo(FString::Printf(TEXT("Aftertouch 弓压段 RMS：低 %.6f / 高 %.6f"), LowExpressionRms, HighExpressionRms));
     TestTrue(TEXT("高弓压段与低弓压段形成可测量的动态差异"),
         FMath::Abs(HighExpressionRms - LowExpressionRms) > FMath::Max(0.00001f, LowExpressionRms * 0.005f));
+
+    UResonanceForgeSynthComponent* LowPressureSynth = NewObject<UResonanceForgeSynthComponent>();
+    UResonanceForgeSynthComponent* HighPressureSynth = NewObject<UResonanceForgeSynthComponent>();
+    TArray<float> LowPressureAutoBow;
+    TArray<float> HighPressureAutoBow;
+    TestTrue(TEXT("弓感双轮低压力能够进入有限自动弓程"),
+        LowPressureSynth->RenderAutoBowPressureForTest(55, 0.18f, 48000, LowPressureAutoBow));
+    TestTrue(TEXT("弓感双轮高压力能够进入有限自动弓程"),
+        HighPressureSynth->RenderAutoBowPressureForTest(55, 0.92f, 48000, HighPressureAutoBow));
+    double AutoBowDiffSquareSum = 0.0;
+    for (int32 Index = 0; Index < LowPressureAutoBow.Num(); ++Index)
+    {
+        const double Difference = HighPressureAutoBow[Index] - LowPressureAutoBow[Index];
+        AutoBowDiffSquareSum += Difference * Difference;
+    }
+    const float AutoBowDiffRms = LowPressureAutoBow.IsEmpty()
+        ? 0.0f
+        : FMath::Sqrt(static_cast<float>(AutoBowDiffSquareSum / LowPressureAutoBow.Num()));
+    AddInfo(FString::Printf(TEXT("弓感双轮自动弓压差分 RMS：%.6f"), AutoBowDiffRms));
+    TestTrue(TEXT("松手试听中的弓压覆盖形成可听差异"), AutoBowDiffRms > 0.001f);
     return true;
 }
 

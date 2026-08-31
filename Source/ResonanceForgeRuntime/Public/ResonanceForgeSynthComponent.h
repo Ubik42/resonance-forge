@@ -47,7 +47,8 @@ public:
     int32 MaxStringVoices = 8;
 
     UFUNCTION(BlueprintCallable, Category="共振铸造台")
-    void Strike(float Energy = 0.7f, float Brightness = 0.5f, int32 MidiNote = 60, float StrikePosition = 0.5f);
+    void Strike(float Energy = 0.7f, float Brightness = 0.5f, int32 MidiNote = 60,
+        float StrikePosition = 0.5f, float BowPressureOverride = -1.0f);
 
     UFUNCTION(BlueprintCallable, Category="共振铸造台|MIDI")
     void NoteOn(float Energy = 0.7f, float Brightness = 0.5f, int32 MidiNote = 60,
@@ -118,6 +119,7 @@ public:
     bool RenderWaveguideForTest(int32 MidiNote, int32 NumFrames, TArray<float>& OutSamples);
     bool RenderHeldBowForTest(int32 MidiNote, int32 HoldFrames, int32 ReleaseFrames, TArray<float>& OutSamples);
     bool RenderBowPressureForTest(int32 MidiNote, int32 PhaseFrames, TArray<float>& OutSamples);
+    bool RenderAutoBowPressureForTest(int32 MidiNote, float BowPressure, int32 NumFrames, TArray<float>& OutSamples);
 #endif
 
 protected:

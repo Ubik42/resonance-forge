@@ -129,7 +129,7 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="共振铸造台")
     int32 TriggerInstrument(float Energy = 0.75f, float Brightness = 0.55f, int32 MidiNote = 60,
-        float StrikePosition = -1.0f, bool bHoldNativeNote = false);
+        float StrikePosition = -1.0f, bool bHoldNativeNote = false, float BowPressureOverride = -1.0f);
 
     UFUNCTION(BlueprintPure, Category="共振铸造台|撞击")
     float ComputeNormalizedStrikePosition(const FVector& WorldImpactPoint) const;

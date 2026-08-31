@@ -24,6 +24,9 @@ private:
     void SelectModalMode(int32 ModeIndex);
     void ApplyStrikePosition(float NewPosition, bool bFinished);
     void ApplyWaveguidePickup(float NewPosition, bool bFinished);
+    void PrepareBowGaugeAudition();
+    void ApplyBowGaugeSpeed(float NewValue, bool bFinished);
+    void ApplyBowGaugePressure(float NewValue, bool bFinished);
     FReply SetWaveguideExcitation(EResonanceExcitationType NewType);
     FReply SetVelocityCurve(EResonanceVelocityCurve NewCurve);
     void TriggerKeybedNote(int32 MidiNote, float Velocity);

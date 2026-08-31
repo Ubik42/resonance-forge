@@ -44,7 +44,8 @@ void UResonanceForgeSynthComponent::Strike(
     const float Energy,
     const float Brightness,
     const int32 MidiNote,
-    const float StrikePosition)
+    const float StrikePosition,
+    const float BowPressureOverride)
 {
     const UResonanceMaterialProfile* Profile = MaterialProfile;
     PendingStrikes.Enqueue({
@@ -59,7 +60,7 @@ void UResonanceForgeSynthComponent::Strike(
         Profile ? Profile->ExcitationType : ExcitationType,
         PitchScale,
         FMath::Clamp(StrikePosition, 0.0f, 1.0f),
-        -1.0f,
+        BowPressureOverride < 0.0f ? -1.0f : FMath::Clamp(BowPressureOverride, 0.0f, 1.0f),
         false,
         false,
         false,
@@ -261,6 +262,24 @@ bool UResonanceForgeSynthComponent::RenderBowPressureForTest(
     OnGenerateAudio(OutSamples.GetData() + SafePhaseFrames * NumChannels, SafePhaseFrames * NumChannels);
     SetBowPressure(0.92f, MidiNote);
     OnGenerateAudio(OutSamples.GetData() + SafePhaseFrames * 2 * NumChannels, SafePhaseFrames * NumChannels);
+    return !OutSamples.IsEmpty();
+}
+
+bool UResonanceForgeSynthComponent::RenderAutoBowPressureForTest(
+    const int32 MidiNote,
+    const float InBowPressure,
+    const int32 NumFrames,
+    TArray<float>& OutSamples)
+{
+    RenderSampleRate = 48000.0f;
+    RebuildModesFrom(GetEffectiveModes());
+    InitializeWaveguideVoices();
+    SynthesisModel = EResonanceModelType::WaveguideString;
+    ExcitationType = EResonanceExcitationType::Bow;
+    ActiveModes.Reset();
+    Strike(0.82f, 0.58f, MidiNote, 0.5f, InBowPressure);
+    OutSamples.SetNumZeroed(FMath::Max(1, NumFrames) * NumChannels);
+    OnGenerateAudio(OutSamples.GetData(), OutSamples.Num());
     return !OutSamples.IsEmpty();
 }
 #endif

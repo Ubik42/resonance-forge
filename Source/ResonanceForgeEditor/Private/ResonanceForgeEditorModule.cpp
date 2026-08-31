@@ -473,6 +473,60 @@ void FResonanceForgeEditorModule::ApplyWaveguidePickup(const float NewPosition, 
     }
 }
 
+void FResonanceForgeEditorModule::PrepareBowGaugeAudition()
+{
+    if (ActiveModel != EResonanceModelType::WaveguideString)
+    {
+        ApplyModel(EResonanceModelType::WaveguideString);
+    }
+    if (WaveguideExcitation != EResonanceExcitationType::Bow)
+    {
+        WaveguideExcitation = EResonanceExcitationType::Bow;
+        ApplyWaveguideParameters();
+    }
+}
+
+void FResonanceForgeEditorModule::ApplyBowGaugeSpeed(const float NewValue, const bool bFinished)
+{
+    PrepareBowGaugeAudition();
+    SetFlowStation(1);
+    PreviewBrightness = FMath::Clamp(NewValue, 0.0f, 1.0f);
+    if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
+    {
+        Instrument->MidiBrightness = PreviewBrightness;
+        if (Instrument->NativeSynth)
+        {
+            Instrument->NativeSynth->SetBowSpeed(PreviewBrightness);
+        }
+        if (AResonanceForgeImpactInstrumentActor::ListenModeIncludesWwise(Instrument->ListenMode) && Instrument->WwiseBridge)
+        {
+            Instrument->WwiseBridge->SetLiveBrightness(PreviewBrightness);
+        }
+    }
+    if (bFinished)
+    {
+        AuditionCurrentSound(NSLOCTEXT("ResonanceForge", "BowGaugeSpeedAudition", "弓速轮调整完成"));
+    }
+}
+
+void FResonanceForgeEditorModule::ApplyBowGaugePressure(const float NewValue, const bool bFinished)
+{
+    PrepareBowGaugeAudition();
+    SetFlowStation(1);
+    if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
+    {
+        Instrument->MidiBowPressure = FMath::Clamp(NewValue, 0.0f, 1.0f);
+        if (Instrument->NativeSynth)
+        {
+            Instrument->NativeSynth->SetBowPressure(Instrument->MidiBowPressure);
+        }
+    }
+    if (bFinished)
+    {
+        AuditionCurrentSound(NSLOCTEXT("ResonanceForge", "BowGaugePressureAudition", "弓压轮调整完成"));
+    }
+}
+
 FReply FResonanceForgeEditorModule::SetWaveguideExcitation(const EResonanceExcitationType NewType)
 {
     SetFlowStation(1);
@@ -567,7 +621,13 @@ void FResonanceForgeEditorModule::TriggerKeybedNote(const int32 MidiNote, const 
         Instrument->VelocityCurve = VelocityCurve;
         ApplyWaveguideParameters();
         Instrument->ListenMode = ListenMode;
-        Instrument->TriggerInstrument(ShapedVelocity, PreviewBrightness, SafeNote, PreviewStrikePosition);
+        Instrument->TriggerInstrument(
+            ShapedVelocity,
+            PreviewBrightness,
+            SafeNote,
+            PreviewStrikePosition,
+            false,
+            Instrument->MidiBowPressure);
         LastStatus = FText::Format(
             NSLOCTEXT("ResonanceForge", "KeybedPlayed", "试音键床 · Note {0} / 输入 {1}% → 能量 {2}% · {3}"),
             FText::AsNumber(SafeNote),
@@ -588,7 +648,13 @@ void FResonanceForgeEditorModule::AuditionCurrentSound(const FText& ChangeLabel)
         Instrument->ObjectSize = PreviewSize;
         ApplyWaveguideParameters();
         Instrument->ListenMode = ListenMode;
-        Instrument->TriggerInstrument(PreviewEnergy, PreviewBrightness, 60, PreviewStrikePosition);
+        Instrument->TriggerInstrument(
+            PreviewEnergy,
+            PreviewBrightness,
+            60,
+            PreviewStrikePosition,
+            false,
+            Instrument->MidiBowPressure);
         LastStatus = FText::Format(
             NSLOCTEXT("ResonanceForge", "AuditionedChange", "{0} · 已试听  能量 {1}% / 明亮度 {2}% / 尺度 {3}% · {4}"),
             ChangeLabel,
@@ -2653,7 +2719,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                         [
                             SNew(SHorizontalBox)
                             + SHorizontalBox::Slot().FillWidth(0.82f).VAlign(VAlign_Center)
-                            [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "MidiPerformance", "演奏入口"), NSLOCTEXT("ResonanceForge", "MidiMapping", "CC1 推弓速与亮度  ·  Aftertouch 压弓  ·  无压力感应时自动合并"))]
+                            [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "MidiPerformance", "演奏入口"), NSLOCTEXT("ResonanceForge", "MidiMapping", "拖左轮试弓速，拖右轮试弓压；接入 MIDI 后同一双轮继续走针。"))]
                             + SHorizontalBox::Slot().FillWidth(1.15f).Padding(16, 0, 8, 0).VAlign(VAlign_Center)
                             [
                                 SAssignNew(MidiDeviceCombo, SComboBox<TSharedPtr<FString>>)
@@ -2708,6 +2774,8 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                                 const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
                                 return Instrument && Instrument->IsMidiConnected();
                             })
+                            .OnSpeedChanged(FOnResonanceBowGaugeChanged::CreateRaw(this, &FResonanceForgeEditorModule::ApplyBowGaugeSpeed))
+                            .OnPressureChanged(FOnResonanceBowGaugeChanged::CreateRaw(this, &FResonanceForgeEditorModule::ApplyBowGaugePressure))
                         ]
                         + SHorizontalBox::Slot().FillWidth(1.0f).Padding(16, 0, 0, 0).VAlign(VAlign_Center)
                         [SNew(STextBlock).Text_Raw(this, &FResonanceForgeEditorModule::GetMidiStatusText).ColorAndOpacity(Glass).AutoWrapText(true)]

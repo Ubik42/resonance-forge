@@ -4,6 +4,8 @@
 #include "Styling/AppStyle.h"
 #include "Widgets/SLeafWidget.h"
 
+DECLARE_DELEGATE_TwoParams(FOnResonanceBowGaugeChanged, float, bool)
+
 class SResonanceBowGauge final : public SLeafWidget
 {
 public:
@@ -12,6 +14,8 @@ public:
         SLATE_ATTRIBUTE(float, BowPressure)
         SLATE_ATTRIBUTE(bool, IndependentPressure)
         SLATE_ATTRIBUTE(bool, Connected)
+        SLATE_EVENT(FOnResonanceBowGaugeChanged, OnSpeedChanged)
+        SLATE_EVENT(FOnResonanceBowGaugeChanged, OnPressureChanged)
     SLATE_END_ARGS()
 
     void Construct(const FArguments& InArgs)
@@ -20,6 +24,8 @@ public:
         BowPressure = InArgs._BowPressure;
         IndependentPressure = InArgs._IndependentPressure;
         Connected = InArgs._Connected;
+        OnSpeedChanged = InArgs._OnSpeedChanged;
+        OnPressureChanged = InArgs._OnPressureChanged;
     }
 
     virtual FVector2D ComputeDesiredSize(float) const override
@@ -134,7 +140,7 @@ public:
 
         const FString RouteText = bConnected
             ? (bIndependent ? TEXT("双路分控") : TEXT("CC1 联动"))
-            : TEXT("试听标尺");
+            : TEXT("拖轮试听");
         FSlateDrawElement::MakeText(
             OutDrawElements, LayerId + 5,
             Geometry.ToPaintGeometry(FVector2f(100.0f, 16.0f), FSlateLayoutTransform(FVector2f(Size.X * 0.5f - 46.0f, 12.0f))),
@@ -144,9 +150,71 @@ public:
         return LayerId + 5;
     }
 
+    virtual FReply OnMouseButtonDown(const FGeometry& Geometry, const FPointerEvent& MouseEvent) override
+    {
+        if (MouseEvent.GetEffectingButton() != EKeys::LeftMouseButton)
+        {
+            return FReply::Unhandled();
+        }
+        const FVector2D LocalPosition = Geometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
+        DraggingDial = LocalPosition.X < Geometry.GetLocalSize().X * 0.5f ? EDial::Speed : EDial::Pressure;
+        ApplyPointerValue(Geometry, LocalPosition, false);
+        return FReply::Handled().CaptureMouse(SharedThis(this));
+    }
+
+    virtual FReply OnMouseMove(const FGeometry& Geometry, const FPointerEvent& MouseEvent) override
+    {
+        if (DraggingDial == EDial::None || !HasMouseCapture())
+        {
+            return FReply::Unhandled();
+        }
+        ApplyPointerValue(Geometry, Geometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition()), false);
+        return FReply::Handled();
+    }
+
+    virtual FReply OnMouseButtonUp(const FGeometry& Geometry, const FPointerEvent& MouseEvent) override
+    {
+        if (MouseEvent.GetEffectingButton() != EKeys::LeftMouseButton || DraggingDial == EDial::None)
+        {
+            return FReply::Unhandled();
+        }
+        ApplyPointerValue(Geometry, Geometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition()), true);
+        DraggingDial = EDial::None;
+        return FReply::Handled().ReleaseMouseCapture();
+    }
+
+    virtual FCursorReply OnCursorQuery(const FGeometry& Geometry, const FPointerEvent& CursorEvent) const override
+    {
+        return FCursorReply::Cursor(EMouseCursor::ResizeLeftRight);
+    }
+
 private:
+    enum class EDial : uint8
+    {
+        None,
+        Speed,
+        Pressure
+    };
+
+    void ApplyPointerValue(const FGeometry& Geometry, const FVector2D& LocalPosition, const bool bFinished)
+    {
+        const float CenterX = DraggingDial == EDial::Speed ? 92.0f : Geometry.GetLocalSize().X - 92.0f;
+        const float Value = FMath::Clamp((LocalPosition.X - (CenterX - 34.0f)) / 68.0f, 0.0f, 1.0f);
+        if (DraggingDial == EDial::Speed)
+        {
+            OnSpeedChanged.ExecuteIfBound(Value, bFinished);
+        }
+        else if (DraggingDial == EDial::Pressure)
+        {
+            OnPressureChanged.ExecuteIfBound(Value, bFinished);
+        }
+    }
+
     TAttribute<float> BowSpeed;
     TAttribute<float> BowPressure;
     TAttribute<bool> IndependentPressure;
     TAttribute<bool> Connected;
+    FOnResonanceBowGaugeChanged OnSpeedChanged;
+    FOnResonanceBowGaugeChanged OnPressureChanged;
+    EDial DraggingDial = EDial::None;
 };

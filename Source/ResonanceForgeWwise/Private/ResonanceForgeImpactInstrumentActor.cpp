@@ -104,7 +104,8 @@ int32 AResonanceForgeImpactInstrumentActor::TriggerInstrument(
     const float Brightness,
     const int32 MidiNote,
     const float StrikePosition,
-    const bool bHoldNativeNote)
+    const bool bHoldNativeNote,
+    const float BowPressureOverride)
 {
     FResonanceForgeImpactParameters Parameters;
     Parameters.Energy = FMath::Clamp(Energy, 0.0f, 1.0f);
@@ -138,7 +139,12 @@ int32 AResonanceForgeImpactInstrumentActor::TriggerInstrument(
         }
         else
         {
-            NativeSynth->Strike(Parameters.Energy, Parameters.Brightness, Parameters.MidiNote, Parameters.StrikePosition);
+            NativeSynth->Strike(
+                Parameters.Energy,
+                Parameters.Brightness,
+                Parameters.MidiNote,
+                Parameters.StrikePosition,
+                BowPressureOverride);
         }
     }
     if (ListenModeIncludesWwise(ListenMode) && WwiseBridge)
