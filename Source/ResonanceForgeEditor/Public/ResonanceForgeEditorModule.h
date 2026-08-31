@@ -22,6 +22,7 @@ private:
     void ResetModalModesToPreset();
     void SelectModalMode(int32 ModeIndex);
     void ApplyStrikePosition(float NewPosition, bool bFinished);
+    void ApplyWaveguidePickup(float NewPosition, bool bFinished);
     void TriggerKeybedNote(int32 MidiNote, float Velocity);
     void AuditionCurrentSound(const FText& ChangeLabel);
     FReply SyncFromSelection();

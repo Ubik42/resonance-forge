@@ -2,6 +2,7 @@
 #include "SResonanceForgeVisualizer.h"
 #include "SResonanceModeRack.h"
 #include "SResonanceStrikeRail.h"
+#include "SResonanceStringPath.h"
 #include "SResonanceKeybed.h"
 #include "SResonanceDecayPrint.h"
 
@@ -454,6 +455,16 @@ void FResonanceForgeEditorModule::ApplyWaveguideParameters()
         Instrument->NativeSynth->StringDamping = FMath::Clamp(WaveguideDamping, 0.0f, 1.0f);
         Instrument->NativeSynth->BodyCoupling = FMath::Clamp(WaveguideCoupling, 0.0f, 1.0f);
         Instrument->NativeSynth->PickupPosition = FMath::Clamp(WaveguidePickup, 0.0f, 1.0f);
+    }
+}
+
+void FResonanceForgeEditorModule::ApplyWaveguidePickup(const float NewPosition, const bool bFinished)
+{
+    WaveguidePickup = FMath::Clamp(NewPosition, 0.0f, 1.0f);
+    ApplyWaveguideParameters();
+    if (bFinished)
+    {
+        AuditionCurrentSound(NSLOCTEXT("ResonanceForge", "PickupPositionAudition", "拾音位置调整完成"));
     }
 }
 
@@ -2368,10 +2379,23 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                                 [WaveguideParameterRow(NSLOCTEXT("ResonanceForge", "Sustain", "回响长度"), NSLOCTEXT("ResonanceForge", "SustainDetail", "反馈保留"), &WaveguideSustain, Wood)]
                                 + SHorizontalBox::Slot().FillWidth(1.0f).Padding(8, 0)
                                 [WaveguideParameterRow(NSLOCTEXT("ResonanceForge", "Damping", "弦路阻尼"), NSLOCTEXT("ResonanceForge", "DampingDetail", "高频耗散"), &WaveguideDamping, Steel)]
-                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(8, 0)
-                                [WaveguideParameterRow(NSLOCTEXT("ResonanceForge", "Coupling", "箱体耦合"), NSLOCTEXT("ResonanceForge", "CouplingDetail", "弦体传能"), &WaveguideCoupling, Glass)]
                                 + SHorizontalBox::Slot().FillWidth(1.0f).Padding(8, 0, 0, 0)
-                                [WaveguideParameterRow(NSLOCTEXT("ResonanceForge", "Pickup", "拾音位置"), NSLOCTEXT("ResonanceForge", "PickupDetail", "琴桥 ↔ 弦心"), &WaveguidePickup, Cyan)]
+                                [WaveguideParameterRow(NSLOCTEXT("ResonanceForge", "Coupling", "箱体耦合"), NSLOCTEXT("ResonanceForge", "CouplingDetail", "弦体传能"), &WaveguideCoupling, Glass)]
+                            ]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 15, 0, 0)
+                            [
+                                SNew(SBorder)
+                                .BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel")))
+                                .BorderBackgroundColor(FLinearColor(0.022f, 0.018f, 0.014f, 1.0f))
+                                .Padding(FMargin(8, 5))
+                                [
+                                    SNew(SResonanceStringPath)
+                                    .PickupPosition_Lambda([this]{ return WaveguidePickup; })
+                                    .Sustain_Lambda([this]{ return WaveguideSustain; })
+                                    .Damping_Lambda([this]{ return WaveguideDamping; })
+                                    .Coupling_Lambda([this]{ return WaveguideCoupling; })
+                                    .OnPickupChanged(FOnResonancePickupChanged::CreateRaw(this, &FResonanceForgeEditorModule::ApplyWaveguidePickup))
+                                ]
                             ]
                         ]
                     ]
