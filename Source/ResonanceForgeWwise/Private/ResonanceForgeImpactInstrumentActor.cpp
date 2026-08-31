@@ -129,7 +129,12 @@ int32 AResonanceForgeImpactInstrumentActor::TriggerInstrument(
     {
         if (bHoldNativeNote)
         {
-            NativeSynth->NoteOn(Parameters.Energy, Parameters.Brightness, Parameters.MidiNote, Parameters.StrikePosition);
+            NativeSynth->NoteOn(
+                Parameters.Energy,
+                Parameters.Brightness,
+                Parameters.MidiNote,
+                Parameters.StrikePosition,
+                MidiBowPressure);
         }
         else
         {
@@ -224,6 +229,9 @@ void AResonanceForgeImpactInstrumentActor::DisconnectMidiInput()
         MidiController->ShutdownDevice();
         MidiController = nullptr;
     }
+    bHasMidiAftertouch = false;
+    LastMidiPressure = -1;
+    MidiBowPressure = MidiBrightness;
 }
 
 bool AResonanceForgeImpactInstrumentActor::IsMidiConnected() const
@@ -252,11 +260,28 @@ void AResonanceForgeImpactInstrumentActor::HandleMidiEvent(
         MidiBrightness = FMath::Clamp(Velocity / 127.0f, 0.0f, 1.0f);
         if (ListenModeIncludesNative(ListenMode) && NativeSynth)
         {
-            NativeSynth->SetBowExpression(MidiBrightness);
+            NativeSynth->SetBowSpeed(MidiBrightness);
+            if (!bHasMidiAftertouch)
+            {
+                MidiBowPressure = MidiBrightness;
+                NativeSynth->SetBowPressure(MidiBowPressure);
+            }
         }
         if (ListenModeIncludesWwise(ListenMode) && WwiseBridge)
         {
             WwiseBridge->SetLiveBrightness(MidiBrightness);
+        }
+    }
+    else if (EventType == EMIDIEventType::ChannelAfterTouch || EventType == EMIDIEventType::NoteAfterTouch)
+    {
+        const int32 PressureValue = EventType == EMIDIEventType::ChannelAfterTouch ? ControlId : Velocity;
+        MidiBowPressure = FMath::Clamp(PressureValue / 127.0f, 0.0f, 1.0f);
+        LastMidiPressure = PressureValue;
+        bHasMidiAftertouch = true;
+        if (ListenModeIncludesNative(ListenMode) && NativeSynth)
+        {
+            const int32 TargetNote = EventType == EMIDIEventType::NoteAfterTouch ? ControlId : -1;
+            NativeSynth->SetBowPressure(MidiBowPressure, TargetNote);
         }
     }
     else if (EventType == EMIDIEventType::NoteOn && Velocity > 0)

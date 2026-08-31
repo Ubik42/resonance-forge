@@ -114,8 +114,8 @@ bool FResonanceForgePresetTest::RunTest(const FString& Parameters)
 
     TArray<float> ExpressiveBowSamples;
     constexpr int32 ExpressionPhaseFrames = 48000;
-    TestTrue(TEXT("持续弓擦能够在不重触发音符时接收 CC1 表现变化"),
-        Synth->RenderBowExpressionForTest(55, ExpressionPhaseFrames, ExpressiveBowSamples));
+    TestTrue(TEXT("持续弓擦能够在不重触发音符时接收独立弓压变化"),
+        Synth->RenderBowPressureForTest(55, ExpressionPhaseFrames, ExpressiveBowSamples));
     auto ComputeExpressionRms = [&ExpressiveBowSamples](const int32 StartFrame, const int32 EndFrame)
     {
         double SquareSum = 0.0;
@@ -133,7 +133,7 @@ bool FResonanceForgePresetTest::RunTest(const FString& Parameters)
     };
     const float LowExpressionRms = ComputeExpressionRms(72000, 96000);
     const float HighExpressionRms = ComputeExpressionRms(120000, 144000);
-    AddInfo(FString::Printf(TEXT("CC1 弓压段 RMS：低 %.6f / 高 %.6f"), LowExpressionRms, HighExpressionRms));
+    AddInfo(FString::Printf(TEXT("Aftertouch 弓压段 RMS：低 %.6f / 高 %.6f"), LowExpressionRms, HighExpressionRms));
     TestTrue(TEXT("高弓压段与低弓压段形成可测量的动态差异"),
         FMath::Abs(HighExpressionRms - LowExpressionRms) > FMath::Max(0.00001f, LowExpressionRms * 0.005f));
     return true;

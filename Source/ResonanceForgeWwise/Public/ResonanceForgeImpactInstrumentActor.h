@@ -100,6 +100,15 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|MIDI", meta=(ClampMin="0.0", ClampMax="1.0"))
     float MidiBrightness = 0.55f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|MIDI", meta=(ClampMin="0.0", ClampMax="1.0", DisplayName="弓压"))
+    float MidiBowPressure = 0.55f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="共振铸造台|MIDI")
+    bool bHasMidiAftertouch = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="共振铸造台|MIDI")
+    int32 LastMidiPressure = -1;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|MIDI", meta=(DisplayName="力度响应"))
     EResonanceVelocityCurve VelocityCurve = EResonanceVelocityCurve::Linear;
 

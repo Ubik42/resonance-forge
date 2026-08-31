@@ -1045,7 +1045,7 @@ FReply FResonanceForgeEditorModule::ConnectSelectedMidiDevice()
 
     const bool bConnected = Instrument->ConnectMidiInput(MidiDeviceIds[OptionIndex]);
     LastStatus = bConnected
-        ? NSLOCTEXT("ResonanceForge", "MidiConnected", "MIDI 已连接 · Note On 起音，弓擦松键收弓，CC1 实时推拉弓压")
+        ? NSLOCTEXT("ResonanceForge", "MidiConnected", "MIDI 已连接 · CC1 推弓速，Aftertouch 压弓；无压力感应时自动合并")
         : NSLOCTEXT("ResonanceForge", "MidiConnectFailed", "MIDI 连接失败 · 设备可能正被其他程序占用");
     return FReply::Handled();
 }
@@ -1076,13 +1076,20 @@ FText FResonanceForgeEditorModule::GetMidiStatusText() const
             AResonanceForgeImpactInstrumentActor::ShapePerformanceVelocity(
                 Instrument->LastMidiVelocity / 127.0f,
                 Instrument->VelocityCurve) * 127.0f);
-        return FText::Format(
-            NSLOCTEXT("ResonanceForge", "MidiLiveActivity", "{0} · Note {1} / Velocity {2} → Energy {3} · 弓压 CC1 {4}"),
-            FText::FromString(Instrument->GetConnectedMidiDeviceName()),
-            FText::AsNumber(Instrument->LastMidiNote),
-            FText::AsNumber(Instrument->LastMidiVelocity),
-            FText::AsNumber(ShapedEnergy),
-            FText::AsNumber(Instrument->LastMidiControlValue));
+        return Instrument->bHasMidiAftertouch
+            ? FText::Format(
+                NSLOCTEXT("ResonanceForge", "MidiLiveWithPressure", "{0} · Note {1} / Energy {2} · 弓速 CC1 {3} · 弓压 AT {4}"),
+                FText::FromString(Instrument->GetConnectedMidiDeviceName()),
+                FText::AsNumber(Instrument->LastMidiNote),
+                FText::AsNumber(ShapedEnergy),
+                FText::AsNumber(Instrument->LastMidiControlValue),
+                FText::AsNumber(Instrument->LastMidiPressure))
+            : FText::Format(
+                NSLOCTEXT("ResonanceForge", "MidiLiveFallbackPressure", "{0} · Note {1} / Energy {2} · CC1 {3} 同推弓速与弓压"),
+                FText::FromString(Instrument->GetConnectedMidiDeviceName()),
+                FText::AsNumber(Instrument->LastMidiNote),
+                FText::AsNumber(ShapedEnergy),
+                FText::AsNumber(Instrument->LastMidiControlValue));
     }
     return FText::Format(
         NSLOCTEXT("ResonanceForge", "MidiConnectedWaiting", "{0} · 已连接，等待演奏"),
@@ -2645,7 +2652,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                         [
                             SNew(SHorizontalBox)
                             + SHorizontalBox::Slot().FillWidth(0.82f).VAlign(VAlign_Center)
-                            [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "MidiPerformance", "演奏入口"), NSLOCTEXT("ResonanceForge", "MidiMapping", "Note On 起音  ·  Note Off 收弓  ·  CC1 推拉弓压与明亮度"))]
+                            [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "MidiPerformance", "演奏入口"), NSLOCTEXT("ResonanceForge", "MidiMapping", "CC1 推弓速与亮度  ·  Aftertouch 压弓  ·  无压力感应时自动合并"))]
                             + SHorizontalBox::Slot().FillWidth(1.15f).Padding(16, 0, 8, 0).VAlign(VAlign_Center)
                             [
                                 SAssignNew(MidiDeviceCombo, SComboBox<TSharedPtr<FString>>)
