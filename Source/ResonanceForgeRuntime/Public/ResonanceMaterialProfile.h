@@ -16,7 +16,8 @@ enum class EResonanceExcitationType : uint8
 {
     Finger UMETA(DisplayName="指腹"),
     Pick UMETA(DisplayName="拨片"),
-    Hammer UMETA(DisplayName="锤击")
+    Hammer UMETA(DisplayName="锤击"),
+    Bow UMETA(DisplayName="弓擦")
 };
 
 USTRUCT(BlueprintType)

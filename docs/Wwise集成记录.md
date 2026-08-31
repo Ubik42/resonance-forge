@@ -85,7 +85,7 @@ UE 5.8 Demo 使用 Launcher 当前提供的 2025.1 Integration。2026.1 保留�
 - 铸样台会在 WAV 旁生成 `.rfrecipe.json` 声源铭牌，记录建议 Event 和三个 RTPC 输入，便于交接；它不会调用 WAAPI 导入、修改 Wwise Work Unit 或渲染 Wwise 效果链。
 - 数字波导的拾音位置属于 UE 原始声源 DSP，并随本地配方、共享资产和声源铭牌保存；当前不会虚构为第四个 Wwise RTPC。若后续需要在 Wwise 中实时自动化，再单独设计参数契约与 Authoring 曲线。
 - 弦上起振位置同样在 UE 原始声源中塑造初始谐波，并进入本地配方、A/B 与声源铭牌；当前三个 Wwise RTPC 的契约保持不变。
-- 指腹、拨片、锤击三种起振手势同样属于 UE 波导源的初始条件，并随配方与铭牌保存；当前 Wwise 路径仍只接收既有 Event 和三个 RTPC，不把尚未设计的手势 Switch 伪装成已完成集成。
+- 指腹、拨片、锤击三种初始弦形与弓擦持续摩擦都属于 UE 波导源，并随配方与铭牌保存；当前 Wwise 路径仍只接收既有 Event 和三个 RTPC，不把尚未设计的手势 Switch 伪装成已完成集成。
 - 软触、线性、重手力度凸轮在 UE 触发前把键速映射为 Energy；Wwise 接收的是映射后的 `RF_ImpactEnergy`，因此键床与硬件 MIDI 的输出刻度一致。物理碰撞不经过演奏曲线。
 - 数字波导弦目前把硬木 Event 当作 Wwise 参考层，独立 String Event 需要 Wwise Authoring / WwiseConsole 与新 SoundBank 后再落地；当前机器只有 Launcher 与 Integration，因此本版没有制造一个无法播放的占位 Event。
 - 工作台“监听闸门”在 `AResonanceForgeImpactInstrumentActor::TriggerInstrument` 统一分流：原声炉只触发 UE Synth，Wwise 出口只发布 Event / RTPC，双路叠听分别触发两条链。面板、试音键床、MIDI、键盘与 PIE 碰撞不会各自维护一套分支。

@@ -5,7 +5,7 @@
 - 上游仓库：https://github.com/thestk/stk
 - 本次参考提交：`6aacd357d76250bb7da2b1ddf675651828784bbc`
 - 作者：Perry R. Cook、Gary P. Scavone
-- 参考范围：`Plucked` 的 Karplus–Strong 数字波导弦结构，包括噪声激励、延迟线、环路低通与衰减反馈。
+- 参考范围：`Plucked` 的 Karplus–Strong 数字波导弦结构，以及 `BowTable / Bowed` 的弓速—弦速差与非线性摩擦建模思路。
 - 集成方式：没有把 STK 整库加入 Unreal。`ResonanceForgeSynthComponent` 按 UE 音频线程和固定复音池重新实现了这部分结构。
 
 许可原文：

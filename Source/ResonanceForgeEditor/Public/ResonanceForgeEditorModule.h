@@ -136,7 +136,7 @@ private:
     double LastKeybedPlayedSeconds = -1000.0;
     int32 ActiveFlowStation = 0;
     FString SharedRecipeName = TEXT("新声学配方");
-    FString SampleExportName = TEXT("RF_HammerBridge_G3");
+    FString SampleExportName = TEXT("RF_Bow_G3");
     float SampleExportDurationSeconds = 3.0f;
     FString LastSampleExportPath;
     TArray<float> LastSampleEnvelope;

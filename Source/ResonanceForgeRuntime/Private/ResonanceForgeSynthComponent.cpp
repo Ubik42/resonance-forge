@@ -2,7 +2,8 @@
 
 #include "Math/UnrealMathUtility.h"
 
-// 数字波导弦的延迟线、噪声激励与环路低通结构参考 STK Plucked。
+// 数字波导弦的延迟线、噪声激励与环路低通结构参考 STK Plucked；
+// 弓擦的速度差与非线性摩擦曲线参考 STK BowTable / Bowed 的建模思路。
 // STK: Copyright (c) 1995-2023 Perry R. Cook and Gary P. Scavone，MIT 风格许可。
 // 本工程采用面向 Unreal 音频线程、固定复音池与参数快照的独立实现。
 
@@ -323,6 +324,17 @@ void UResonanceForgeSynthComponent::StartWaveguideVoice(const FStrikeEvent& Even
     Target->PickupOffset = FMath::Clamp(FMath::RoundToInt(Target->DelaySamples * PhysicalPickupPosition), 1, Target->DelaySamples - 1);
     Target->Gain = FMath::Clamp(Event.Energy, 0.0f, 1.5f);
     Target->EnergyEstimate = Target->Gain;
+    Target->ExcitationType = Event.ExcitationType;
+    Target->BowOffset = FMath::Clamp(
+        FMath::RoundToInt(Target->DelaySamples * FMath::Lerp(0.12f, 0.88f, Event.StrikePosition)),
+        1,
+        Target->DelaySamples - 1);
+    Target->BowSamplesTotal = Event.ExcitationType == EResonanceExcitationType::Bow
+        ? FMath::RoundToInt(RenderSampleRate * FMath::Lerp(0.85f, 3.20f, FMath::Clamp(Event.Energy, 0.0f, 1.0f)))
+        : 0;
+    Target->BowSamplesRemaining = Target->BowSamplesTotal;
+    Target->BowVelocity = FMath::Lerp(0.035f, 0.22f, Event.Brightness);
+    Target->BowPressure = FMath::Lerp(0.12f, 0.42f, FMath::Clamp(Event.Energy, 0.0f, 1.0f));
     Target->bActive = true;
 
     float PreviousNoise = 0.0f;
@@ -336,7 +348,12 @@ void UResonanceForgeSynthComponent::StartWaveguideVoice(const FStrikeEvent& Even
             ? static_cast<float>(Index) / static_cast<float>(Target->DelaySamples - 1)
             : 0.0f;
         float Excitation = 0.0f;
-        if (Event.ExcitationType == EResonanceExcitationType::Finger)
+        if (Event.ExcitationType == EResonanceExcitationType::Bow)
+        {
+            // 弓擦不是一次性位移：这里只放入极低电平的粗糙种子，持续能量在渲染环中注入。
+            Excitation = Noise * FMath::Sin(PI * T) * 0.012f;
+        }
+        else if (Event.ExcitationType == EResonanceExcitationType::Finger)
         {
             const float SmoothedNoise = 0.50f * PreviousSmoothedNoise + 0.25f * (Noise + PreviousNoise);
             const float Distance = (T - ExcitationCenter) / 0.24f;
@@ -379,6 +396,26 @@ float UResonanceForgeSynthComponent::RenderWaveguideVoices()
         }
 
         const int32 NextIndex = (Voice.Cursor + 1) % Voice.DelaySamples;
+        if (Voice.ExcitationType == EResonanceExcitationType::Bow && Voice.BowSamplesRemaining > 0)
+        {
+            const int32 BowIndex = (Voice.Cursor + Voice.BowOffset) % Voice.DelaySamples;
+            const int32 BowNeighbor = (BowIndex + Voice.DelaySamples - 1) % Voice.DelaySamples;
+            const float StringVelocity = Voice.DelayBuffer[BowIndex] - Voice.DelayBuffer[BowNeighbor];
+            const int32 ElapsedSamples = Voice.BowSamplesTotal - Voice.BowSamplesRemaining;
+            const float Attack = FMath::Clamp(ElapsedSamples / FMath::Max(1.0f, RenderSampleRate * 0.025f), 0.0f, 1.0f);
+            const float Release = FMath::Clamp(Voice.BowSamplesRemaining / FMath::Max(1.0f, RenderSampleRate * 0.14f), 0.0f, 1.0f);
+            const float StrokeEnvelope = FMath::Min(
+                Attack * Attack * (3.0f - 2.0f * Attack),
+                Release * Release * (3.0f - 2.0f * Release));
+            const float RelativeVelocity = Voice.BowVelocity * StrokeEnvelope - StringVelocity;
+            const float FrictionTable = FMath::Clamp(
+                FMath::Pow(FMath::Abs(RelativeVelocity) * 3.8f + 0.75f, -4.0f),
+                0.0f,
+                1.0f);
+            const float Friction = RelativeVelocity * FrictionTable * Voice.BowPressure * StrokeEnvelope * 0.24f;
+            Voice.DelayBuffer[BowIndex] = FMath::Clamp(Voice.DelayBuffer[BowIndex] + Friction, -1.8f, 1.8f);
+            --Voice.BowSamplesRemaining;
+        }
         const float Current = Voice.DelayBuffer[Voice.Cursor];
         const int32 PickupIndex = (Voice.Cursor + Voice.PickupOffset) % Voice.DelaySamples;
         const float PickupSample = Current - Voice.DelayBuffer[PickupIndex] * 0.72f;
@@ -387,9 +424,13 @@ float UResonanceForgeSynthComponent::RenderWaveguideVoices()
         Voice.DelayBuffer[Voice.Cursor] = Voice.LoopState * Voice.LoopGain;
         Voice.Cursor = NextIndex;
         Voice.EnergyEstimate = FMath::Lerp(Voice.EnergyEstimate, FMath::Abs(Current), 0.0025f) * 0.99996f;
+        if (Voice.BowSamplesRemaining > 0)
+        {
+            Voice.EnergyEstimate = FMath::Max(Voice.EnergyEstimate, 0.0015f);
+        }
         Output += PickupSample * 1.25f;
 
-        if (Voice.EnergyEstimate < 0.00008f)
+        if (Voice.BowSamplesRemaining <= 0 && Voice.EnergyEstimate < 0.00008f)
         {
             Voice.bActive = false;
         }

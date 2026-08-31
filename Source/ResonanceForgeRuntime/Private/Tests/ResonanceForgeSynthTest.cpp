@@ -64,6 +64,24 @@ bool FResonanceForgePresetTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("数字波导输出全部为有限值"), bAllFinite);
     TestTrue(TEXT("数字波导输出包含可听能量"), Peak > 0.01f);
     TestTrue(TEXT("软限幅将输出约束在安全范围"), Peak <= 1.0f);
+
+    Synth->ExcitationType = EResonanceExcitationType::Bow;
+    TArray<float> BowedSamples;
+    TestTrue(TEXT("弓擦手势能够离线生成持续波导输出"), Synth->RenderWaveguideForTest(55, 96000, BowedSamples));
+    double LateSquareSum = 0.0;
+    int32 LateSampleCount = 0;
+    bool bBowFinite = true;
+    for (int32 Index = BowedSamples.Num() / 2; Index < BowedSamples.Num(); ++Index)
+    {
+        bBowFinite &= FMath::IsFinite(BowedSamples[Index]);
+        LateSquareSum += static_cast<double>(BowedSamples[Index]) * BowedSamples[Index];
+        ++LateSampleCount;
+    }
+    const float LateRms = LateSampleCount > 0
+        ? FMath::Sqrt(static_cast<float>(LateSquareSum / LateSampleCount))
+        : 0.0f;
+    TestTrue(TEXT("弓擦输出保持有限值"), bBowFinite);
+    TestTrue(TEXT("弓擦在一秒后仍保留持续能量"), LateRms > 0.001f);
     return true;
 }
 

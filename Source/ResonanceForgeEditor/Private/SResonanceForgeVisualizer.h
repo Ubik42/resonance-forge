@@ -140,6 +140,13 @@ public:
                         // 锤击是局部起振：在同一反馈轮廓上叠出短促尖峰。
                         Texture += 0.075f * FMath::Pow(FMath::Abs(FMath::Sin(Angle * 7.0f + 0.4f)), 3.0f);
                     }
+                    else if (InExcitation == EResonanceExcitationType::Bow)
+                    {
+                        // 弓擦持续补入摩擦能量：保留主体波瓣，同时形成密集的细纹。
+                        Texture = Texture * 0.82f
+                            + 0.034f * FMath::Sin(Angle * 17.0f + 0.35f)
+                            + 0.022f * FMath::Sin(Angle * 23.0f - 0.2f);
+                    }
                 }
                 else
                 {

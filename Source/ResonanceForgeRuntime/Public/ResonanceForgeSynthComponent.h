@@ -144,6 +144,12 @@ private:
         int32 PickupOffset = 1;
         float Gain = 0.0f;
         float EnergyEstimate = 0.0f;
+        EResonanceExcitationType ExcitationType = EResonanceExcitationType::Pick;
+        int32 BowOffset = 1;
+        int32 BowSamplesRemaining = 0;
+        int32 BowSamplesTotal = 0;
+        float BowVelocity = 0.0f;
+        float BowPressure = 0.0f;
         bool bActive = false;
     };
 
