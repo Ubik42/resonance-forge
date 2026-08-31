@@ -3,6 +3,7 @@
 #include "Modules/ModuleManager.h"
 #include "ResonanceMaterialProfile.h"
 #include "Widgets/Input/SComboBox.h"
+#include "Containers/Ticker.h"
 
 class FResonanceForgeEditorModule final : public IModuleInterface
 {
@@ -37,6 +38,7 @@ private:
     FReply CaptureWorkbenchScreenshot();
     void QueueAutomatedCapture();
     bool CaptureWorkbenchImage(const FString& FileName);
+    bool PollLiveImpact(float DeltaSeconds);
     FReply OpenDemoMap();
     FText GetSelectionText() const;
     FText GetExcitationText() const;
@@ -55,6 +57,7 @@ private:
     FText GetSelectedModeGainText() const;
     FText GetSelectedModeDecayText() const;
     FText GetStrikePositionText() const;
+    float GetLiveImpactGlow() const;
     bool HasRecipeSlot(int32 SlotIndex) const;
     bool ReadRecipeSlot(int32 SlotIndex, FName& OutPreset, EResonanceModelType& OutModel, float& OutEnergy, float& OutBrightness, float& OutSize, float& OutSustain, float& OutDamping, float& OutCoupling) const;
 
@@ -87,6 +90,13 @@ private:
     TWeakPtr<SWidget> WorkbenchWidget;
     TSharedPtr<class SScrollBox> WorkbenchScrollBox;
     class IConsoleObject* CaptureConsoleCommand = nullptr;
+    FTSTicker::FDelegateHandle LiveImpactTickerHandle;
+    TWeakObjectPtr<class AResonanceForgeImpactInstrumentActor> ObservedImpactActor;
+    int32 ObservedImpactSerial = INDEX_NONE;
+    float LiveImpactPosition = 0.5f;
+    float LiveImpactEnergy = 0.0f;
+    float LiveImpactBrightness = 0.0f;
+    double LiveImpactObservedSeconds = -1000.0;
     FString SharedRecipeName = TEXT("新声学配方");
     FText LastStatus;
 };

@@ -11,6 +11,8 @@ class SResonanceStrikeRail final : public SLeafWidget
 public:
     SLATE_BEGIN_ARGS(SResonanceStrikeRail) {}
         SLATE_ATTRIBUTE(float, StrikePosition)
+        SLATE_ATTRIBUTE(float, LiveImpactPosition)
+        SLATE_ATTRIBUTE(float, LiveImpactGlow)
         SLATE_ATTRIBUTE(int32, ModeCount)
         SLATE_EVENT(FOnStrikeRailChanged, OnPositionChanged)
     SLATE_END_ARGS()
@@ -18,6 +20,8 @@ public:
     void Construct(const FArguments& InArgs)
     {
         StrikePosition = InArgs._StrikePosition;
+        LiveImpactPosition = InArgs._LiveImpactPosition;
+        LiveImpactGlow = InArgs._LiveImpactGlow;
         ModeCount = InArgs._ModeCount;
         OnPositionChanged = InArgs._OnPositionChanged;
         SetCanTick(false);
@@ -42,7 +46,11 @@ public:
         const float Right = Size.X - 28.0f;
         const float RailY = 43.0f;
         const float Position = FMath::Clamp(StrikePosition.Get(0.5f), 0.0f, 1.0f);
+        const float Glow = FMath::Clamp(LiveImpactGlow.Get(0.0f), 0.0f, 1.0f);
+        const float ReturnedPosition = FMath::Clamp(LiveImpactPosition.Get(Position), 0.0f, 1.0f);
+        const float ResponsePosition = Glow > 0.01f ? ReturnedPosition : Position;
         const float MarkerX = FMath::Lerp(Left, Right, Position);
+        const float ReturnedX = FMath::Lerp(Left, Right, ReturnedPosition);
         const FLinearColor Iron(0.28f, 0.39f, 0.40f, 1.0f);
         const FLinearColor Copper(1.0f, 0.55f, 0.20f, 1.0f);
         const FLinearColor Mint(0.43f, 0.82f, 0.75f, 1.0f);
@@ -64,6 +72,16 @@ public:
             AllottedGeometry.ToPaintGeometry(FVector2f(12.0f, 12.0f), FSlateLayoutTransform(FVector2f(MarkerX - 6.0f, 5.0f))),
             FAppStyle::GetBrush(TEXT("WhiteBrush")), ESlateDrawEffect::None, Copper);
 
+        if (Glow > 0.01f)
+        {
+            Line = {FVector2D(ReturnedX, RailY - 17.0f - Glow * 10.0f), FVector2D(ReturnedX, RailY + 17.0f + Glow * 10.0f)};
+            FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 3, AllottedGeometry.ToPaintGeometry(), Line, ESlateDrawEffect::None, Mint.CopyWithNewOpacity(0.35f + Glow * 0.65f), true, 2.0f + Glow * 4.0f);
+            FSlateDrawElement::MakeBox(
+                OutDrawElements, LayerId + 4,
+                AllottedGeometry.ToPaintGeometry(FVector2f(18.0f + Glow * 12.0f, 8.0f), FSlateLayoutTransform(FVector2f(ReturnedX - 9.0f - Glow * 6.0f, RailY - 4.0f))),
+                FAppStyle::GetBrush(TEXT("WhiteBrush")), ESlateDrawEffect::None, Mint.CopyWithNewOpacity(0.20f + Glow * 0.45f));
+        }
+
         FSlateDrawElement::MakeText(OutDrawElements, LayerId + 1,
             AllottedGeometry.ToPaintGeometry(FVector2f(60.0f, 18.0f), FSlateLayoutTransform(FVector2f(Left, 58.0f))),
             TEXT("近端"), FAppStyle::GetFontStyle(TEXT("SmallFont")), ESlateDrawEffect::None, Muted);
@@ -79,9 +97,10 @@ public:
         for (int32 Index = 0; Index < Count; ++Index)
         {
             const float X = FMath::Lerp(Left, Right, Count == 1 ? 0.5f : static_cast<float>(Index) / static_cast<float>(Count - 1));
-            const float Response = UResonanceForgeSynthComponent::ComputeModeExcitation(Index, Position);
-            Line = {FVector2D(X, ResponseY), FVector2D(X, ResponseY - 26.0f * Response)};
-            FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 2, AllottedGeometry.ToPaintGeometry(), Line, ESlateDrawEffect::None, FLinearColor::LerpUsingHSV(Iron, Mint, Response), true, 5.0f);
+            const float Response = UResonanceForgeSynthComponent::ComputeModeExcitation(Index, ResponsePosition);
+            const float Height = 26.0f * Response * (1.0f + Glow * 0.55f);
+            Line = {FVector2D(X, ResponseY), FVector2D(X, ResponseY - Height)};
+            FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 5, AllottedGeometry.ToPaintGeometry(), Line, ESlateDrawEffect::None, FLinearColor::LerpUsingHSV(Iron, Mint, FMath::Clamp(Response + Glow * 0.35f, 0.0f, 1.0f)), true, 5.0f + Glow * 2.0f);
         }
         return LayerId + 4;
     }
@@ -122,6 +141,8 @@ private:
     }
 
     TAttribute<float> StrikePosition;
+    TAttribute<float> LiveImpactPosition;
+    TAttribute<float> LiveImpactGlow;
     TAttribute<int32> ModeCount;
     FOnStrikeRailChanged OnPositionChanged;
 };

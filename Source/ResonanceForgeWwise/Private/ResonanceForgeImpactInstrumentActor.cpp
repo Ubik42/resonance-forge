@@ -86,6 +86,9 @@ int32 AResonanceForgeImpactInstrumentActor::TriggerInstrument(
     Parameters.MidiNote = FMath::Clamp(MidiNote, 0, 127);
     Parameters.StrikePosition = FMath::Clamp(StrikePosition < 0.0f ? ManualStrikePosition : StrikePosition, 0.0f, 1.0f);
     LastStrikePosition = Parameters.StrikePosition;
+    LastImpactEnergy = Parameters.Energy;
+    LastImpactBrightness = Parameters.Brightness;
+    ++ImpactSerial;
     Parameters.MaterialPreset = NativeSynth && NativeSynth->MaterialProfile
         ? NativeSynth->MaterialProfile->SourcePreset
         : ResonancePreset;
@@ -93,6 +96,7 @@ int32 AResonanceForgeImpactInstrumentActor::TriggerInstrument(
     NativeSynth->PitchScale = FMath::Lerp(1.35f, 0.72f, Parameters.ObjectSize);
 
     LastTriggerTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+    LastImpactWorldSeconds = static_cast<float>(LastTriggerTime);
     const int32 PlayingId = WwiseBridge->TriggerImpact(Parameters, NativeSynth);
     const FLinearColor FlashColor = ResonancePreset == TEXT("硬木")
         ? FLinearColor(1.0f, 0.24f, 0.035f)

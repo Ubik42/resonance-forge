@@ -57,6 +57,18 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="共振铸造台|撞击")
     float LastStrikePosition = 0.5f;
 
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="共振铸造台|撞击")
+    float LastImpactEnergy = 0.0f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="共振铸造台|撞击")
+    float LastImpactBrightness = 0.0f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="共振铸造台|撞击")
+    int32 ImpactSerial = 0;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="共振铸造台|撞击")
+    float LastImpactWorldSeconds = -1000.0f;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|撞击", meta=(ClampMin="0.0"))
     float RetriggerCooldownSeconds = 0.06f;
 

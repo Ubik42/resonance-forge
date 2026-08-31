@@ -81,6 +81,8 @@ namespace ResonanceForgeEditor
 void FResonanceForgeEditorModule::StartupModule()
 {
     LastStatus = NSLOCTEXT("ResonanceForge", "Ready", "已就绪 · 选择场景中的共振体开始工作");
+    LiveImpactTickerHandle = FTSTicker::GetCoreTicker().AddTicker(
+        FTickerDelegate::CreateRaw(this, &FResonanceForgeEditorModule::PollLiveImpact), 0.04f);
     FGlobalTabmanager::Get()->RegisterNomadTabSpawner(
         ResonanceForgeEditor::TabName,
         FOnSpawnTab::CreateRaw(this, &FResonanceForgeEditorModule::SpawnWorkbench))
@@ -99,6 +101,11 @@ void FResonanceForgeEditorModule::StartupModule()
 
 void FResonanceForgeEditorModule::ShutdownModule()
 {
+    if (LiveImpactTickerHandle.IsValid())
+    {
+        FTSTicker::GetCoreTicker().RemoveTicker(LiveImpactTickerHandle);
+        LiveImpactTickerHandle.Reset();
+    }
     UToolMenus::UnRegisterStartupCallback(this);
     UToolMenus::UnregisterOwner(this);
     if (CaptureConsoleCommand)
@@ -162,6 +169,7 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
                         ActiveModes[SelectedModeIndex].DecaySeconds *= 1.42f;
                         ApplyModalModes(false, FText::GetEmpty());
                     }
+                    AuditionCurrentSound(NSLOCTEXT("ResonanceForge", "CaptureOffsetStrike", "偏置落点试敲"));
                     ClearReference();
                     if (WorkbenchScrollBox.IsValid())
                     {
@@ -250,6 +258,14 @@ AResonanceForgeImpactInstrumentActor* FResonanceForgeEditorModule::ResolveInstru
         return nullptr;
     }
 
+    if (GEditor->PlayWorld)
+    {
+        for (TActorIterator<AResonanceForgeImpactInstrumentActor> It(GEditor->PlayWorld.Get()); It; ++It)
+        {
+            return *It;
+        }
+    }
+
     if (USelection* Selection = GEditor->GetSelectedActors())
     {
         for (FSelectionIterator It(*Selection); It; ++It)
@@ -261,7 +277,7 @@ AResonanceForgeImpactInstrumentActor* FResonanceForgeEditorModule::ResolveInstru
         }
     }
 
-    UWorld* World = GEditor->PlayWorld ? GEditor->PlayWorld.Get() : GEditor->GetEditorWorldContext().World();
+    UWorld* World = GEditor->GetEditorWorldContext().World();
     if (World)
     {
         for (TActorIterator<AResonanceForgeImpactInstrumentActor> It(World); It; ++It)
@@ -270,6 +286,52 @@ AResonanceForgeImpactInstrumentActor* FResonanceForgeEditorModule::ResolveInstru
         }
     }
     return nullptr;
+}
+
+bool FResonanceForgeEditorModule::PollLiveImpact(float)
+{
+    UWorld* World = nullptr;
+    if (GEditor)
+    {
+        World = GEditor->PlayWorld ? GEditor->PlayWorld.Get() : GEditor->GetEditorWorldContext().World();
+    }
+    AResonanceForgeImpactInstrumentActor* Instrument = nullptr;
+    if (World)
+    {
+        for (TActorIterator<AResonanceForgeImpactInstrumentActor> It(World); It; ++It)
+        {
+            if (!Instrument || It->LastImpactWorldSeconds > Instrument->LastImpactWorldSeconds)
+            {
+                Instrument = *It;
+            }
+        }
+    }
+    if (!Instrument)
+    {
+        ObservedImpactActor.Reset();
+        ObservedImpactSerial = INDEX_NONE;
+        return true;
+    }
+    if (ObservedImpactActor.Get() != Instrument)
+    {
+        ObservedImpactActor = Instrument;
+        ObservedImpactSerial = INDEX_NONE;
+    }
+    if (Instrument->ImpactSerial > 0 && Instrument->ImpactSerial != ObservedImpactSerial)
+    {
+        ObservedImpactSerial = Instrument->ImpactSerial;
+        LiveImpactPosition = Instrument->LastStrikePosition;
+        LiveImpactEnergy = Instrument->LastImpactEnergy;
+        LiveImpactBrightness = Instrument->LastImpactBrightness;
+        LiveImpactObservedSeconds = FPlatformTime::Seconds();
+        PreviewStrikePosition = LiveImpactPosition;
+        LastStatus = FText::Format(
+            NSLOCTEXT("ResonanceForge", "LiveImpactReturned", "触发回传 · 落点 {0}% / 能量 {1}% / 明亮度 {2}%"),
+            FText::AsNumber(FMath::RoundToInt(LiveImpactPosition * 100.0f)),
+            FText::AsNumber(FMath::RoundToInt(LiveImpactEnergy * 100.0f)),
+            FText::AsNumber(FMath::RoundToInt(LiveImpactBrightness * 100.0f)));
+    }
+    return true;
 }
 
 void FResonanceForgeEditorModule::ApplyPreset(const FName PresetName)
@@ -906,7 +968,19 @@ FText FResonanceForgeEditorModule::GetStrikePositionText() const
         : Percent > 62
             ? NSLOCTEXT("ResonanceForge", "StrikeFar", "远端")
             : NSLOCTEXT("ResonanceForge", "StrikeCenter", "中央");
-    return FText::Format(NSLOCTEXT("ResonanceForge", "StrikePositionReading", "{0} · {1}%"), Region, FText::AsNumber(Percent));
+    return GetLiveImpactGlow() > 0.02f
+        ? FText::Format(NSLOCTEXT("ResonanceForge", "StrikePositionReturned", "触发回传 · {0}%"), FText::AsNumber(FMath::RoundToInt(LiveImpactPosition * 100.0f)))
+        : FText::Format(NSLOCTEXT("ResonanceForge", "StrikePositionReading", "{0} · {1}%"), Region, FText::AsNumber(Percent));
+}
+
+float FResonanceForgeEditorModule::GetLiveImpactGlow() const
+{
+    const double Age = FPlatformTime::Seconds() - LiveImpactObservedSeconds;
+    if (Age < 0.0 || Age > 5.0)
+    {
+        return 0.0f;
+    }
+    return FMath::Clamp(LiveImpactEnergy * FMath::Exp(-static_cast<float>(Age) / 1.45f), 0.0f, 1.0f);
 }
 
 FReply FResonanceForgeEditorModule::ForgeSharedRecipeAsset()
@@ -1566,6 +1640,8 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                                 [
                                     SNew(SResonanceStrikeRail)
                                     .StrikePosition_Lambda([this]{ return PreviewStrikePosition; })
+                                    .LiveImpactPosition_Lambda([this]{ return LiveImpactPosition; })
+                                    .LiveImpactGlow_Raw(this, &FResonanceForgeEditorModule::GetLiveImpactGlow)
                                     .ModeCount_Lambda([this]{ return ActiveModes.Num(); })
                                     .OnPositionChanged(FOnStrikeRailChanged::CreateRaw(this, &FResonanceForgeEditorModule::ApplyStrikePosition))
                                 ]

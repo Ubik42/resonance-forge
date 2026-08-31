@@ -8,7 +8,7 @@
 ![Unreal Engine 5.8](https://img.shields.io/badge/Unreal_Engine-5.8.1-0E1128?logo=unrealengine&logoColor=white)
 ![Wwise 2025.1](https://img.shields.io/badge/Wwise-2025.1-00549F)
 ![Platform](https://img.shields.io/badge/Platform-Windows_Editor-0078D4?logo=windows&logoColor=white)
-![Version](https://img.shields.io/badge/Version-0.15.0-D96B2B)
+![Version](https://img.shields.io/badge/Version-0.16.0-D96B2B)
 ![License](https://img.shields.io/badge/License-MIT-2EA44F)
 
 </div>
@@ -42,6 +42,7 @@
 - **声纹炉膛**：用随模型、材质与演奏参数实时变化的声学指纹理解声音，而不是只看抽象滑杆。
 - **可编辑共振齿列**：直接选择离散模态，调整频率、响度权重和衰减时间；结果写回当前声源，并参与 A/B 与共享配方。
 - **碰撞位置塑形**：真实 `FHitResult` 落点会转换到物体局部坐标，并按模态节点重新分配各共振峰的激励能量。
+- **触发回传与模态余辉**：面板试敲或 PIE 碰撞后，最近发生的共振体会把落点、能量和明亮度回传到划线规；青色余辉随声音衰减。
 - **A/B 声纹比较**：钉住一次参考声纹，再更换材质或参数；“交换并试听 A/B”可在两个版本间往返切换。
 - **本地配方架**：甲、乙、丙三个槽位保存模型、材质和演奏参数，重开编辑器后仍可召回。
 - **可塑形的数字弦**：“弦床”直接控制回响长度、弦路阻尼和箱体耦合，声音、声纹、A/B 参考与配方槽使用同一组参数。
@@ -85,6 +86,8 @@ flowchart LR
 模态撞击体的“共振齿列”直接编辑 `FResonanceMode`：齿位为 `FrequencyHz`，齿重为 `Gain`，余响为 `DecaySeconds`。内置钢、木、玻璃只是可复现的起点；调整后数据保存在当前 Synth 实例中，PIE 仍会使用这组值，铸印共享配方时则写入 Content 资产。按“按材质重新排齿”可随时回到内置模态。
 
 “落点划线规”使用归一化局部位置 `x` 计算第 `n` 根模态的激励权重 `|sin(nπx)|`。因此中央敲击会压低偶数模态，偏向端点时会形成另一组频谱。PIE 中的真实碰撞点、面板拖动和键盘试听使用同一参数；本地配方槽也会保存落点。
+
+触发发生后，运行 Actor 会记录递增序号、落点、能量、明亮度与世界时间。工作台在 PIE 中优先读取运行世界，并从多个共振体里选择最近发生的一次撞击；划线规上的青色记号和模态短齿余辉按能量随时间衰减。自动 README 截图展示的是面板试敲回传，不冒充 PIE 物理碰撞截图。
 
 这组模态负责 UE 原生物理声源；并行的 Wwise 路径仍接收材质 Event 与 Energy、Brightness、ObjectSize 三个 RTPC。工作台不会把尚未写入 Wwise 的单齿编辑伪装成中间件参数。
 
@@ -251,6 +254,7 @@ ResonanceForge
 | 内置声学预设测试 | 通过 |
 | 可编辑模态链路 | `FResonanceMode` 写回、A/B 交换与 Content 配方保存通过 UE 编译 |
 | 碰撞落点映射 | 世界命中点 → 物体局部位置 → 模态节点激励已进入场景触发链 |
+| 多对象触发回传 | 最近撞击 Actor 的落点、能量、明亮度可回到工作台并驱动余辉 |
 | Wwise 生成资源检查 | 通过 |
 | Wwise 材质路由与 RTPC 映射 | 3 个 Event、9 份 WAV、每个 Container 3 条曲线与 Windows SoundBank 通过 |
 | 基础地图磁盘重载 | 3 个落球 + 1 个波导弦通过 |
