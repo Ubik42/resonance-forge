@@ -23,6 +23,9 @@ struct RESONANCEFORGEWWISE_API FResonanceForgeImpactParameters
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台", meta=(ClampMin="0", ClampMax="127"))
     int32 MidiNote = 60;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台")
+    FName MaterialPreset = TEXT("拉丝钢");
 };
 
 UCLASS(ClassGroup=Audio, BlueprintType, Blueprintable, meta=(BlueprintSpawnableComponent, DisplayName="共振铸造台 Wwise 桥接器"))
@@ -34,7 +37,13 @@ public:
     UResonanceForgeWwiseBridgeComponent();
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|Wwise")
-    TObjectPtr<UAkAudioEvent> ImpactEvent;
+    TObjectPtr<UAkAudioEvent> SteelImpactEvent;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|Wwise|材质路由")
+    TObjectPtr<UAkAudioEvent> WoodImpactEvent;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|Wwise|材质路由")
+    TObjectPtr<UAkAudioEvent> GlassImpactEvent;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|Wwise|Game Parameter")
     TObjectPtr<UAkRtpc> ImpactEnergyRtpc;

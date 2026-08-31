@@ -21,9 +21,17 @@ void UResonanceForgeWwiseBridgeComponent::BeginPlay()
 
 bool UResonanceForgeWwiseBridgeComponent::AutoBindDemoAssets()
 {
-    if (!ImpactEvent)
+    if (!SteelImpactEvent)
     {
-        ImpactEvent = LoadObject<UAkAudioEvent>(nullptr, TEXT("/Game/WwiseAudio/Events/Default_Work_Unit/ResonanceForge/Play_RF_Impact_Metal.Play_RF_Impact_Metal"));
+        SteelImpactEvent = LoadObject<UAkAudioEvent>(nullptr, TEXT("/Game/WwiseAudio/Events/Default_Work_Unit/ResonanceForge/Play_RF_Impact_Steel.Play_RF_Impact_Steel"));
+    }
+    if (!WoodImpactEvent)
+    {
+        WoodImpactEvent = LoadObject<UAkAudioEvent>(nullptr, TEXT("/Game/WwiseAudio/Events/Default_Work_Unit/ResonanceForge/Play_RF_Impact_Wood.Play_RF_Impact_Wood"));
+    }
+    if (!GlassImpactEvent)
+    {
+        GlassImpactEvent = LoadObject<UAkAudioEvent>(nullptr, TEXT("/Game/WwiseAudio/Events/Default_Work_Unit/ResonanceForge/Play_RF_Impact_Glass.Play_RF_Impact_Glass"));
     }
     if (!ImpactEnergyRtpc)
     {
@@ -37,7 +45,8 @@ bool UResonanceForgeWwiseBridgeComponent::AutoBindDemoAssets()
     {
         ObjectSizeRtpc = LoadObject<UAkRtpc>(nullptr, TEXT("/Game/WwiseAudio/Game_Parameters/Default_Work_Unit/RF_ObjectSize.RF_ObjectSize"));
     }
-    return ImpactEvent && ImpactEnergyRtpc && ImpactBrightnessRtpc && ObjectSizeRtpc;
+    return SteelImpactEvent && WoodImpactEvent && GlassImpactEvent
+        && ImpactEnergyRtpc && ImpactBrightnessRtpc && ObjectSizeRtpc;
 }
 
 float UResonanceForgeWwiseBridgeComponent::ToWwiseRtpc(const float NormalizedValue)
@@ -55,7 +64,8 @@ int32 UResonanceForgeWwiseBridgeComponent::TriggerImpact(
         return 0;
     }
 
-    if (bAutoBindGeneratedAssets && (!ImpactEvent || !ImpactEnergyRtpc || !ImpactBrightnessRtpc || !ObjectSizeRtpc))
+    if (bAutoBindGeneratedAssets && (!SteelImpactEvent || !WoodImpactEvent || !GlassImpactEvent
+        || !ImpactEnergyRtpc || !ImpactBrightnessRtpc || !ObjectSizeRtpc))
     {
         AutoBindDemoAssets();
     }
@@ -82,18 +92,30 @@ int32 UResonanceForgeWwiseBridgeComponent::TriggerImpact(
         UAkGameplayStatics::SetRTPCValue(ObjectSizeRtpc, ToWwiseRtpc(ObjectSize), RtpcInterpolationMs, Owner);
     }
 
-    if (!ImpactEvent)
+    UAkAudioEvent* RoutedEvent = SteelImpactEvent;
+    if (Parameters.MaterialPreset == TEXT("硬木"))
+    {
+        RoutedEvent = WoodImpactEvent ? WoodImpactEvent : SteelImpactEvent;
+    }
+    else if (Parameters.MaterialPreset == TEXT("薄玻璃"))
+    {
+        RoutedEvent = GlassImpactEvent ? GlassImpactEvent : SteelImpactEvent;
+    }
+
+    if (!RoutedEvent)
     {
         return 0;
     }
 
-    return UAkGameplayStatics::PostEvent(ImpactEvent, Owner, 0, FOnAkPostEventCallback(), false);
+    return UAkGameplayStatics::PostEvent(RoutedEvent, Owner, 0, FOnAkPostEventCallback(), false);
 }
 
 FString UResonanceForgeWwiseBridgeComponent::GetIntegrationStatus() const
 {
     TArray<FString> MissingItems;
-    if (!ImpactEvent) MissingItems.Add(TEXT("Impact Event"));
+    if (!SteelImpactEvent) MissingItems.Add(TEXT("拉丝钢 Event"));
+    if (!WoodImpactEvent) MissingItems.Add(TEXT("硬木 Event"));
+    if (!GlassImpactEvent) MissingItems.Add(TEXT("薄玻璃 Event"));
     if (!ImpactEnergyRtpc) MissingItems.Add(TEXT("ImpactEnergy RTPC"));
     if (!ImpactBrightnessRtpc) MissingItems.Add(TEXT("ImpactBrightness RTPC"));
     if (!ObjectSizeRtpc) MissingItems.Add(TEXT("ObjectSize RTPC"));

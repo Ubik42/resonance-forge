@@ -17,11 +17,29 @@ function Invoke-Waapi {
 
 $info = Invoke-Waapi -Uri 'ak.wwise.core.getInfo'
 
-$imports = @(
-    @{ audioFile = (Join-Path $AudioDirectory 'RF_Metal_Soft.wav'); objectPath = '\Containers\Default Work Unit\<Random Container>RF_Impact_Metal\<Sound SFX>RF_Metal_Soft'; soundPath = '\Containers\Default Work Unit\RF_Impact_Metal\RF_Metal_Soft' },
-    @{ audioFile = (Join-Path $AudioDirectory 'RF_Metal_Medium.wav'); objectPath = '\Containers\Default Work Unit\<Random Container>RF_Impact_Metal\<Sound SFX>RF_Metal_Medium'; soundPath = '\Containers\Default Work Unit\RF_Impact_Metal\RF_Metal_Medium' },
-    @{ audioFile = (Join-Path $AudioDirectory 'RF_Metal_Hard.wav'); objectPath = '\Containers\Default Work Unit\<Random Container>RF_Impact_Metal\<Sound SFX>RF_Metal_Hard'; soundPath = '\Containers\Default Work Unit\RF_Impact_Metal\RF_Metal_Hard' }
+$materialRoutes = @(
+    @{ Key = 'Steel'; DisplayName = '拉丝钢'; Container = 'RF_Impact_Steel'; Event = 'Play_RF_Impact_Steel' },
+    @{ Key = 'Wood'; DisplayName = '硬木'; Container = 'RF_Impact_Wood'; Event = 'Play_RF_Impact_Wood' },
+    @{ Key = 'Glass'; DisplayName = '薄玻璃'; Container = 'RF_Impact_Glass'; Event = 'Play_RF_Impact_Glass' }
 )
+$strikeNames = @('Soft', 'Medium', 'Hard')
+
+$imports = @($materialRoutes | ForEach-Object {
+    $route = $_
+    $strikeNames | ForEach-Object {
+        $soundName = "RF_$($route.Key)_$_"
+        @{
+            audioFile = (Join-Path $AudioDirectory "$soundName.wav")
+            objectPath = "\Containers\Default Work Unit\<Random Container>$($route.Container)\<Sound SFX>$soundName"
+            soundPath = "\Containers\Default Work Unit\$($route.Container)\$soundName"
+        }
+    }
+})
+
+$missingAudio = @($imports | Where-Object { -not (Test-Path -LiteralPath $_.audioFile) })
+if ($missingAudio.Count -gt 0) {
+    throw "缺少材质撞击测试音频：$($missingAudio.audioFile -join '、')。请先运行 scripts/generate_test_impacts.ps1。"
+}
 
 $pendingImports = @($imports | Where-Object {
     try {
@@ -57,16 +75,16 @@ $eventFolder = Invoke-Waapi -Uri 'ak.wwise.core.object.create' -Arguments @{
     name = 'ResonanceForge'
     notes = '共振铸造台自动生成的 Wwise 事件。'
     onNameConflict = 'merge'
-    children = @(
+    children = @($materialRoutes | ForEach-Object {
         @{
             type = 'Event'
-            name = 'Play_RF_Impact_Metal'
-            notes = '播放金属共振撞击；由 UE 侧 Energy、Brightness、ObjectSize RTPC 驱动。'
+            name = $_.Event
+            notes = "播放$($_.DisplayName)撞击；由 UE 侧材质路由和 Energy、Brightness、ObjectSize RTPC 驱动。"
             children = @(
-                @{ type = 'Action'; name = ''; '@ActionType' = 1; '@Target' = '\Containers\Default Work Unit\RF_Impact_Metal' }
+                @{ type = 'Action'; name = ''; '@ActionType' = 1; '@Target' = "\Containers\Default Work Unit\$($_.Container)" }
             )
         }
-    )
+    })
 }
 
 $rtpcNames = @('RF_ImpactEnergy', 'RF_ImpactBrightness', 'RF_ObjectSize')
@@ -86,7 +104,7 @@ foreach ($rtpcName in $rtpcNames) {
     $rtpcIds[$rtpcName] = $rtpcResult.id
 }
 
-$containerPath = '\Containers\Default Work Unit\RF_Impact_Metal'
+$containerPaths = @($materialRoutes | ForEach-Object { "\Containers\Default Work Unit\$($_.Container)" })
 $rtpcMappings = @(
     @{
         Parameter = 'RF_ImpactEnergy'
@@ -164,10 +182,12 @@ function Test-RtpcMappings {
 }
 
 function Get-CurrentRtpcMappings {
+    param([string]$ContainerPath)
+
     $containerResult = Invoke-Waapi -Uri 'ak.wwise.core.object.get' -Arguments @{
-        from = @{ path = @($containerPath) }
+        from = @{ path = @($ContainerPath) }
     } -Options @{ return = @('id', '@RTPC') }
-    $mappingIds = @($containerResult.return[0].'@RTPC' | ForEach-Object { $_.id })
+    $mappingIds = @($containerResult.return[0].'@RTPC' | Where-Object { $_ -and $_.id } | ForEach-Object { $_.id })
     if ($mappingIds.Count -eq 0) {
         return @()
     }
@@ -188,39 +208,43 @@ function Get-CurrentRtpcMappings {
     return @($mappingDetails.return)
 }
 
-$currentMappings = @(Get-CurrentRtpcMappings)
+$configuredContainers = @()
+foreach ($containerPath in $containerPaths) {
+    $currentMappings = @(Get-CurrentRtpcMappings -ContainerPath $containerPath)
 
-if (Test-RtpcMappings -ActualMappings $currentMappings) {
-    $mappingResult = @{ objects = @(@{ '@RTPC' = $currentMappings }) }
-}
-else {
-    $mappingResult = Invoke-Waapi -Uri 'ak.wwise.core.object.set' -Arguments @{
-        objects = @(
-            @{
-                object = $containerPath
-                '@RTPC' = $rtpcObjects
-            }
-        )
-        onNameConflict = 'merge'
-        listMode = 'replaceAll'
-    } -Options @{ return = @('id', 'name', 'type', '@PropertyName', '@ControlInput', '@Curve') }
-}
+    if (Test-RtpcMappings -ActualMappings $currentMappings) {
+        $createdMappings = $currentMappings
+    }
+    else {
+        $mappingResult = Invoke-Waapi -Uri 'ak.wwise.core.object.set' -Arguments @{
+            objects = @(
+                @{
+                    object = $containerPath
+                    '@RTPC' = $rtpcObjects
+                }
+            )
+            onNameConflict = 'merge'
+            listMode = 'replaceAll'
+        } -Options @{ return = @('id', 'name', 'type', '@PropertyName', '@ControlInput', '@Curve') }
+        $createdMappings = @($mappingResult.objects[0].'@RTPC')
+    }
 
-$createdMappings = @($mappingResult.objects[0].'@RTPC')
-if ($createdMappings.Count -ne $rtpcMappings.Count) {
-    throw "RTPC 映射数量不正确：期望 $($rtpcMappings.Count)，实际 $($createdMappings.Count)。"
-}
-foreach ($expected in $rtpcMappings) {
-    $actual = @($createdMappings | Where-Object { $_.'@PropertyName' -eq $expected.Property })
-    if ($actual.Count -ne 1) {
-        throw "RTPC 属性映射缺失或重复：$($expected.Property)。"
+    if ($createdMappings.Count -ne $rtpcMappings.Count) {
+        throw "$containerPath 的 RTPC 映射数量不正确：期望 $($rtpcMappings.Count)，实际 $($createdMappings.Count)。"
     }
-    if ($actual[0].'@ControlInput'.id -ne $rtpcIds[$expected.Parameter]) {
-        throw "RTPC 控制输入不正确：$($expected.Parameter) → $($expected.Property)。"
+    foreach ($expected in $rtpcMappings) {
+        $actual = @($createdMappings | Where-Object { $_.'@PropertyName' -eq $expected.Property })
+        if ($actual.Count -ne 1) {
+            throw "$containerPath 的 RTPC 属性映射缺失或重复：$($expected.Property)。"
+        }
+        if ($actual[0].'@ControlInput'.id -ne $rtpcIds[$expected.Parameter]) {
+            throw "$containerPath 的 RTPC 控制输入不正确：$($expected.Parameter) → $($expected.Property)。"
+        }
+        if (@($actual[0].'@Curve'.points).Count -ne $expected.Points.Count) {
+            throw "$containerPath 的 RTPC 曲线控制点不完整：$($expected.Property)。"
+        }
     }
-    if (@($actual[0].'@Curve'.points).Count -ne $expected.Points.Count) {
-        throw "RTPC 曲线控制点不完整：$($expected.Property)。"
-    }
+    $configuredContainers += $containerPath
 }
 
 $bank = Invoke-Waapi -Uri 'ak.wwise.core.object.create' -Arguments @{
@@ -234,27 +258,54 @@ $bank = Invoke-Waapi -Uri 'ak.wwise.core.object.create' -Arguments @{
 Invoke-Waapi -Uri 'ak.wwise.core.soundbank.setInclusions' -Arguments @{
     soundbank = $bank.id
     operation = 'replace'
-    inclusions = @(
-        @{ object = '\Events\Default Work Unit\ResonanceForge\Play_RF_Impact_Metal'; filter = @('events', 'structures', 'media') }
-    )
+    inclusions = @($materialRoutes | ForEach-Object {
+        @{ object = "\Events\Default Work Unit\ResonanceForge\$($_.Event)"; filter = @('events', 'structures', 'media') }
+    })
 } | Out-Null
+
+$legacyPaths = @(
+    '\Events\Default Work Unit\ResonanceForge\Play_RF_Impact_Metal',
+    '\Containers\Default Work Unit\RF_Impact_Metal'
+)
+foreach ($legacyPath in $legacyPaths) {
+    $legacy = @{ return = @() }
+    try {
+        $legacy = Invoke-Waapi -Uri 'ak.wwise.core.object.get' -Arguments @{
+            from = @{ path = @($legacyPath) }
+        } -Options @{ return = @('id') }
+    }
+    catch {
+        $legacy = @{ return = @() }
+    }
+    if (@($legacy.return).Count -gt 0) {
+        Invoke-Waapi -Uri 'ak.wwise.core.object.delete' -Arguments @{ object = $legacyPath } | Out-Null
+    }
+}
 
 Invoke-Waapi -Uri 'ak.wwise.core.project.save' | Out-Null
 
+$verificationPaths = @($materialRoutes | ForEach-Object {
+    "\Events\Default Work Unit\ResonanceForge\$($_.Event)"
+}) + @(
+    '\Game Parameters\Default Work Unit\RF_ImpactEnergy',
+    '\Game Parameters\Default Work Unit\RF_ImpactBrightness',
+    '\Game Parameters\Default Work Unit\RF_ObjectSize',
+    '\SoundBanks\Default Work Unit\RF_ResonanceForge'
+)
 $verification = Invoke-Waapi -Uri 'ak.wwise.core.object.get' -Arguments @{
-    from = @{ path = @(
-        '\Events\Default Work Unit\ResonanceForge\Play_RF_Impact_Metal',
-        '\Game Parameters\Default Work Unit\RF_ImpactEnergy',
-        '\Game Parameters\Default Work Unit\RF_ImpactBrightness',
-        '\Game Parameters\Default Work Unit\RF_ObjectSize',
-        '\SoundBanks\Default Work Unit\RF_ResonanceForge'
-    ) }
+    from = @{ path = $verificationPaths }
 } -Options @{ return = @('id', 'name', 'path', 'type') }
+
+if (@($verification.return).Count -ne $verificationPaths.Count) {
+    throw "Wwise 材质路由验证不完整：期望 $($verificationPaths.Count) 个对象，实际 $(@($verification.return).Count) 个。"
+}
 
 @{
     Wwise = $info.displayName
     ImportedObjectCount = $importResult.objects.Count
     EventFolder = $eventFolder.id
+    MaterialRoutes = $materialRoutes
+    ConfiguredContainers = $configuredContainers
     RtpcMappings = @($rtpcMappings | ForEach-Object {
         @{
             Parameter = $_.Parameter

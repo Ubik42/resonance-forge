@@ -10,54 +10,142 @@
     "Type": "User",
     "GUID": "{A5052D09-03B1-41D5-B575-5654906DC94A}",
     "Language": "SFX",
-    "Hash": "{7E6B939C-76D2-A1CF-F693-4CB2B3566180}",
+    "Hash": "{FE654B6B-CCF1-2C62-4B13-3FB700BFAA12}",
     "ObjectPath": "\\SoundBanks\\Default Work Unit\\RF_ResonanceForge",
     "ShortName": "RF_ResonanceForge",
     "Path": "RF_ResonanceForge.bnk",
     "Media": [
      {
-      "Id": "454399814",
+      "Id": "201814544",
       "Language": "SFX",
       "Streaming": "false",
       "Location": "Memory",
-      "ShortName": "ResonanceForge\\RF_Metal_Medium.wav",
-      "CachePath": "DB/{DB225F27-C12B-FA53-CB43-63CCD322E24B}.wem"
-     },
-     {
-      "Id": "804088654",
-      "Language": "SFX",
-      "Streaming": "false",
-      "Location": "Memory",
-      "ShortName": "ResonanceForge\\RF_Metal_Hard.wav",
+      "ShortName": "ResonanceForge\\RF_Steel_Hard.wav",
       "CachePath": "13/{134FA3F0-ECE5-9A9B-7FC6-13DA1223CC4D}.wem"
      },
      {
-      "Id": "993602079",
+      "Id": "315062310",
       "Language": "SFX",
       "Streaming": "false",
       "Location": "Memory",
-      "ShortName": "ResonanceForge\\RF_Metal_Soft.wav",
+      "ShortName": "ResonanceForge\\RF_Wood_Medium.wav",
+      "CachePath": "84/{849BA212-FA46-CFA2-55A5-FBAEB7E65FB2}.wem"
+     },
+     {
+      "Id": "322829781",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "ResonanceForge\\RF_Steel_Medium.wav",
+      "CachePath": "DB/{DB225F27-C12B-FA53-CB43-63CCD322E24B}.wem"
+     },
+     {
+      "Id": "453393903",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "ResonanceForge\\RF_Glass_Medium.wav",
+      "CachePath": "B0/{B043081B-09AB-B5EF-7BA8-2315A50AFB41}.wem"
+     },
+     {
+      "Id": "539084517",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "ResonanceForge\\RF_Glass_Hard.wav",
+      "CachePath": "5A/{5AB7A642-F28D-2E36-E866-D84195867310}.wem"
+     },
+     {
+      "Id": "562192875",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "ResonanceForge\\RF_Wood_Soft.wav",
+      "CachePath": "03/{03E8FFA0-5DE9-72DA-910E-C92621D887E0}.wem"
+     },
+     {
+      "Id": "800152965",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "ResonanceForge\\RF_Steel_Soft.wav",
       "CachePath": "2C/{2C31AD91-A304-8CFA-F37C-148B8BD0AE77}.wem"
+     },
+     {
+      "Id": "903754552",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "ResonanceForge\\RF_Glass_Soft.wav",
+      "CachePath": "1C/{1C6BED54-7904-4F6A-7472-18F925F8D0DA}.wem"
+     },
+     {
+      "Id": "999345081",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "ResonanceForge\\RF_Wood_Hard.wav",
+      "CachePath": "B4/{B4ECB010-7565-9EB4-80DD-EC399395A4A4}.wem"
      }
     ],
     "Events": [
      {
-      "Id": "265247363",
-      "Name": "Play_RF_Impact_Metal",
-      "ObjectPath": "\\Events\\Default Work Unit\\ResonanceForge\\Play_RF_Impact_Metal",
-      "GUID": "{75937F16-0F9A-4990-B179-777468DA39BA}",
+      "Id": "1032487266",
+      "Name": "Play_RF_Impact_Glass",
+      "ObjectPath": "\\Events\\Default Work Unit\\ResonanceForge\\Play_RF_Impact_Glass",
+      "GUID": "{22FE85D0-293F-49ED-BDFF-F3A84447F803}",
       "DurationType": "OneShot",
       "DurationMin": "1.25",
       "DurationMax": "1.25",
       "MediaRefs": [
        {
-        "Id": "454399814"
+        "Id": "453393903"
        },
        {
-        "Id": "804088654"
+        "Id": "539084517"
        },
        {
-        "Id": "993602079"
+        "Id": "903754552"
+       }
+      ]
+     },
+     {
+      "Id": "2502771267",
+      "Name": "Play_RF_Impact_Steel",
+      "ObjectPath": "\\Events\\Default Work Unit\\ResonanceForge\\Play_RF_Impact_Steel",
+      "GUID": "{8651F4A5-48E7-4146-B957-F49D5054435D}",
+      "DurationType": "OneShot",
+      "DurationMin": "1.25",
+      "DurationMax": "1.25",
+      "MediaRefs": [
+       {
+        "Id": "201814544"
+       },
+       {
+        "Id": "322829781"
+       },
+       {
+        "Id": "800152965"
+       }
+      ]
+     },
+     {
+      "Id": "61220217",
+      "Name": "Play_RF_Impact_Wood",
+      "ObjectPath": "\\Events\\Default Work Unit\\ResonanceForge\\Play_RF_Impact_Wood",
+      "GUID": "{9BD9186E-1961-43E3-9AF9-BD4E5490F1AE}",
+      "DurationType": "OneShot",
+      "DurationMin": "1.25",
+      "DurationMax": "1.25",
+      "MediaRefs": [
+       {
+        "Id": "315062310"
+       },
+       {
+        "Id": "562192875"
+       },
+       {
+        "Id": "999345081"
        }
       ]
      }
@@ -84,6 +172,6 @@
     ]
    }
   ],
-  "FileHash": "{80F0B0B9-3324-FE85-6B33-B8661456BD9C}"
+  "FileHash": "{99D9C70D-3EE8-CD1A-EB3B-63441FA69566}"
  }
 }

@@ -37,6 +37,7 @@ private:
     FText GetSelectionText() const;
     FText GetExcitationText() const;
     FText GetResonanceText() const;
+    FText GetOutputRouteText() const;
     FText GetPrimaryActionText() const;
     FText GetStatusText() const;
     FText GetComparisonText() const;

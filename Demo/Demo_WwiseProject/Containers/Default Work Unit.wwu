@@ -3,7 +3,7 @@
 	<Containers>
 		<WorkUnit Name="Default Work Unit" ID="{4B182EF4-C2EB-4B13-995C-113646641E03}" PersistMode="Standalone">
 			<ChildrenList>
-				<RandomSequenceContainer Name="RF_Impact_Metal" ID="{0B41D982-4D54-4728-B711-76DE3B380658}" ShortID="759856899">
+				<RandomSequenceContainer Name="RF_Impact_Steel" ID="{84A5FB02-F5C8-4DB0-9792-0048DD97C881}" ShortID="920301532">
 					<ReferenceList>
 						<Reference Name="Conversion">
 							<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{3D71345B-944B-46BF-8E6D-97F94B8DDFB5}"/>
@@ -13,7 +13,7 @@
 						</Reference>
 					</ReferenceList>
 					<ChildrenList>
-						<Sound Name="RF_Metal_Soft" ID="{6FC78449-DFE1-4BA1-9157-94E9ADA761EF}" ShortID="341179513">
+						<Sound Name="RF_Steel_Soft" ID="{15ACE0F5-6E90-4A32-A90C-C99AB6C98249}" ShortID="77601815">
 							<ReferenceList>
 								<Reference Name="Conversion">
 									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{3D71345B-944B-46BF-8E6D-97F94B8DDFB5}"/>
@@ -23,19 +23,19 @@
 								</Reference>
 							</ReferenceList>
 							<ChildrenList>
-								<AudioFileSource Name="RF_Metal_Soft" ID="{ACFF6664-9454-4CEE-9E84-822D58BDDEF1}">
+								<AudioFileSource Name="RF_Steel_Soft" ID="{F3DAF881-D9AC-4041-A8F4-59326A198284}">
 									<Language>SFX</Language>
-									<AudioFile>ResonanceForge\RF_Metal_Soft.wav</AudioFile>
+									<AudioFile>ResonanceForge\RF_Steel_Soft.wav</AudioFile>
 									<MediaIDList>
-										<MediaID ID="993602079"/>
+										<MediaID ID="800152965"/>
 									</MediaIDList>
 								</AudioFileSource>
 							</ChildrenList>
 							<ActiveSourceList>
-								<ActiveSource Name="RF_Metal_Soft" ID="{ACFF6664-9454-4CEE-9E84-822D58BDDEF1}" Platform="Linked"/>
+								<ActiveSource Name="RF_Steel_Soft" ID="{F3DAF881-D9AC-4041-A8F4-59326A198284}" Platform="Linked"/>
 							</ActiveSourceList>
 						</Sound>
-						<Sound Name="RF_Metal_Medium" ID="{694882F1-A862-46FC-BF24-AB31ED515260}" ShortID="400877307">
+						<Sound Name="RF_Steel_Medium" ID="{4AFCEDAA-A0E0-460E-99A5-739538DFF92C}" ShortID="133128105">
 							<ReferenceList>
 								<Reference Name="Conversion">
 									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{3D71345B-944B-46BF-8E6D-97F94B8DDFB5}"/>
@@ -45,19 +45,19 @@
 								</Reference>
 							</ReferenceList>
 							<ChildrenList>
-								<AudioFileSource Name="RF_Metal_Medium" ID="{22B86B0F-E376-4D56-8225-15353A67366E}">
+								<AudioFileSource Name="RF_Steel_Medium" ID="{A8123150-76F0-4CE0-B124-AB79BC707E6E}">
 									<Language>SFX</Language>
-									<AudioFile>ResonanceForge\RF_Metal_Medium.wav</AudioFile>
+									<AudioFile>ResonanceForge\RF_Steel_Medium.wav</AudioFile>
 									<MediaIDList>
-										<MediaID ID="454399814"/>
+										<MediaID ID="322829781"/>
 									</MediaIDList>
 								</AudioFileSource>
 							</ChildrenList>
 							<ActiveSourceList>
-								<ActiveSource Name="RF_Metal_Medium" ID="{22B86B0F-E376-4D56-8225-15353A67366E}" Platform="Linked"/>
+								<ActiveSource Name="RF_Steel_Medium" ID="{A8123150-76F0-4CE0-B124-AB79BC707E6E}" Platform="Linked"/>
 							</ActiveSourceList>
 						</Sound>
-						<Sound Name="RF_Metal_Hard" ID="{A4B1AB67-5EF5-443B-A5C0-EDF98DB756BC}" ShortID="117468007">
+						<Sound Name="RF_Steel_Hard" ID="{46E4FE9C-58CD-4CC2-AEAE-FC2D8EB67263}" ShortID="129215810">
 							<ReferenceList>
 								<Reference Name="Conversion">
 									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{3D71345B-944B-46BF-8E6D-97F94B8DDFB5}"/>
@@ -67,22 +67,22 @@
 								</Reference>
 							</ReferenceList>
 							<ChildrenList>
-								<AudioFileSource Name="RF_Metal_Hard" ID="{C2856740-D54C-4028-9F46-2AD0B19408CC}">
+								<AudioFileSource Name="RF_Steel_Hard" ID="{EE4F7DA2-BE95-4BD6-9045-C4B77720FFB4}">
 									<Language>SFX</Language>
-									<AudioFile>ResonanceForge\RF_Metal_Hard.wav</AudioFile>
+									<AudioFile>ResonanceForge\RF_Steel_Hard.wav</AudioFile>
 									<MediaIDList>
-										<MediaID ID="804088654"/>
+										<MediaID ID="201814544"/>
 									</MediaIDList>
 								</AudioFileSource>
 							</ChildrenList>
 							<ActiveSourceList>
-								<ActiveSource Name="RF_Metal_Hard" ID="{C2856740-D54C-4028-9F46-2AD0B19408CC}" Platform="Linked"/>
+								<ActiveSource Name="RF_Steel_Hard" ID="{EE4F7DA2-BE95-4BD6-9045-C4B77720FFB4}" Platform="Linked"/>
 							</ActiveSourceList>
 						</Sound>
 					</ChildrenList>
 					<ObjectLists>
 						<ObjectList Name="RTPC">
-							<RTPC Name="" ID="{6FEE6970-B083-473A-9048-6687858C5DB7}" ShortID="941796050">
+							<RTPC Name="" ID="{6ED41E3C-3252-4BDC-A92D-27DD47AF5275}" ShortID="38607648">
 								<Comment>撞击能量控制响度：弱撞击保留可听底噪，强撞击到达标称电平。</Comment>
 								<PropertyList>
 									<Property Name="PropertyName" Type="string" Value="Volume"/>
@@ -93,7 +93,7 @@
 									</Reference>
 									<Reference Name="Curve">
 										<Custom>
-											<Curve Name="" ID="{D26BCF28-5ACC-46C8-A268-84698833D1DD}">
+											<Curve Name="" ID="{A1370ED9-48F6-4F61-A174-8BDD1B5A7C63}">
 												<PropertyList>
 													<Property Name="Flags" Type="int32" Value="3"/>
 												</PropertyList>
@@ -127,7 +127,7 @@
 									</Reference>
 								</ReferenceList>
 							</RTPC>
-							<RTPC Name="" ID="{EA7C50C0-9EDA-4296-A52D-7A74F98384C3}" ShortID="435758195">
+							<RTPC Name="" ID="{B211F57E-7EBF-4585-8EC3-887969B42632}" ShortID="402916795">
 								<Comment>明亮度反向控制 Voice LPF：数值越高，低通越少。</Comment>
 								<PropertyList>
 									<Property Name="PropertyName" Type="string" Value="Lowpass"/>
@@ -138,7 +138,7 @@
 									</Reference>
 									<Reference Name="Curve">
 										<Custom>
-											<Curve Name="" ID="{9CAE3564-3CF3-444C-A982-A5ED56274A47}">
+											<Curve Name="" ID="{7A9626C3-E85B-49FF-B218-9761825EBA4A}">
 												<PropertyList>
 													<Property Name="Flags" Type="int32" Value="65537"/>
 												</PropertyList>
@@ -166,7 +166,7 @@
 									</Reference>
 								</ReferenceList>
 							</RTPC>
-							<RTPC Name="" ID="{46EDFE98-E44E-4456-AF89-433C51F8C089}" ShortID="271827307">
+							<RTPC Name="" ID="{99BDB4AA-850C-4787-AA3F-8D2B805DBD5F}" ShortID="827181459">
 								<Comment>共振尺度控制音高：小物体略升高，大物体降低。</Comment>
 								<PropertyList>
 									<Property Name="PropertyName" Type="string" Value="Pitch"/>
@@ -177,7 +177,417 @@
 									</Reference>
 									<Reference Name="Curve">
 										<Custom>
-											<Curve Name="" ID="{15C50DF3-6645-4486-A4C5-35D9B6F7B527}">
+											<Curve Name="" ID="{37E1F95C-1633-4459-89FA-EC0293F71AB0}">
+												<PropertyList>
+													<Property Name="Flags" Type="int32" Value="65537"/>
+												</PropertyList>
+												<PointList>
+													<Point>
+														<XPos>0</XPos>
+														<YPos>420</YPos>
+														<Flags>5</Flags>
+														<SegmentShape>SCurve</SegmentShape>
+													</Point>
+													<Point>
+														<XPos>50</XPos>
+														<YPos>0</YPos>
+														<Flags>0</Flags>
+														<SegmentShape>SCurve</SegmentShape>
+													</Point>
+													<Point>
+														<XPos>100</XPos>
+														<YPos>-520</YPos>
+														<Flags>37</Flags>
+													</Point>
+												</PointList>
+											</Curve>
+										</Custom>
+									</Reference>
+								</ReferenceList>
+							</RTPC>
+						</ObjectList>
+					</ObjectLists>
+				</RandomSequenceContainer>
+				<RandomSequenceContainer Name="RF_Impact_Wood" ID="{2AA1805C-0F08-4A11-A7F2-6121F3669651}" ShortID="1068614879">
+					<ReferenceList>
+						<Reference Name="Conversion">
+							<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{3D71345B-944B-46BF-8E6D-97F94B8DDFB5}"/>
+						</Reference>
+						<Reference Name="OutputBus">
+							<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{6EBA8917-7718-46FF-A571-7FA5C36BC399}"/>
+						</Reference>
+					</ReferenceList>
+					<ChildrenList>
+						<Sound Name="RF_Wood_Soft" ID="{655D3DCB-4EE1-4D2C-BFB9-364EC9F4B40B}" ShortID="202117792">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{3D71345B-944B-46BF-8E6D-97F94B8DDFB5}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{6EBA8917-7718-46FF-A571-7FA5C36BC399}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="RF_Wood_Soft" ID="{EFFF87E3-CB7C-4052-8AA4-0474909AFCC0}">
+									<Language>SFX</Language>
+									<AudioFile>ResonanceForge\RF_Wood_Soft.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="562192875"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ActiveSourceList>
+								<ActiveSource Name="RF_Wood_Soft" ID="{EFFF87E3-CB7C-4052-8AA4-0474909AFCC0}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+						<Sound Name="RF_Wood_Medium" ID="{954F569E-5606-4E14-AE31-27BCE3F4A787}" ShortID="317776029">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{3D71345B-944B-46BF-8E6D-97F94B8DDFB5}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{6EBA8917-7718-46FF-A571-7FA5C36BC399}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="RF_Wood_Medium" ID="{ABC06DC5-E683-41F7-AF5C-26C25A55EC40}">
+									<Language>SFX</Language>
+									<AudioFile>ResonanceForge\RF_Wood_Medium.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="315062310"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ActiveSourceList>
+								<ActiveSource Name="RF_Wood_Medium" ID="{ABC06DC5-E683-41F7-AF5C-26C25A55EC40}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+						<Sound Name="RF_Wood_Hard" ID="{77F5F030-0161-466F-8BAA-2272C6E6E701}" ShortID="213879649">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{3D71345B-944B-46BF-8E6D-97F94B8DDFB5}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{6EBA8917-7718-46FF-A571-7FA5C36BC399}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="RF_Wood_Hard" ID="{5D14F4A1-7076-437D-8A62-B050B62B8815}">
+									<Language>SFX</Language>
+									<AudioFile>ResonanceForge\RF_Wood_Hard.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="999345081"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ActiveSourceList>
+								<ActiveSource Name="RF_Wood_Hard" ID="{5D14F4A1-7076-437D-8A62-B050B62B8815}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+					</ChildrenList>
+					<ObjectLists>
+						<ObjectList Name="RTPC">
+							<RTPC Name="" ID="{1B2C77EA-606D-4523-94EC-480CA9232900}" ShortID="368999938">
+								<Comment>撞击能量控制响度：弱撞击保留可听底噪，强撞击到达标称电平。</Comment>
+								<PropertyList>
+									<Property Name="PropertyName" Type="string" Value="Volume"/>
+								</PropertyList>
+								<ReferenceList>
+									<Reference Name="ControlInput">
+										<ObjectRef Name="RF_ImpactEnergy" ID="{C85DD4C5-A340-45E3-99C3-84B1341D5E39}" WorkUnitID="{08AC4DBB-F258-49BB-99C8-A57B271AE769}"/>
+									</Reference>
+									<Reference Name="Curve">
+										<Custom>
+											<Curve Name="" ID="{6529BC6E-C490-40FA-A6E5-A14A1FCE241E}">
+												<PropertyList>
+													<Property Name="Flags" Type="int32" Value="3"/>
+												</PropertyList>
+												<PointList>
+													<Point>
+														<XPos>0</XPos>
+														<YPos>-24</YPos>
+														<Flags>5</Flags>
+														<SegmentShape>Exp1</SegmentShape>
+													</Point>
+													<Point>
+														<XPos>20</XPos>
+														<YPos>-12</YPos>
+														<Flags>0</Flags>
+														<SegmentShape>SCurve</SegmentShape>
+													</Point>
+													<Point>
+														<XPos>55</XPos>
+														<YPos>-4</YPos>
+														<Flags>0</Flags>
+														<SegmentShape>Log1</SegmentShape>
+													</Point>
+													<Point>
+														<XPos>100</XPos>
+														<YPos>0</YPos>
+														<Flags>37</Flags>
+													</Point>
+												</PointList>
+											</Curve>
+										</Custom>
+									</Reference>
+								</ReferenceList>
+							</RTPC>
+							<RTPC Name="" ID="{89173810-36F4-4552-9396-B6F5D55C2F45}" ShortID="902144710">
+								<Comment>明亮度反向控制 Voice LPF：数值越高，低通越少。</Comment>
+								<PropertyList>
+									<Property Name="PropertyName" Type="string" Value="Lowpass"/>
+								</PropertyList>
+								<ReferenceList>
+									<Reference Name="ControlInput">
+										<ObjectRef Name="RF_ImpactBrightness" ID="{64B54A0F-5ADD-4001-84D5-7AEFBAFD97D8}" WorkUnitID="{08AC4DBB-F258-49BB-99C8-A57B271AE769}"/>
+									</Reference>
+									<Reference Name="Curve">
+										<Custom>
+											<Curve Name="" ID="{7323D30D-CCAF-4E1D-8039-342E781A6C67}">
+												<PropertyList>
+													<Property Name="Flags" Type="int32" Value="65537"/>
+												</PropertyList>
+												<PointList>
+													<Point>
+														<XPos>0</XPos>
+														<YPos>82</YPos>
+														<Flags>5</Flags>
+														<SegmentShape>Log3</SegmentShape>
+													</Point>
+													<Point>
+														<XPos>45</XPos>
+														<YPos>34</YPos>
+														<Flags>0</Flags>
+														<SegmentShape>SCurve</SegmentShape>
+													</Point>
+													<Point>
+														<XPos>100</XPos>
+														<YPos>0</YPos>
+														<Flags>37</Flags>
+													</Point>
+												</PointList>
+											</Curve>
+										</Custom>
+									</Reference>
+								</ReferenceList>
+							</RTPC>
+							<RTPC Name="" ID="{A0491649-D8FC-498C-83F3-8C2A3A65340D}" ShortID="1066951623">
+								<Comment>共振尺度控制音高：小物体略升高，大物体降低。</Comment>
+								<PropertyList>
+									<Property Name="PropertyName" Type="string" Value="Pitch"/>
+								</PropertyList>
+								<ReferenceList>
+									<Reference Name="ControlInput">
+										<ObjectRef Name="RF_ObjectSize" ID="{816F0A6F-3FC7-4695-A44D-01B4C98AD44B}" WorkUnitID="{08AC4DBB-F258-49BB-99C8-A57B271AE769}"/>
+									</Reference>
+									<Reference Name="Curve">
+										<Custom>
+											<Curve Name="" ID="{2E397303-00FA-4B35-A4CA-FF1B10E0F29E}">
+												<PropertyList>
+													<Property Name="Flags" Type="int32" Value="65537"/>
+												</PropertyList>
+												<PointList>
+													<Point>
+														<XPos>0</XPos>
+														<YPos>420</YPos>
+														<Flags>5</Flags>
+														<SegmentShape>SCurve</SegmentShape>
+													</Point>
+													<Point>
+														<XPos>50</XPos>
+														<YPos>0</YPos>
+														<Flags>0</Flags>
+														<SegmentShape>SCurve</SegmentShape>
+													</Point>
+													<Point>
+														<XPos>100</XPos>
+														<YPos>-520</YPos>
+														<Flags>37</Flags>
+													</Point>
+												</PointList>
+											</Curve>
+										</Custom>
+									</Reference>
+								</ReferenceList>
+							</RTPC>
+						</ObjectList>
+					</ObjectLists>
+				</RandomSequenceContainer>
+				<RandomSequenceContainer Name="RF_Impact_Glass" ID="{8B70C7CA-71D9-4530-87E4-BBF70131EFAF}" ShortID="806300384">
+					<ReferenceList>
+						<Reference Name="Conversion">
+							<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{3D71345B-944B-46BF-8E6D-97F94B8DDFB5}"/>
+						</Reference>
+						<Reference Name="OutputBus">
+							<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{6EBA8917-7718-46FF-A571-7FA5C36BC399}"/>
+						</Reference>
+					</ReferenceList>
+					<ChildrenList>
+						<Sound Name="RF_Glass_Soft" ID="{6E39D5D5-3A13-48D4-B39F-1FD7FAF0D9D1}" ShortID="731207766">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{3D71345B-944B-46BF-8E6D-97F94B8DDFB5}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{6EBA8917-7718-46FF-A571-7FA5C36BC399}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="RF_Glass_Soft" ID="{ED815669-C3C7-4A78-837A-7C569A681544}">
+									<Language>SFX</Language>
+									<AudioFile>ResonanceForge\RF_Glass_Soft.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="903754552"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ActiveSourceList>
+								<ActiveSource Name="RF_Glass_Soft" ID="{ED815669-C3C7-4A78-837A-7C569A681544}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+						<Sound Name="RF_Glass_Medium" ID="{673D3F9A-6DA3-4DE8-B5E3-133117BBA262}" ShortID="635311236">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{3D71345B-944B-46BF-8E6D-97F94B8DDFB5}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{6EBA8917-7718-46FF-A571-7FA5C36BC399}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="RF_Glass_Medium" ID="{25DF57DB-827B-4872-8D00-C0FE73A2397B}">
+									<Language>SFX</Language>
+									<AudioFile>ResonanceForge\RF_Glass_Medium.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="453393903"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ActiveSourceList>
+								<ActiveSource Name="RF_Glass_Medium" ID="{25DF57DB-827B-4872-8D00-C0FE73A2397B}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+						<Sound Name="RF_Glass_Hard" ID="{AD88F7B4-65F8-4E34-B852-700DE3E98892}" ShortID="21509454">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{3D71345B-944B-46BF-8E6D-97F94B8DDFB5}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{6EBA8917-7718-46FF-A571-7FA5C36BC399}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="RF_Glass_Hard" ID="{07E4691E-6823-4060-8863-D0E523B1C192}">
+									<Language>SFX</Language>
+									<AudioFile>ResonanceForge\RF_Glass_Hard.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="539084517"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ActiveSourceList>
+								<ActiveSource Name="RF_Glass_Hard" ID="{07E4691E-6823-4060-8863-D0E523B1C192}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+					</ChildrenList>
+					<ObjectLists>
+						<ObjectList Name="RTPC">
+							<RTPC Name="" ID="{BC5A254A-FA46-4A3D-BA67-46C8AD48ED59}" ShortID="834488120">
+								<Comment>撞击能量控制响度：弱撞击保留可听底噪，强撞击到达标称电平。</Comment>
+								<PropertyList>
+									<Property Name="PropertyName" Type="string" Value="Volume"/>
+								</PropertyList>
+								<ReferenceList>
+									<Reference Name="ControlInput">
+										<ObjectRef Name="RF_ImpactEnergy" ID="{C85DD4C5-A340-45E3-99C3-84B1341D5E39}" WorkUnitID="{08AC4DBB-F258-49BB-99C8-A57B271AE769}"/>
+									</Reference>
+									<Reference Name="Curve">
+										<Custom>
+											<Curve Name="" ID="{1D1C377C-8445-4558-8373-F37DA7EF3B70}">
+												<PropertyList>
+													<Property Name="Flags" Type="int32" Value="3"/>
+												</PropertyList>
+												<PointList>
+													<Point>
+														<XPos>0</XPos>
+														<YPos>-24</YPos>
+														<Flags>5</Flags>
+														<SegmentShape>Exp1</SegmentShape>
+													</Point>
+													<Point>
+														<XPos>20</XPos>
+														<YPos>-12</YPos>
+														<Flags>0</Flags>
+														<SegmentShape>SCurve</SegmentShape>
+													</Point>
+													<Point>
+														<XPos>55</XPos>
+														<YPos>-4</YPos>
+														<Flags>0</Flags>
+														<SegmentShape>Log1</SegmentShape>
+													</Point>
+													<Point>
+														<XPos>100</XPos>
+														<YPos>0</YPos>
+														<Flags>37</Flags>
+													</Point>
+												</PointList>
+											</Curve>
+										</Custom>
+									</Reference>
+								</ReferenceList>
+							</RTPC>
+							<RTPC Name="" ID="{AA2F7555-F6FD-4225-BB25-8A5CA055E34D}" ShortID="780976122">
+								<Comment>明亮度反向控制 Voice LPF：数值越高，低通越少。</Comment>
+								<PropertyList>
+									<Property Name="PropertyName" Type="string" Value="Lowpass"/>
+								</PropertyList>
+								<ReferenceList>
+									<Reference Name="ControlInput">
+										<ObjectRef Name="RF_ImpactBrightness" ID="{64B54A0F-5ADD-4001-84D5-7AEFBAFD97D8}" WorkUnitID="{08AC4DBB-F258-49BB-99C8-A57B271AE769}"/>
+									</Reference>
+									<Reference Name="Curve">
+										<Custom>
+											<Curve Name="" ID="{9BCD543F-4B13-449F-83C4-3770F231A1E4}">
+												<PropertyList>
+													<Property Name="Flags" Type="int32" Value="65537"/>
+												</PropertyList>
+												<PointList>
+													<Point>
+														<XPos>0</XPos>
+														<YPos>82</YPos>
+														<Flags>5</Flags>
+														<SegmentShape>Log3</SegmentShape>
+													</Point>
+													<Point>
+														<XPos>45</XPos>
+														<YPos>34</YPos>
+														<Flags>0</Flags>
+														<SegmentShape>SCurve</SegmentShape>
+													</Point>
+													<Point>
+														<XPos>100</XPos>
+														<YPos>0</YPos>
+														<Flags>37</Flags>
+													</Point>
+												</PointList>
+											</Curve>
+										</Custom>
+									</Reference>
+								</ReferenceList>
+							</RTPC>
+							<RTPC Name="" ID="{C8C83F7F-A00C-4F66-979B-D5C2DE5DDF56}" ShortID="873655074">
+								<Comment>共振尺度控制音高：小物体略升高，大物体降低。</Comment>
+								<PropertyList>
+									<Property Name="PropertyName" Type="string" Value="Pitch"/>
+								</PropertyList>
+								<ReferenceList>
+									<Reference Name="ControlInput">
+										<ObjectRef Name="RF_ObjectSize" ID="{816F0A6F-3FC7-4695-A44D-01B4C98AD44B}" WorkUnitID="{08AC4DBB-F258-49BB-99C8-A57B271AE769}"/>
+									</Reference>
+									<Reference Name="Curve">
+										<Custom>
+											<Curve Name="" ID="{BA86FE21-797D-4536-B5B0-7889B0563003}">
 												<PropertyList>
 													<Property Name="Flags" Type="int32" Value="65537"/>
 												</PropertyList>

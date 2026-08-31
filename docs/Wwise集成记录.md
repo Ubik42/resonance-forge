@@ -20,12 +20,12 @@ UE 5.8 Demo 使用 Launcher 当前提供的 2025.1 Integration。2026.1 保留�
    - `Energy 0–1` → `RF_ImpactEnergy 0–100`
    - `Brightness 0–1` → `RF_ImpactBrightness 0–100`
    - `ObjectSize 0–1` → `RF_ObjectSize 0–100`
-   - 同一次调用可叠加 UE 原生模态合成，并发布 `Play_RF_Impact_Metal`。
-5. 自行合成软、中、硬三档金属撞击 WAV，统一放在 `Demo/TestAudio/Generated`。
-6. 通过 WAAPI 自动创建 Random Container、Event、三个 Game Parameter 和 `RF_ResonanceForge` SoundBank。
+   - 同一次调用可叠加 UE 原生合成，并按当前材质发布 Steel、Wood 或 Glass Event。
+5. 自行合成钢、木、玻璃各软、中、硬三档撞击 WAV，统一放在 `Demo/TestAudio/Generated`。
+6. 通过 WAAPI 自动创建三个 Random Container、三个材质 Event、三个 Game Parameter 和 `RF_ResonanceForge` SoundBank。
 7. Windows SoundBank 生成成功：0 warning、0 error。
 8. 修正 `RootOutputPath` 后运行 Wwise Reconcile，成功创建 6 个 UE Wwise 资源和 Init Bank。
-9. 在 `RF_Impact_Metal` 上建立三条实际 RTPC 曲线：Energy → Volume、Brightness → Low-pass、ObjectSize → Pitch。
+9. 在三个材质 Container 上分别建立三条实际 RTPC 曲线：Energy → Volume、Brightness → Low-pass、ObjectSize → Pitch。
 10. 配置脚本支持重复执行：已有 WAV 不再重复导入，相同曲线不重建 GUID；连续两次运行的 Work Unit SHA-256 保持一致。
 11. UE 工作台加入“锤击标尺”与“Wwise 出口刻度”：三档力度可直接触发试听，并按曲线控制点显示近似的 dB、Low-pass 与 cent。
 
@@ -33,8 +33,12 @@ UE 5.8 Demo 使用 Launcher 当前提供的 2025.1 Integration。2026.1 保留�
 
 | 类型 | 名称 | 用途 |
 | --- | --- | --- |
-| Random Container | `RF_Impact_Metal` | 在三档金属撞击素材间随机播放 |
-| Event | `Play_RF_Impact_Metal` | UE 撞击触发入口 |
+| Random Container | `RF_Impact_Steel` | 钢材软、中、硬三档撞击素材 |
+| Random Container | `RF_Impact_Wood` | 木材软、中、硬三档撞击素材 |
+| Random Container | `RF_Impact_Glass` | 玻璃软、中、硬三档撞击素材 |
+| Event | `Play_RF_Impact_Steel` | 拉丝钢撞击出口 |
+| Event | `Play_RF_Impact_Wood` | 硬木撞击出口 |
+| Event | `Play_RF_Impact_Glass` | 薄玻璃撞击出口 |
 | Game Parameter | `RF_ImpactEnergy` | 撞击强度 |
 | Game Parameter | `RF_ImpactBrightness` | 高频明亮度 |
 | Game Parameter | `RF_ObjectSize` | 声源尺度 |
@@ -54,7 +58,7 @@ UE 5.8 Demo 使用 Launcher 当前提供的 2025.1 Integration。2026.1 保留�
 
 ## 可重复构建脚本
 
-- `scripts/generate_test_impacts.ps1`：确定性生成三条 48 kHz / 16-bit / mono 测试 WAV。
+- `scripts/generate_test_impacts.ps1`：确定性生成九条 48 kHz / 16-bit / mono 测试 WAV，覆盖三种材质与三档力度。
 - `scripts/provision_wwise_project.ps1`：经 HTTP WAAPI 创建或合并 Wwise 对象、保存工程并验证对象路径。
 - `scripts/sync_demo_plugin.ps1`：把仓库根目录的插件源码同步到 Demo。
 
@@ -77,6 +81,6 @@ UE 5.8 Demo 使用 Launcher 当前提供的 2025.1 Integration。2026.1 保留�
 ## 当前边界与后续
 
 - 物理碰撞 Actor、数字波导弦、MIDI 输入桥和 Wwise Event / RTPC 发布已经进入基础演示关卡。
-- UE 侧会真实发送三个 RTPC，Wwise 端已建立音量、Pitch 与 Low-pass 曲线；当前尚未加入压缩器、材质 Switch 分层或最终响度校准。
+- UE 侧会根据材质选择三个独立 Event 之一，并真实发送三个 RTPC；Wwise 端已为每个材质 Container 建立音量、Pitch 与 Low-pass 曲线。这里有意使用直观的独立 Event 路由，没有把 Switch Container 当作展示复杂度；当前尚未加入压缩器与最终响度校准。
 - 作品展示优先保留真实工作台、场景联动与 Wwise Profiler 截图，不要求为这个轻量工具单独录制视频。
 - 2026.1 仅作为独立研究环境；Demo 在 Audiokinetic 发布兼容版本前继续锁定 2025.1 Integration。

@@ -27,8 +27,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FResonanceForgeWwiseGeneratedAssetsTest::RunTest(const FString& Parameters)
 {
-    TestNotNull(TEXT("撞击 Event 已同步到 UE"), LoadObject<UAkAudioEvent>(nullptr,
-        TEXT("/Game/WwiseAudio/Events/Default_Work_Unit/ResonanceForge/Play_RF_Impact_Metal.Play_RF_Impact_Metal")));
+    TestNotNull(TEXT("拉丝钢 Event 已同步到 UE"), LoadObject<UAkAudioEvent>(nullptr,
+        TEXT("/Game/WwiseAudio/Events/Default_Work_Unit/ResonanceForge/Play_RF_Impact_Steel.Play_RF_Impact_Steel")));
+    TestNotNull(TEXT("硬木 Event 已同步到 UE"), LoadObject<UAkAudioEvent>(nullptr,
+        TEXT("/Game/WwiseAudio/Events/Default_Work_Unit/ResonanceForge/Play_RF_Impact_Wood.Play_RF_Impact_Wood")));
+    TestNotNull(TEXT("薄玻璃 Event 已同步到 UE"), LoadObject<UAkAudioEvent>(nullptr,
+        TEXT("/Game/WwiseAudio/Events/Default_Work_Unit/ResonanceForge/Play_RF_Impact_Glass.Play_RF_Impact_Glass")));
     TestNotNull(TEXT("能量 RTPC 已同步到 UE"), LoadObject<UAkRtpc>(nullptr,
         TEXT("/Game/WwiseAudio/Game_Parameters/Default_Work_Unit/RF_ImpactEnergy.RF_ImpactEnergy")));
     TestNotNull(TEXT("明亮度 RTPC 已同步到 UE"), LoadObject<UAkRtpc>(nullptr,

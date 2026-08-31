@@ -83,6 +83,9 @@ int32 AResonanceForgeImpactInstrumentActor::TriggerInstrument(
     Parameters.Brightness = FMath::Clamp(Brightness, 0.0f, 1.0f);
     Parameters.ObjectSize = FMath::Clamp(ObjectSize, 0.0f, 1.0f);
     Parameters.MidiNote = FMath::Clamp(MidiNote, 0, 127);
+    Parameters.MaterialPreset = NativeSynth && NativeSynth->MaterialProfile
+        ? NativeSynth->MaterialProfile->SourcePreset
+        : ResonancePreset;
 
     NativeSynth->PitchScale = FMath::Lerp(1.35f, 0.72f, Parameters.ObjectSize);
 

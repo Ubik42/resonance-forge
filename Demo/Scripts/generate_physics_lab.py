@@ -225,10 +225,10 @@ waveguide.native_synth.apply_material_profile(shared_waveguide_profile)
 spawn_text("RF_波导标题", "02  DIGITAL WAVEGUIDE STRING", unreal.Vector(690, -132, 342), 24, unreal.Color(255, 149, 75, 255))
 spawn_text("RF_波导说明", "DELAY-LINE PROPAGATION · DAMPING FEEDBACK · MIDI PITCH + VELOCITY", unreal.Vector(690, -131, 307), 11, unreal.Color(235, 225, 214, 255))
 
-# 两类声源在后墙汇入同一组 Wwise Event / RTPC。
+# 两类声源在后墙按材质路由到三个 Wwise Event，并共享同一组 RTPC。
 spawn_mesh("RF_Wwise核心", unreal.Vector(285, 545, 318), unreal.Vector(6.15, 0.24, 0.72), material=materials["Wwise"])
 spawn_text("RF_Wwise标题", "03  WWISE OUTPUT", unreal.Vector(280, 504, 375), 24, unreal.Color(86, 226, 255, 255))
-spawn_text("RF_Wwise事件", "Play_RF_Impact_Metal", unreal.Vector(280, 503, 335), 16, unreal.Color(235, 248, 255, 255))
+spawn_text("RF_Wwise事件", "Steel / Wood / Glass · 3 Wwise Events", unreal.Vector(280, 503, 335), 13, unreal.Color(235, 248, 255, 255))
 spawn_text("RF_Wwise参数", "ENERGY  RF_ImpactEnergy     BRIGHTNESS  RF_ImpactBrightness     SIZE  RF_ObjectSize", unreal.Vector(280, 503, 300), 9, unreal.Color(126, 218, 238, 255))
 
 spawn_text("RF_碰撞区标题", "01  MATERIAL IMPACT BENCH", unreal.Vector(-250, -132, 342), 24, unreal.Color(82, 211, 255, 255))
@@ -276,7 +276,7 @@ report = {
     "physics_ball_count": len(balls),
     "presets": [spec["preset"] for spec in instrument_specs],
     "surface_materials": [spec["key"] for spec in instrument_specs],
-    "wwise_event": "Play_RF_Impact_Metal",
+    "wwise_events": ["Play_RF_Impact_Steel", "Play_RF_Impact_Wood", "Play_RF_Impact_Glass"],
     "wwise_rtpcs": ["RF_ImpactEnergy", "RF_ImpactBrightness", "RF_ObjectSize"],
     "waveguide_actor": waveguide.get_actor_label(),
     "shared_profile": shared_waveguide_profile.get_path_name(),
@@ -285,7 +285,7 @@ report = {
         "string_damping": shared_waveguide_profile.get_editor_property("string_damping"),
         "body_coupling": shared_waveguide_profile.get_editor_property("body_coupling"),
     },
-    "visual_story": "材质碰撞台与数字波导弦在后墙汇入 Wwise Event / RTPC 输出",
+    "visual_story": "材质碰撞台与数字波导弦按钢、木、玻璃路由到 Wwise Event，并共享 RTPC 输出",
     "physics_balls": [
         {
             "label": ball.get_actor_label(),

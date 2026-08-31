@@ -6,7 +6,9 @@
 				<SoundBank Name="RF_ResonanceForge" ID="{A5052D09-03B1-41D5-B575-5654906DC94A}">
 					<Comment>共振铸造台演示 SoundBank。</Comment>
 					<ObjectInclusionList>
-						<ObjectRef Name="Play_RF_Impact_Metal" ID="{75937F16-0F9A-4990-B179-777468DA39BA}" WorkUnitID="{70A8E132-6D83-4E17-97E4-A6AE689AED10}" Origin="Manual" Filter="7"/>
+						<ObjectRef Name="Play_RF_Impact_Steel" ID="{8651F4A5-48E7-4146-B957-F49D5054435D}" WorkUnitID="{70A8E132-6D83-4E17-97E4-A6AE689AED10}" Origin="Manual" Filter="7"/>
+						<ObjectRef Name="Play_RF_Impact_Wood" ID="{9BD9186E-1961-43E3-9AF9-BD4E5490F1AE}" WorkUnitID="{70A8E132-6D83-4E17-97E4-A6AE689AED10}" Origin="Manual" Filter="7"/>
+						<ObjectRef Name="Play_RF_Impact_Glass" ID="{22FE85D0-293F-49ED-BDFF-F3A84447F803}" WorkUnitID="{70A8E132-6D83-4E17-97E4-A6AE689AED10}" Origin="Manual" Filter="7"/>
 					</ObjectInclusionList>
 					<ObjectExclusionList/>
 					<GameSyncExclusionList/>

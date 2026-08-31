@@ -1,5 +1,7 @@
 Event	ID	Name			Wwise Object Path	Notes
-	265247363	Play_RF_Impact_Metal			\Default Work Unit\ResonanceForge\Play_RF_Impact_Metal	播放金属共振撞击；由 UE 侧 Energy、Brightness、ObjectSize RTPC 驱动。
+	61220217	Play_RF_Impact_Wood			\Default Work Unit\ResonanceForge\Play_RF_Impact_Wood	播放硬木撞击；由 UE 侧材质路由和 Energy、Brightness、ObjectSize RTPC 驱动。
+	1032487266	Play_RF_Impact_Glass			\Default Work Unit\ResonanceForge\Play_RF_Impact_Glass	播放薄玻璃撞击；由 UE 侧材质路由和 Energy、Brightness、ObjectSize RTPC 驱动。
+	2502771267	Play_RF_Impact_Steel			\Default Work Unit\ResonanceForge\Play_RF_Impact_Steel	播放拉丝钢撞击；由 UE 侧材质路由和 Energy、Brightness、ObjectSize RTPC 驱动。
 
 Game Parameter	ID	Name			Wwise Object Path	Notes
 	1768791903	RF_ImpactBrightness			\Default Work Unit\RF_ImpactBrightness	共振铸造台 UE 桥接参数；输入范围 0–100。
@@ -7,7 +9,13 @@ Game Parameter	ID	Name			Wwise Object Path	Notes
 	3781117686	RF_ObjectSize			\Default Work Unit\RF_ObjectSize	共振铸造台 UE 桥接参数；输入范围 0–100。
 
 In Memory Audio	ID	Name	Audio source file		Wwise Object Path	Notes	Data Size
-	454399814	RF_Metal_Medium	.cache\DB\{DB225F27-C12B-FA53-CB43-63CCD322E24B}.wem		\Containers\Default Work Unit\RF_Impact_Metal\RF_Metal_Medium		120096
-	804088654	RF_Metal_Hard	.cache\13\{134FA3F0-ECE5-9A9B-7FC6-13DA1223CC4D}.wem		\Containers\Default Work Unit\RF_Impact_Metal\RF_Metal_Hard		120096
-	993602079	RF_Metal_Soft	.cache\2C\{2C31AD91-A304-8CFA-F37C-148B8BD0AE77}.wem		\Containers\Default Work Unit\RF_Impact_Metal\RF_Metal_Soft		120096
+	201814544	RF_Steel_Hard	.cache\13\{134FA3F0-ECE5-9A9B-7FC6-13DA1223CC4D}.wem		\Containers\Default Work Unit\RF_Impact_Steel\RF_Steel_Hard		120096
+	315062310	RF_Wood_Medium	.cache\84\{849BA212-FA46-CFA2-55A5-FBAEB7E65FB2}.wem		\Containers\Default Work Unit\RF_Impact_Wood\RF_Wood_Medium		120096
+	322829781	RF_Steel_Medium	.cache\DB\{DB225F27-C12B-FA53-CB43-63CCD322E24B}.wem		\Containers\Default Work Unit\RF_Impact_Steel\RF_Steel_Medium		120096
+	453393903	RF_Glass_Medium	.cache\B0\{B043081B-09AB-B5EF-7BA8-2315A50AFB41}.wem		\Containers\Default Work Unit\RF_Impact_Glass\RF_Glass_Medium		120096
+	539084517	RF_Glass_Hard	.cache\5A\{5AB7A642-F28D-2E36-E866-D84195867310}.wem		\Containers\Default Work Unit\RF_Impact_Glass\RF_Glass_Hard		120096
+	562192875	RF_Wood_Soft	.cache\03\{03E8FFA0-5DE9-72DA-910E-C92621D887E0}.wem		\Containers\Default Work Unit\RF_Impact_Wood\RF_Wood_Soft		120096
+	800152965	RF_Steel_Soft	.cache\2C\{2C31AD91-A304-8CFA-F37C-148B8BD0AE77}.wem		\Containers\Default Work Unit\RF_Impact_Steel\RF_Steel_Soft		120096
+	903754552	RF_Glass_Soft	.cache\1C\{1C6BED54-7904-4F6A-7472-18F925F8D0DA}.wem		\Containers\Default Work Unit\RF_Impact_Glass\RF_Glass_Soft		120096
+	999345081	RF_Wood_Hard	.cache\B4\{B4ECB010-7565-9EB4-80DD-EC399395A4A4}.wem		\Containers\Default Work Unit\RF_Impact_Wood\RF_Wood_Hard		120096
 

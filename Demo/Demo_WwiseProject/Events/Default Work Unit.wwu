@@ -6,13 +6,37 @@
 				<Folder Name="ResonanceForge" ID="{387550D4-56CA-4D4A-AFEA-F5BE669254A8}" ShortID="967250883">
 					<Comment>共振铸造台自动生成的 Wwise 事件。</Comment>
 					<ChildrenList>
-						<Event Name="Play_RF_Impact_Metal" ID="{75937F16-0F9A-4990-B179-777468DA39BA}">
-							<Comment>播放金属共振撞击；由 UE 侧 Energy、Brightness、ObjectSize RTPC 驱动。</Comment>
+						<Event Name="Play_RF_Impact_Steel" ID="{8651F4A5-48E7-4146-B957-F49D5054435D}">
+							<Comment>播放拉丝钢撞击；由 UE 侧材质路由和 Energy、Brightness、ObjectSize RTPC 驱动。</Comment>
 							<ChildrenList>
-								<Action Name="" ID="{6E6E4B7D-B5EB-4A24-BD82-5B820333D4ED}" ShortID="351099382">
+								<Action Name="" ID="{F2559562-8FBB-4092-A0F3-6BC07E166035}" ShortID="482615028">
 									<ReferenceList>
 										<Reference Name="Target">
-											<ObjectRef Name="RF_Impact_Metal" ID="{0B41D982-4D54-4728-B711-76DE3B380658}" WorkUnitID="{4B182EF4-C2EB-4B13-995C-113646641E03}"/>
+											<ObjectRef Name="RF_Impact_Steel" ID="{84A5FB02-F5C8-4DB0-9792-0048DD97C881}" WorkUnitID="{4B182EF4-C2EB-4B13-995C-113646641E03}"/>
+										</Reference>
+									</ReferenceList>
+								</Action>
+							</ChildrenList>
+						</Event>
+						<Event Name="Play_RF_Impact_Wood" ID="{9BD9186E-1961-43E3-9AF9-BD4E5490F1AE}">
+							<Comment>播放硬木撞击；由 UE 侧材质路由和 Energy、Brightness、ObjectSize RTPC 驱动。</Comment>
+							<ChildrenList>
+								<Action Name="" ID="{CB8FA00B-2739-446F-B2B8-4FA6540C9C4F}" ShortID="62356974">
+									<ReferenceList>
+										<Reference Name="Target">
+											<ObjectRef Name="RF_Impact_Wood" ID="{2AA1805C-0F08-4A11-A7F2-6121F3669651}" WorkUnitID="{4B182EF4-C2EB-4B13-995C-113646641E03}"/>
+										</Reference>
+									</ReferenceList>
+								</Action>
+							</ChildrenList>
+						</Event>
+						<Event Name="Play_RF_Impact_Glass" ID="{22FE85D0-293F-49ED-BDFF-F3A84447F803}">
+							<Comment>播放薄玻璃撞击；由 UE 侧材质路由和 Energy、Brightness、ObjectSize RTPC 驱动。</Comment>
+							<ChildrenList>
+								<Action Name="" ID="{33446218-90E9-4DEC-9461-9844D4C577C3}" ShortID="467377867">
+									<ReferenceList>
+										<Reference Name="Target">
+											<ObjectRef Name="RF_Impact_Glass" ID="{8B70C7CA-71D9-4530-87E4-BBF70131EFAF}" WorkUnitID="{4B182EF4-C2EB-4B13-995C-113646641E03}"/>
 										</Reference>
 									</ReferenceList>
 								</Action>

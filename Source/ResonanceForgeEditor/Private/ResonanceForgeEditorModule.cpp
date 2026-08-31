@@ -729,7 +729,7 @@ FText FResonanceForgeEditorModule::GetWwiseStatusText() const
 
     const FString Status = Instrument->WwiseBridge->GetIntegrationStatus();
     return Status == TEXT("Wwise 桥接已就绪")
-        ? NSLOCTEXT("ResonanceForge", "WwiseReady", "Wwise 已就绪 · 1 Event / 3 RTPC")
+        ? NSLOCTEXT("ResonanceForge", "WwiseReady", "Wwise 已就绪 · 3 材质 Event / 3 RTPC")
         : FText::FromString(Status);
 }
 
@@ -904,6 +904,19 @@ FText FResonanceForgeEditorModule::GetResonanceText() const
     return ActiveModel == EResonanceModelType::WaveguideString
         ? NSLOCTEXT("ResonanceForge", "StringResonance", "延迟线传播 / 阻尼反馈")
         : FText::Format(NSLOCTEXT("ResonanceForge", "ImpactResonance", "{0} / 离散模态组"), FText::FromName(ActivePreset));
+}
+
+FText FResonanceForgeEditorModule::GetOutputRouteText() const
+{
+    const FText EventName = ActivePreset == TEXT("硬木")
+        ? FText::FromString(TEXT("Play_RF_Impact_Wood"))
+        : ActivePreset == TEXT("薄玻璃")
+            ? FText::FromString(TEXT("Play_RF_Impact_Glass"))
+            : FText::FromString(TEXT("Play_RF_Impact_Steel"));
+    return FText::Format(
+        NSLOCTEXT("ResonanceForge", "OutputMaterialRoute", "{0} → {1} / 3 RTPC"),
+        FText::FromName(ActivePreset),
+        EventName);
 }
 
 FText FResonanceForgeEditorModule::GetPrimaryActionText() const
@@ -1186,7 +1199,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                             + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(8, 0)
                             [SNew(STextBlock).Text(FText::FromString(TEXT("›"))).Font(FAppStyle::GetFontStyle(TEXT("HeadingSmall"))).ColorAndOpacity(Muted)]
                             + SHorizontalBox::Slot().FillWidth(0.95f)
-                            [RecipeStage(NSLOCTEXT("ResonanceForge", "OutputNode", "出口"), FText::FromString(TEXT("UE 合成器 + Wwise Event / RTPC")), Cyan)]
+                            [RecipeStage(NSLOCTEXT("ResonanceForge", "OutputNode", "Wwise 材质出口"), TAttribute<FText>::CreateLambda([this]{ return GetOutputRouteText(); }), Cyan)]
                         ]
                     ]
                     + SVerticalBox::Slot().AutoHeight().Padding(22, 0, 22, 12)

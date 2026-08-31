@@ -8,7 +8,7 @@
 ![Unreal Engine 5.8](https://img.shields.io/badge/Unreal_Engine-5.8.1-0E1128?logo=unrealengine&logoColor=white)
 ![Wwise 2025.1](https://img.shields.io/badge/Wwise-2025.1-00549F)
 ![Platform](https://img.shields.io/badge/Platform-Windows_Editor-0078D4?logo=windows&logoColor=white)
-![Version](https://img.shields.io/badge/Version-0.12.0-D96B2B)
+![Version](https://img.shields.io/badge/Version-0.13.0-D96B2B)
 ![License](https://img.shields.io/badge/License-MIT-2EA44F)
 
 </div>
@@ -31,7 +31,7 @@
 
 - **两类实时物理声源**：模态撞击体与八复音数字波导弦。
 - **真实场景输入**：碰撞冲量、相对速度和物体尺寸直接影响声音。
-- **UE × Wwise 双路径**：UE 原生合成可独立试听，同时发布 Wwise Event 与 3 个 RTPC。
+- **UE × Wwise 双路径**：UE 原生合成可独立试听，同时按钢、木、玻璃分流 3 个 Wwise Event，并发布 3 个 RTPC。
 - **锤击标尺与出口刻度**：轻触、常规、重击三档手势一键试听，并把 RTPC 曲线翻译成近似的 dB、低通与 cent 读数。
 - **可听的直接编辑**：点击材质或模型立即试听；拖动参数时声纹和出口刻度实时变化，松手只触发一次声音，避免连续 Event 互相遮盖。
 - **可演奏**：面板可发现并连接 MIDI 输入设备；Note On 控制音高与力度，CC1 控制音色明亮度，并显示实时演奏状态。
@@ -173,7 +173,15 @@ flowchart LR
 
 ## Wwise 映射
 
-`Play_RF_Impact_Metal` 由碰撞、MIDI 或面板试听触发。三个 UE 参数进入 Wwise 后继续塑造同一个 `RF_Impact_Metal` Random Container：
+碰撞、MIDI 或面板试听会先根据当前材质选择对应的 Wwise 出口；每个出口拥有独立的 Random Container 和软、中、硬三档素材：
+
+| 材质预设 | Event | Random Container | 素材 |
+| --- | --- | --- | --- |
+| 拉丝钢 | `Play_RF_Impact_Steel` | `RF_Impact_Steel` | `RF_Steel_Soft / Medium / Hard` |
+| 硬木 | `Play_RF_Impact_Wood` | `RF_Impact_Wood` | `RF_Wood_Soft / Medium / Hard` |
+| 薄玻璃 | `Play_RF_Impact_Glass` | `RF_Impact_Glass` | `RF_Glass_Soft / Medium / Hard` |
+
+三个出口共享同一套设计语义，UE 参数在各材质 Container 内继续塑形：
 
 | Game Parameter | 数据来源 | Wwise 属性 | 曲线范围 |
 | --- | --- | --- | --- |
@@ -229,7 +237,7 @@ ResonanceForge
 | 物理碰撞映射测试 | 通过 |
 | 内置声学预设测试 | 通过 |
 | Wwise 生成资源检查 | 通过 |
-| Wwise RTPC 映射检查 | 3 条曲线与 Windows SoundBank 通过 |
+| Wwise 材质路由与 RTPC 映射 | 3 个 Event、9 份 WAV、每个 Container 3 条曲线与 Windows SoundBank 通过 |
 | 基础地图磁盘重载 | 3 个落球 + 1 个波导弦通过 |
 | Carpenter's Workshop UE 5.8 加载 | 通过，本机可选依赖 |
 
