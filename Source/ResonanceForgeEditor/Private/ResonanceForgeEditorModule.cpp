@@ -2,6 +2,7 @@
 #include "SResonanceForgeVisualizer.h"
 #include "SResonanceModeRack.h"
 #include "SResonanceStrikeRail.h"
+#include "SResonanceKeybed.h"
 
 #include "Editor.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -143,6 +144,7 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
         WaveguideDamping = 0.52f;
         WaveguideCoupling = 0.26f;
         ApplyWaveguideParameters();
+        TriggerKeybedNote(55, 0.76f);
     }
     FGlobalTabmanager::Get()->TryInvokeTab(ResonanceForgeEditor::TabName);
 
@@ -152,37 +154,48 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
             CaptureWorkbenchScreenshot();
             if (WorkbenchScrollBox.IsValid())
             {
-                WorkbenchScrollBox->ScrollToEnd();
+                WorkbenchScrollBox->SetScrollOffset(500.0f);
             }
             FTSTicker::GetCoreTicker().AddTicker(
                 FTickerDelegate::CreateLambda([this](float)
                 {
-                    CaptureWorkbenchImage(TEXT("resonance-forge-workbench-details.png"));
-                    ApplyModel(EResonanceModelType::ModalImpact);
-                    ApplyPreset(TEXT("硬木"));
-                    ApplyStrikePosition(0.34f, false);
-                    SelectedModeIndex = FMath::Min(2, ActiveModes.Num() - 1);
-                    if (ActiveModes.IsValidIndex(SelectedModeIndex))
-                    {
-                        ActiveModes[SelectedModeIndex].FrequencyHz *= 1.16f;
-                        ActiveModes[SelectedModeIndex].Gain = 1.18f;
-                        ActiveModes[SelectedModeIndex].DecaySeconds *= 1.42f;
-                        ApplyModalModes(false, FText::GetEmpty());
-                    }
-                    AuditionCurrentSound(NSLOCTEXT("ResonanceForge", "CaptureOffsetStrike", "偏置落点试敲"));
-                    ClearReference();
+                    CaptureWorkbenchImage(TEXT("resonance-forge-keybed.png"));
                     if (WorkbenchScrollBox.IsValid())
                     {
-                        WorkbenchScrollBox->SetScrollOffset(420.0f);
+                        WorkbenchScrollBox->ScrollToEnd();
                     }
                     FTSTicker::GetCoreTicker().AddTicker(
                         FTickerDelegate::CreateLambda([this](float)
                         {
-                            CaptureWorkbenchImage(TEXT("resonance-forge-mode-rack.png"));
-                            if (FParse::Param(FCommandLine::Get(), TEXT("ResonanceForgeCaptureAndExit")))
+                            CaptureWorkbenchImage(TEXT("resonance-forge-workbench-details.png"));
+                            ApplyModel(EResonanceModelType::ModalImpact);
+                            ApplyPreset(TEXT("硬木"));
+                            ApplyStrikePosition(0.34f, false);
+                            SelectedModeIndex = FMath::Min(2, ActiveModes.Num() - 1);
+                            if (ActiveModes.IsValidIndex(SelectedModeIndex))
                             {
-                                FPlatformMisc::RequestExit(false);
+                                ActiveModes[SelectedModeIndex].FrequencyHz *= 1.16f;
+                                ActiveModes[SelectedModeIndex].Gain = 1.18f;
+                                ActiveModes[SelectedModeIndex].DecaySeconds *= 1.42f;
+                                ApplyModalModes(false, FText::GetEmpty());
                             }
+                            AuditionCurrentSound(NSLOCTEXT("ResonanceForge", "CaptureOffsetStrike", "偏置落点试敲"));
+                            ClearReference();
+                            if (WorkbenchScrollBox.IsValid())
+                            {
+                                WorkbenchScrollBox->SetScrollOffset(620.0f);
+                            }
+                            FTSTicker::GetCoreTicker().AddTicker(
+                                FTickerDelegate::CreateLambda([this](float)
+                                {
+                                    CaptureWorkbenchImage(TEXT("resonance-forge-mode-rack.png"));
+                                    if (FParse::Param(FCommandLine::Get(), TEXT("ResonanceForgeCaptureAndExit")))
+                                    {
+                                        FPlatformMisc::RequestExit(false);
+                                    }
+                                    return false;
+                                }),
+                                1.0f);
                             return false;
                         }),
                         1.0f);
@@ -448,6 +461,30 @@ void FResonanceForgeEditorModule::ApplyStrikePosition(const float NewPosition, c
     if (bFinished)
     {
         AuditionCurrentSound(NSLOCTEXT("ResonanceForge", "StrikePositionAudition", "敲击落点调整完成"));
+    }
+}
+
+void FResonanceForgeEditorModule::TriggerKeybedNote(const int32 MidiNote, const float Velocity)
+{
+    const int32 SafeNote = FMath::Clamp(MidiNote, 0, 127);
+    const float SafeVelocity = FMath::Clamp(Velocity, 0.0f, 1.0f);
+    LastKeybedNote = SafeNote;
+    LastKeybedVelocity = SafeVelocity;
+    LastKeybedPlayedSeconds = FPlatformTime::Seconds();
+    PreviewEnergy = SafeVelocity;
+    if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
+    {
+        Instrument->ObjectSize = PreviewSize;
+        ApplyWaveguideParameters();
+        Instrument->TriggerInstrument(SafeVelocity, PreviewBrightness, SafeNote, PreviewStrikePosition);
+        LastStatus = FText::Format(
+            NSLOCTEXT("ResonanceForge", "KeybedPlayed", "试音键床 · Note {0} / 力度 {1}% · 已发送 UE 声源与 Wwise"),
+            FText::AsNumber(SafeNote),
+            FText::AsNumber(FMath::RoundToInt(SafeVelocity * 100.0f)));
+    }
+    else
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "KeybedNoInstrument", "试音键床等待共振体 · 请先打开试听场景");
     }
 }
 
@@ -981,6 +1018,27 @@ float FResonanceForgeEditorModule::GetLiveImpactGlow() const
         return 0.0f;
     }
     return FMath::Clamp(LiveImpactEnergy * FMath::Exp(-static_cast<float>(Age) / 1.45f), 0.0f, 1.0f);
+}
+
+float FResonanceForgeEditorModule::GetKeybedGlow() const
+{
+    const double Age = FPlatformTime::Seconds() - LastKeybedPlayedSeconds;
+    if (Age < 0.0 || Age > 6.0)
+    {
+        return 0.0f;
+    }
+    return FMath::Clamp(LastKeybedVelocity * FMath::Exp(-static_cast<float>(Age) / 2.2f), 0.0f, 1.0f);
+}
+
+FText FResonanceForgeEditorModule::GetKeybedStatusText() const
+{
+    return LastKeybedVelocity > 0.0f
+        ? FText::Format(
+            NSLOCTEXT("ResonanceForge", "KeybedLastNote", "最近试音 · Note {0} / 力度 {1}% / 明亮度 {2}%"),
+            FText::AsNumber(LastKeybedNote),
+            FText::AsNumber(FMath::RoundToInt(LastKeybedVelocity * 100.0f)),
+            FText::AsNumber(FMath::RoundToInt(PreviewBrightness * 100.0f)))
+        : NSLOCTEXT("ResonanceForge", "KeybedReady", "无需 MIDI 设备 · 点击或横向拖过锤键即可演奏");
 }
 
 FReply FResonanceForgeEditorModule::ForgeSharedRecipeAsset()
@@ -1585,6 +1643,38 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                     ]
                     + SVerticalBox::Slot().AutoHeight().Padding(36, 0, 36, 12)
                     [SNew(STextBlock).Text_Raw(this, &FResonanceForgeEditorModule::GetMidiStatusText).ColorAndOpacity(Glass)]
+                    + SVerticalBox::Slot().AutoHeight().Padding(22, 0, 22, 12)
+                    [
+                        SNew(SBorder)
+                        .BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel")))
+                        .BorderBackgroundColor(FLinearColor(0.050f, 0.035f, 0.022f, 1.0f))
+                        .Padding(FMargin(14, 12))
+                        [
+                            SNew(SVerticalBox)
+                            + SVerticalBox::Slot().AutoHeight()
+                            [
+                                SNew(SHorizontalBox)
+                                + SHorizontalBox::Slot().FillWidth(1.0f)
+                                [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "AuditionKeybed", "试音键床"), NSLOCTEXT("ResonanceForge", "AuditionKeybedDetail", "横向选择音高，越靠下敲击力度越重；拖过锤键可连续演奏。"))]
+                                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+                                [SNew(STextBlock).Text_Raw(this, &FResonanceForgeEditorModule::GetKeybedStatusText).ColorAndOpacity(Wood)]
+                            ]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
+                            [
+                                SNew(SBorder)
+                                .BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel")))
+                                .BorderBackgroundColor(FLinearColor(0.020f, 0.017f, 0.014f, 1.0f))
+                                .Padding(FMargin(8, 6))
+                                [
+                                    SNew(SResonanceKeybed)
+                                    .LastNote_Lambda([this]{ return LastKeybedNote; })
+                                    .LastVelocity_Lambda([this]{ return LastKeybedVelocity; })
+                                    .NoteGlow_Raw(this, &FResonanceForgeEditorModule::GetKeybedGlow)
+                                    .OnNotePlayed(FOnResonanceKeyPlayed::CreateRaw(this, &FResonanceForgeEditorModule::TriggerKeybedNote))
+                                ]
+                            ]
+                        ]
+                    ]
                     + SVerticalBox::Slot().AutoHeight().Padding(22, 2, 22, 12)
                     [
                         SNew(SBorder)

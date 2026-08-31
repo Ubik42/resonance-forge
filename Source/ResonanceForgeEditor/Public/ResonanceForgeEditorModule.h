@@ -22,6 +22,7 @@ private:
     void ResetModalModesToPreset();
     void SelectModalMode(int32 ModeIndex);
     void ApplyStrikePosition(float NewPosition, bool bFinished);
+    void TriggerKeybedNote(int32 MidiNote, float Velocity);
     void AuditionCurrentSound(const FText& ChangeLabel);
     FReply SyncFromSelection();
     FReply TriggerPreview();
@@ -58,6 +59,8 @@ private:
     FText GetSelectedModeDecayText() const;
     FText GetStrikePositionText() const;
     float GetLiveImpactGlow() const;
+    float GetKeybedGlow() const;
+    FText GetKeybedStatusText() const;
     bool HasRecipeSlot(int32 SlotIndex) const;
     bool ReadRecipeSlot(int32 SlotIndex, FName& OutPreset, EResonanceModelType& OutModel, float& OutEnergy, float& OutBrightness, float& OutSize, float& OutSustain, float& OutDamping, float& OutCoupling) const;
 
@@ -97,6 +100,9 @@ private:
     float LiveImpactEnergy = 0.0f;
     float LiveImpactBrightness = 0.0f;
     double LiveImpactObservedSeconds = -1000.0;
+    int32 LastKeybedNote = 55;
+    float LastKeybedVelocity = 0.0f;
+    double LastKeybedPlayedSeconds = -1000.0;
     FString SharedRecipeName = TEXT("新声学配方");
     FText LastStatus;
 };

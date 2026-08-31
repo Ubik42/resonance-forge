@@ -8,7 +8,7 @@
 ![Unreal Engine 5.8](https://img.shields.io/badge/Unreal_Engine-5.8.1-0E1128?logo=unrealengine&logoColor=white)
 ![Wwise 2025.1](https://img.shields.io/badge/Wwise-2025.1-00549F)
 ![Platform](https://img.shields.io/badge/Platform-Windows_Editor-0078D4?logo=windows&logoColor=white)
-![Version](https://img.shields.io/badge/Version-0.16.0-D96B2B)
+![Version](https://img.shields.io/badge/Version-0.17.0-D96B2B)
 ![License](https://img.shields.io/badge/License-MIT-2EA44F)
 
 </div>
@@ -31,6 +31,10 @@
 
 ![共振铸造台可编辑共振齿列](docs/images/resonance-forge-mode-rack.png)
 
+没有 MIDI 硬件时也可以演奏。试音键床提供 C3–C4 的十三根锤键，横向决定音高，纵向决定力度；点击或拖奏会走和外接 MIDI 相同的 UE/Wwise 触发链。
+
+![共振铸造台试音键床](docs/images/resonance-forge-keybed.png)
+
 ## 项目亮点
 
 - **两类实时物理声源**：模态撞击体与八复音数字波导弦。
@@ -39,6 +43,7 @@
 - **锤击标尺与出口刻度**：轻触、常规、重击三档手势一键试听，并把 RTPC 曲线翻译成近似的 dB、低通与 cent 读数。
 - **可听的直接编辑**：点击材质或模型立即试听；拖动参数时声纹和出口刻度实时变化，松手只触发一次声音，避免连续 Event 互相遮盖。
 - **可演奏**：面板可发现并连接 MIDI 输入设备；Note On 控制音高与力度，CC1 控制音色明亮度，并显示实时演奏状态。
+- **无需硬件的试音键床**：十三根可点击、可拖奏的锤键把鼠标位置映射为 Note 与 Velocity，方便快速验证波导弦和 Wwise 发布。
 - **声纹炉膛**：用随模型、材质与演奏参数实时变化的声学指纹理解声音，而不是只看抽象滑杆。
 - **可编辑共振齿列**：直接选择离散模态，调整频率、响度权重和衰减时间；结果写回当前声源，并参与 A/B 与共享配方。
 - **碰撞位置塑形**：真实 `FHitResult` 落点会转换到物体局部坐标，并按模态节点重新分配各共振峰的激励能量。
@@ -137,7 +142,7 @@ flowchart LR
 8. 点击“钉住当前声纹”，再切换材质、模态齿或参数，比较并试听两个版本。
 9. 点击“交换并试听 A/B”在两版之间往返切换；模态数组也会随版本交换。
 10. 使用“配方架”把满意的版本存入甲、乙或丙槽，需要时一键召回到当前对象。
-11. 有 MIDI 键盘时，在“演奏入口”选择设备并点击“连接”；弹奏键盘或推动调制轮观察 Note、Velocity 与 CC1。
+11. 先用“试音键床”点击或横向拖奏；越靠下点击力度越重。有 MIDI 键盘时，再在“演奏入口”选择设备并连接，推动调制轮观察 CC1。
 12. 切换到“数字波导弦”，调节弦床中的回响长度、弦路阻尼和箱体耦合，观察声纹与听感同步变化。
 13. 为满意版本输入名称，点击“铸印为 Content 资产”；当前共振齿列会写入 `UResonanceMaterialProfile::Modes`，成为团队可复用配方。
 14. 进入 PIE，观察落球碰撞并在 Wwise Profiler 中检查 RTPC。
@@ -217,7 +222,7 @@ flowchart LR
 | Note On Velocity | 激励能量，并同步到 `RF_ImpactEnergy` |
 | CC1 调制轮 | 音色明亮度，并同步到 `RF_ImpactBrightness` |
 
-MIDI 设备是可选输入。没有硬件时，面板试听按钮、键盘触发和物理碰撞仍可独立工作。
+MIDI 设备是可选输入。没有硬件时，“试音键床”会生成同样的 Note 与 Velocity：横向选择 C3–C4，纵向映射 20%–100% 力度，拖过不同锤键可连续演奏。它直接调用 `TriggerInstrument`，不是只改变界面状态，因此 UE Synth、Wwise Event、RTPC 和触发回传都会同步更新。
 
 ## 工程结构
 
@@ -255,6 +260,7 @@ ResonanceForge
 | 可编辑模态链路 | `FResonanceMode` 写回、A/B 交换与 Content 配方保存通过 UE 编译 |
 | 碰撞落点映射 | 世界命中点 → 物体局部位置 → 模态节点激励已进入场景触发链 |
 | 多对象触发回传 | 最近撞击 Actor 的落点、能量、明亮度可回到工作台并驱动余辉 |
+| 无硬件演奏 | 试音键床 Note / Velocity 进入与外接 MIDI 相同的声源与 Wwise 触发链 |
 | Wwise 生成资源检查 | 通过 |
 | Wwise 材质路由与 RTPC 映射 | 3 个 Event、9 份 WAV、每个 Container 3 条曲线与 Windows SoundBank 通过 |
 | 基础地图磁盘重载 | 3 个落球 + 1 个波导弦通过 |
