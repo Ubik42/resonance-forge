@@ -16,6 +16,7 @@ private:
     class AResonanceForgeImpactInstrumentActor* ResolveInstrument() const;
     void ApplyPreset(const FName PresetName);
     void ApplyModel(EResonanceModelType ModelType);
+    void ApplyWaveguideParameters();
     FReply SyncFromSelection();
     FReply TriggerPreview();
     FReply PinReference();
@@ -37,19 +38,25 @@ private:
     FText GetMidiStatusText() const;
     FText GetWwiseStatusText() const;
     bool HasRecipeSlot(int32 SlotIndex) const;
-    bool ReadRecipeSlot(int32 SlotIndex, FName& OutPreset, EResonanceModelType& OutModel, float& OutEnergy, float& OutBrightness, float& OutSize) const;
+    bool ReadRecipeSlot(int32 SlotIndex, FName& OutPreset, EResonanceModelType& OutModel, float& OutEnergy, float& OutBrightness, float& OutSize, float& OutSustain, float& OutDamping, float& OutCoupling) const;
 
     FName ActivePreset = TEXT("拉丝钢");
     EResonanceModelType ActiveModel = EResonanceModelType::ModalImpact;
     float PreviewEnergy = 0.78f;
     float PreviewBrightness = 0.58f;
     float PreviewSize = 0.5f;
+    float WaveguideSustain = 0.90f;
+    float WaveguideDamping = 0.36f;
+    float WaveguideCoupling = 0.22f;
     bool bHasReference = false;
     FName ReferencePreset = NAME_None;
     EResonanceModelType ReferenceModel = EResonanceModelType::ModalImpact;
     float ReferenceEnergy = 0.0f;
     float ReferenceBrightness = 0.0f;
     float ReferenceSize = 0.0f;
+    float ReferenceSustain = 0.90f;
+    float ReferenceDamping = 0.36f;
+    float ReferenceCoupling = 0.22f;
     TArray<TSharedPtr<FString>> MidiDeviceOptions;
     TArray<int32> MidiDeviceIds;
     TSharedPtr<FString> SelectedMidiDevice;
