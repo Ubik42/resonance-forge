@@ -82,5 +82,6 @@ UE 5.8 Demo 使用 Launcher 当前提供的 2025.1 Integration。2026.1 保留�
 
 - 物理碰撞 Actor、数字波导弦、MIDI 输入桥和 Wwise Event / RTPC 发布已经进入基础演示关卡。
 - UE 侧会根据材质选择三个独立 Event 之一，并真实发送三个 RTPC；Wwise 端已为每个材质 Container 建立音量、Pitch 与 Low-pass 曲线。这里有意使用直观的独立 Event 路由，没有把 Switch Container 当作展示复杂度；当前尚未加入压缩器与最终响度校准。
+- 铸样台会在 WAV 旁生成 `.rfrecipe.json` 声源铭牌，记录建议 Event 和三个 RTPC 输入，便于交接；它不会调用 WAAPI 导入、修改 Wwise Work Unit 或渲染 Wwise 效果链。
 - 作品展示优先保留真实工作台、场景联动与 Wwise Profiler 截图，不要求为这个轻量工具单独录制视频。
 - 2026.1 仅作为独立研究环境；Demo 在 Audiokinetic 发布兼容版本前继续锁定 2025.1 Integration。

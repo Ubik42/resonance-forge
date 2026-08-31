@@ -14,17 +14,22 @@
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformProcess.h"
 #include "ImageUtils.h"
+#include "Interfaces/IPluginManager.h"
 #include "Engine/Selection.h"
 #include "Framework/Docking/TabManager.h"
 #include "Materials/MaterialInterface.h"
 #include "MIDIDeviceManager.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CommandLine.h"
+#include "Misc/DateTime.h"
+#include "Misc/EngineVersion.h"
 #include "Misc/FileHelper.h"
 #include "Misc/PackageName.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "ObjectTools.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
 #include "../../ResonanceForgeWwise/Public/ResonanceForgeImpactInstrumentActor.h"
 #include "../../ResonanceForgeWwise/Public/ResonanceForgeWwiseBridgeComponent.h"
 #include "ResonanceForgeSynthComponent.h"
@@ -59,6 +64,19 @@ namespace ResonanceForgeEditor
     {
         const float T = FMath::Clamp(Alpha, 0.0f, 1.0f);
         return T * T * (3.0f - 2.0f * T);
+    }
+
+    FString GetWwiseEventName(const FName PresetName)
+    {
+        if (PresetName == TEXT("硬木"))
+        {
+            return TEXT("Play_RF_Impact_Wood");
+        }
+        if (PresetName == TEXT("薄玻璃"))
+        {
+            return TEXT("Play_RF_Impact_Glass");
+        }
+        return TEXT("Play_RF_Impact_Steel");
     }
 
     TSharedRef<SWidget> WorkspaceTitle(const FText& Title, const FText& Detail)
@@ -1066,8 +1084,11 @@ FReply FResonanceForgeEditorModule::ExportCurrentSample()
         ResonanceForgeEditor::WaveguideDecayMin,
         ResonanceForgeEditor::WaveguideDecayMax,
         FMath::Clamp(WaveguideSustain, 0.0f, 1.0f));
+    const TArray<FResonanceMode> RenderedModes = ActiveModes.IsEmpty()
+        ? UResonanceForgeSynthComponent::GetBuiltInModes(ActivePreset)
+        : ActiveModes;
     const bool bRendered = UResonanceForgeSynthComponent::RenderOfflinePreview(
-        ActiveModes,
+        RenderedModes,
         ActiveModel,
         PreviewEnergy,
         PreviewBrightness,
@@ -1139,15 +1160,90 @@ FReply FResonanceForgeEditorModule::ExportCurrentSample()
         Pcm16.Num() * sizeof(int16),
         2,
         48000);
-    if (WaveData.IsEmpty() || !FFileHelper::SaveArrayToFile(WaveData, *ExportPath))
+    if (WaveData.IsEmpty())
     {
-        LastStatus = NSLOCTEXT("ResonanceForge", "SampleWriteFailed", "铸样完成，但 WAV 写入失败");
+        LastStatus = NSLOCTEXT("ResonanceForge", "SampleSerializeFailed", "铸样失败 · 无法序列化 WAV 数据");
+        return FReply::Handled();
+    }
+
+    const FString LabelPath = FPaths::ChangeExtension(ExportPath, TEXT("rfrecipe.json"));
+    const TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+    Root->SetStringField(TEXT("schema"), TEXT("resonance-forge/sample-label/v1"));
+
+    const TSharedRef<FJsonObject> Generator = MakeShared<FJsonObject>();
+    const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("ResonanceForge"));
+    Generator->SetStringField(TEXT("pluginVersion"), Plugin.IsValid() ? Plugin->GetDescriptor().VersionName : TEXT("unknown"));
+    Generator->SetStringField(TEXT("unrealVersion"), FEngineVersion::Current().ToString());
+    Generator->SetStringField(TEXT("generatedAtUtc"), FDateTime::UtcNow().ToIso8601());
+    Root->SetObjectField(TEXT("generator"), Generator);
+
+    const TSharedRef<FJsonObject> Audio = MakeShared<FJsonObject>();
+    Audio->SetStringField(TEXT("file"), FPaths::GetCleanFilename(ExportPath));
+    Audio->SetNumberField(TEXT("durationSeconds"), SampleExportDurationSeconds);
+    Audio->SetNumberField(TEXT("sampleRate"), 48000);
+    Audio->SetNumberField(TEXT("channels"), 2);
+    Audio->SetNumberField(TEXT("bitDepth"), 16);
+    Audio->SetNumberField(TEXT("tailRelativeDb"), LastSampleTailDb);
+    Audio->SetBoolField(TEXT("tailSettled"), LastSampleTailDb <= -48.0f);
+    Root->SetObjectField(TEXT("audio"), Audio);
+
+    const TSharedRef<FJsonObject> Source = MakeShared<FJsonObject>();
+    Source->SetStringField(TEXT("preset"), ActivePreset.ToString());
+    Source->SetStringField(TEXT("model"), ActiveModel == EResonanceModelType::WaveguideString ? TEXT("WaveguideString") : TEXT("ModalImpact"));
+    Source->SetNumberField(TEXT("energy"), PreviewEnergy);
+    Source->SetNumberField(TEXT("brightness"), PreviewBrightness);
+    Source->SetNumberField(TEXT("objectSize"), PreviewSize);
+    Source->SetNumberField(TEXT("strikePosition"), PreviewStrikePosition);
+    Source->SetNumberField(TEXT("midiNote"), LastKeybedNote);
+    Source->SetNumberField(TEXT("velocity"), LastKeybedVelocity);
+    Root->SetObjectField(TEXT("source"), Source);
+
+    TArray<TSharedPtr<FJsonValue>> ModeValues;
+    ModeValues.Reserve(RenderedModes.Num());
+    for (const FResonanceMode& Mode : RenderedModes)
+    {
+        const TSharedRef<FJsonObject> ModeObject = MakeShared<FJsonObject>();
+        ModeObject->SetNumberField(TEXT("frequencyHz"), Mode.FrequencyHz);
+        ModeObject->SetNumberField(TEXT("gain"), Mode.Gain);
+        ModeObject->SetNumberField(TEXT("decaySeconds"), Mode.DecaySeconds);
+        ModeValues.Add(MakeShared<FJsonValueObject>(ModeObject));
+    }
+    Root->SetArrayField(TEXT("modes"), ModeValues);
+
+    const TSharedRef<FJsonObject> Waveguide = MakeShared<FJsonObject>();
+    Waveguide->SetNumberField(TEXT("sustainNormalized"), WaveguideSustain);
+    Waveguide->SetNumberField(TEXT("feedback"), StringDecay);
+    Waveguide->SetNumberField(TEXT("damping"), WaveguideDamping);
+    Waveguide->SetNumberField(TEXT("bodyCoupling"), WaveguideCoupling);
+    Root->SetObjectField(TEXT("waveguide"), Waveguide);
+
+    const TSharedRef<FJsonObject> Wwise = MakeShared<FJsonObject>();
+    Wwise->SetStringField(TEXT("event"), ResonanceForgeEditor::GetWwiseEventName(ActivePreset));
+    Wwise->SetStringField(TEXT("integration"), TEXT("metadata only; import and Wwise processing are not rendered"));
+    const TSharedRef<FJsonObject> Rtpc = MakeShared<FJsonObject>();
+    Rtpc->SetNumberField(TEXT("RF_ImpactEnergy"), PreviewEnergy * 100.0f);
+    Rtpc->SetNumberField(TEXT("RF_ImpactBrightness"), PreviewBrightness * 100.0f);
+    Rtpc->SetNumberField(TEXT("RF_ObjectSize"), PreviewSize * 100.0f);
+    Wwise->SetObjectField(TEXT("rtpc0To100"), Rtpc);
+    Root->SetObjectField(TEXT("wwise"), Wwise);
+
+    FString LabelJson;
+    const TSharedRef<TJsonWriter<>> JsonWriter = TJsonWriterFactory<>::Create(&LabelJson);
+    if (!FJsonSerializer::Serialize(Root, JsonWriter) || !FFileHelper::SaveStringToFile(LabelJson, *LabelPath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "SampleLabelWriteFailed", "铸样失败 · 声源铭牌无法写入，未生成孤立 WAV");
+        return FReply::Handled();
+    }
+    if (!FFileHelper::SaveArrayToFile(WaveData, *ExportPath))
+    {
+        IFileManager::Get().Delete(*LabelPath, false, true);
+        LastStatus = NSLOCTEXT("ResonanceForge", "SampleWriteFailed", "铸样失败 · WAV 无法写入，已撤回声源铭牌");
         return FReply::Handled();
     }
 
     LastSampleExportPath = FPaths::ConvertRelativePathToFull(ExportPath);
     LastStatus = FText::Format(
-        NSLOCTEXT("ResonanceForge", "SampleExported", "铸样完成 · {0} 秒 / 48 kHz / 16-bit stereo"),
+        NSLOCTEXT("ResonanceForge", "SampleExported", "铸样完成 · WAV + 声源铭牌 / {0} 秒 / 48 kHz / 16-bit stereo"),
         FText::AsNumber(SampleExportDurationSeconds));
     return FReply::Handled();
 }
@@ -1169,7 +1265,7 @@ FText FResonanceForgeEditorModule::GetSampleExportStatusText() const
         return NSLOCTEXT("ResonanceForge", "SampleNotExported", "等待铸样 · 复用当前模态、落点、弦床与演奏参数");
     }
     return FText::Format(
-        NSLOCTEXT("ResonanceForge", "SampleExportPath", "已生成 · {0}"),
+        NSLOCTEXT("ResonanceForge", "SampleExportPath", "已生成 · {0} + 声源铭牌"),
         FText::FromString(FPaths::GetCleanFilename(LastSampleExportPath)));
 }
 
@@ -1326,15 +1422,10 @@ FText FResonanceForgeEditorModule::GetResonanceText() const
 
 FText FResonanceForgeEditorModule::GetOutputRouteText() const
 {
-    const FText EventName = ActivePreset == TEXT("硬木")
-        ? FText::FromString(TEXT("Play_RF_Impact_Wood"))
-        : ActivePreset == TEXT("薄玻璃")
-            ? FText::FromString(TEXT("Play_RF_Impact_Glass"))
-            : FText::FromString(TEXT("Play_RF_Impact_Steel"));
     return FText::Format(
         NSLOCTEXT("ResonanceForge", "OutputMaterialRoute", "{0} → {1} / 3 RTPC"),
         FText::FromName(ActivePreset),
-        EventName);
+        FText::FromString(ResonanceForgeEditor::GetWwiseEventName(ActivePreset)));
 }
 
 FText FResonanceForgeEditorModule::GetPrimaryActionText() const
@@ -2035,7 +2126,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                         [
                             SNew(SVerticalBox)
                             + SVerticalBox::Slot().AutoHeight()
-                            [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "SampleForge", "铸样台"), NSLOCTEXT("ResonanceForge", "SampleForgeDetail", "把当前物理声源离线锻成标准 WAV；可直接交给 Wwise、DAW 或版本库。"))]
+                            [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "SampleForge", "铸样台"), NSLOCTEXT("ResonanceForge", "SampleForgeDetail", "把当前物理声源离线锻成 WAV，并附一张记录配方与 Wwise 路由的声源铭牌。"))]
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
                             [
                                 SNew(SResonanceDecayPrint)

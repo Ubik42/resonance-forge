@@ -8,7 +8,7 @@
 ![Unreal Engine 5.8](https://img.shields.io/badge/Unreal_Engine-5.8.1-0E1128?logo=unrealengine&logoColor=white)
 ![Wwise 2025.1](https://img.shields.io/badge/Wwise-2025.1-00549F)
 ![Platform](https://img.shields.io/badge/Platform-Windows_Editor-0078D4?logo=windows&logoColor=white)
-![Version](https://img.shields.io/badge/Version-0.19.0-D96B2B)
+![Version](https://img.shields.io/badge/Version-0.20.0-D96B2B)
 ![License](https://img.shields.io/badge/License-MIT-2EA44F)
 
 </div>
@@ -46,6 +46,7 @@
 - **无需硬件的试音键床**：十三根可点击、可拖奏的锤键把鼠标位置映射为 Note 与 Velocity，方便快速验证波导弦和 Wwise 发布。
 - **可交付的物理声源铸样**：复用实时 Synth 的同一套模态与波导 DSP，把当前齿列、落点、弦床和演奏参数离线渲染成标准 WAV，可直接交给 Wwise、DAW 或版本库。
 - **余响拓片**：铸样后绘制真实振幅包络，并测量最后 100 ms 相对峰值电平；尾音高于 −48 dB 时主动建议延长时长或降低回响，避免交付被生硬截断的样本。
+- **声源铭牌**：每份 WAV 同步生成版本化 `.rfrecipe.json`，记录模型、材质、模态、落点、弦床、演奏参数及 Wwise Event / RTPC 输入，让样本离开 UE 后仍带着来源。
 - **声纹炉膛**：用随模型、材质与演奏参数实时变化的声学指纹理解声音，而不是只看抽象滑杆。
 - **可编辑共振齿列**：直接选择离散模态，调整频率、响度权重和衰减时间；结果写回当前声源，并参与 A/B 与共享配方。
 - **碰撞位置塑形**：真实 `FHitResult` 落点会转换到物体局部坐标，并按模态节点重新分配各共振峰的激励能量。
@@ -147,7 +148,7 @@ flowchart LR
 10. 使用“配方架”把满意的版本存入甲、乙或丙槽，需要时一键召回到当前对象。
 11. 先用“试音键床”点击或横向拖奏；越靠下点击力度越重。有 MIDI 键盘时，再在“演奏入口”选择设备并连接，推动调制轮观察 CC1。
 12. 切换到“数字波导弦”，调节弦床中的回响长度、弦路阻尼和箱体耦合，观察声纹与听感同步变化。
-13. 在“铸样台”输入文件名并选择 1.5、3 或 6 秒，点击“铸成 WAV”；观察“余响拓片”是否提示尾音仍活跃，必要时延长一档或降低回响长度。文件会写入 `Demo/Saved/ResonanceForge/Exports`，重名时自动追加编号。
+13. 在“铸样台”输入文件名并选择 1.5、3 或 6 秒，点击“铸成 WAV”；观察“余响拓片”是否提示尾音仍活跃，必要时延长一档或降低回响长度。工具会成对写入 WAV 与 `.rfrecipe.json` 声源铭牌，重名时自动追加编号。
 14. 为满意版本输入名称，点击“铸印为 Content 资产”；当前共振齿列会写入 `UResonanceMaterialProfile::Modes`，成为团队可复用配方。
 15. 进入 PIE，观察落球碰撞并在 Wwise Profiler 中检查 RTPC。
 
@@ -156,6 +157,19 @@ flowchart LR
 “铸样台”输出 `48 kHz / 16-bit / stereo` WAV。它调用实时声源使用的同一套 DSP，不是另一份只为导出编写的近似算法；导出时会保留当前模型、共振齿列、落点、弦床、Note 与力度。输出位于工程 `Saved` 目录，默认不进入 Git，适合先在本地筛选，再按团队规则导入 Wwise 或 DAW。
 
 每次铸样还会生成一张 180 段的“余响拓片”。它从实际双声道采样提取归一化峰值包络，并以最后 100 ms 的 RMS 相对全段峰值判断尾音：低于或等于 `−48 dB` 记为已收束，否则提示延长一档或降低回响。它是剪裁风险提示，不替代响度计、听感判断或正式母带。当前版本导出的是 **UE 物理声源原始铸样**，不包含 Wwise Bus、Effect、空间化或母带处理，也不会声称已经自动导入 Wwise Authoring。
+
+WAV 旁边的 `.rfrecipe.json` 是“声源铭牌”，使用 `resonance-forge/sample-label/v1` 模式。它记录插件与 UE 版本、音频规格、尾音判断、材质与模型、全部离散模态、数字波导参数、Note / Velocity，以及当前 Wwise Event 与 0–100 RTPC 输入。例如：
+
+```json
+{
+  "schema": "resonance-forge/sample-label/v1",
+  "audio": { "file": "RF_LongTailWood_G3.wav", "sampleRate": 48000, "tailRelativeDb": -33.0 },
+  "source": { "preset": "硬木", "model": "WaveguideString", "midiNote": 55, "velocity": 0.76 },
+  "wwise": { "event": "Play_RF_Impact_Wood", "rtpc0To100": { "RF_ImpactEnergy": 76.0 } }
+}
+```
+
+铭牌使用 UTF-8 和稳定英文键，中文材质名保留原样。只有 WAV 与 JSON 都写入成功时才报告铸样完成；若 WAV 失败，已写入的铭牌会撤回，避免产生误导性的孤立交付件。当前版本尚不提供 JSON 自动回炉或 Wwise 自动导入。
 
 ### 从个人草案到团队资产
 
@@ -271,6 +285,7 @@ ResonanceForge
 | 无硬件演奏 | 试音键床 Note / Velocity 进入与外接 MIDI 相同的声源与 Wwise 触发链 |
 | 离线物理声源铸样 | 实际生成 3.000 秒、48 kHz、16-bit、双声道 RIFF/WAVE；复用实时 Synth DSP |
 | 余响截断提示 | 长尾木弦 3 秒铸样末 100 ms 实测约 −33 dB（相对峰值），正确提示延长时长或降低回响 |
+| 声源铭牌 | 实际生成 `sample-label/v1` UTF-8 JSON；WAV 规格、6 个硬木模态、波导参数、Note / Velocity、木材 Event 与 3 个 RTPC 输入均通过字段复核 |
 | Wwise 生成资源检查 | 通过 |
 | Wwise 材质路由与 RTPC 映射 | 3 个 Event、9 份 WAV、每个 Container 3 条曲线与 Windows SoundBank 通过 |
 | 基础地图磁盘重载 | 3 个落球 + 1 个波导弦通过 |
@@ -284,6 +299,7 @@ ResonanceForge
 - 波导模型采用经典 Karplus–Strong 结构，不等同于 Pianoteq 一类完整钢琴物理建模系统。
 - 尚未模拟琴槌接触、踏板、弦间耦合、音板传播和复杂辐射体。
 - “铸样台”输出 UE 原始物理声源，不渲染 Wwise Bus、Effect、空间化或响度母带链。
+- 声源铭牌当前用于跨工具交接与追溯，尚不能一键回炉成 UE 配方，也不会自动修改 Wwise 工程。
 - Wwise SDK、Unreal Integration 与 Fab 商业素材必须由使用者自行安装。
 
 ## 文档
