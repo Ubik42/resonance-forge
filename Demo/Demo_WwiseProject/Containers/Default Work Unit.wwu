@@ -80,6 +80,133 @@
 							</ActiveSourceList>
 						</Sound>
 					</ChildrenList>
+					<ObjectLists>
+						<ObjectList Name="RTPC">
+							<RTPC Name="" ID="{6FEE6970-B083-473A-9048-6687858C5DB7}" ShortID="941796050">
+								<Comment>撞击能量控制响度：弱撞击保留可听底噪，强撞击到达标称电平。</Comment>
+								<PropertyList>
+									<Property Name="PropertyName" Type="string" Value="Volume"/>
+								</PropertyList>
+								<ReferenceList>
+									<Reference Name="ControlInput">
+										<ObjectRef Name="RF_ImpactEnergy" ID="{C85DD4C5-A340-45E3-99C3-84B1341D5E39}" WorkUnitID="{08AC4DBB-F258-49BB-99C8-A57B271AE769}"/>
+									</Reference>
+									<Reference Name="Curve">
+										<Custom>
+											<Curve Name="" ID="{D26BCF28-5ACC-46C8-A268-84698833D1DD}">
+												<PropertyList>
+													<Property Name="Flags" Type="int32" Value="3"/>
+												</PropertyList>
+												<PointList>
+													<Point>
+														<XPos>0</XPos>
+														<YPos>-24</YPos>
+														<Flags>5</Flags>
+														<SegmentShape>Exp1</SegmentShape>
+													</Point>
+													<Point>
+														<XPos>20</XPos>
+														<YPos>-12</YPos>
+														<Flags>0</Flags>
+														<SegmentShape>SCurve</SegmentShape>
+													</Point>
+													<Point>
+														<XPos>55</XPos>
+														<YPos>-4</YPos>
+														<Flags>0</Flags>
+														<SegmentShape>Log1</SegmentShape>
+													</Point>
+													<Point>
+														<XPos>100</XPos>
+														<YPos>0</YPos>
+														<Flags>37</Flags>
+													</Point>
+												</PointList>
+											</Curve>
+										</Custom>
+									</Reference>
+								</ReferenceList>
+							</RTPC>
+							<RTPC Name="" ID="{EA7C50C0-9EDA-4296-A52D-7A74F98384C3}" ShortID="435758195">
+								<Comment>明亮度反向控制 Voice LPF：数值越高，低通越少。</Comment>
+								<PropertyList>
+									<Property Name="PropertyName" Type="string" Value="Lowpass"/>
+								</PropertyList>
+								<ReferenceList>
+									<Reference Name="ControlInput">
+										<ObjectRef Name="RF_ImpactBrightness" ID="{64B54A0F-5ADD-4001-84D5-7AEFBAFD97D8}" WorkUnitID="{08AC4DBB-F258-49BB-99C8-A57B271AE769}"/>
+									</Reference>
+									<Reference Name="Curve">
+										<Custom>
+											<Curve Name="" ID="{9CAE3564-3CF3-444C-A982-A5ED56274A47}">
+												<PropertyList>
+													<Property Name="Flags" Type="int32" Value="65537"/>
+												</PropertyList>
+												<PointList>
+													<Point>
+														<XPos>0</XPos>
+														<YPos>82</YPos>
+														<Flags>5</Flags>
+														<SegmentShape>Log3</SegmentShape>
+													</Point>
+													<Point>
+														<XPos>45</XPos>
+														<YPos>34</YPos>
+														<Flags>0</Flags>
+														<SegmentShape>SCurve</SegmentShape>
+													</Point>
+													<Point>
+														<XPos>100</XPos>
+														<YPos>0</YPos>
+														<Flags>37</Flags>
+													</Point>
+												</PointList>
+											</Curve>
+										</Custom>
+									</Reference>
+								</ReferenceList>
+							</RTPC>
+							<RTPC Name="" ID="{46EDFE98-E44E-4456-AF89-433C51F8C089}" ShortID="271827307">
+								<Comment>共振尺度控制音高：小物体略升高，大物体降低。</Comment>
+								<PropertyList>
+									<Property Name="PropertyName" Type="string" Value="Pitch"/>
+								</PropertyList>
+								<ReferenceList>
+									<Reference Name="ControlInput">
+										<ObjectRef Name="RF_ObjectSize" ID="{816F0A6F-3FC7-4695-A44D-01B4C98AD44B}" WorkUnitID="{08AC4DBB-F258-49BB-99C8-A57B271AE769}"/>
+									</Reference>
+									<Reference Name="Curve">
+										<Custom>
+											<Curve Name="" ID="{15C50DF3-6645-4486-A4C5-35D9B6F7B527}">
+												<PropertyList>
+													<Property Name="Flags" Type="int32" Value="65537"/>
+												</PropertyList>
+												<PointList>
+													<Point>
+														<XPos>0</XPos>
+														<YPos>420</YPos>
+														<Flags>5</Flags>
+														<SegmentShape>SCurve</SegmentShape>
+													</Point>
+													<Point>
+														<XPos>50</XPos>
+														<YPos>0</YPos>
+														<Flags>0</Flags>
+														<SegmentShape>SCurve</SegmentShape>
+													</Point>
+													<Point>
+														<XPos>100</XPos>
+														<YPos>-520</YPos>
+														<Flags>37</Flags>
+													</Point>
+												</PointList>
+											</Curve>
+										</Custom>
+									</Reference>
+								</ReferenceList>
+							</RTPC>
+						</ObjectList>
+					</ObjectLists>
 				</RandomSequenceContainer>
 			</ChildrenList>
 		</WorkUnit>

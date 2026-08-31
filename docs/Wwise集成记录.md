@@ -25,6 +25,8 @@ UE 5.8 Demo 使用 Launcher 当前提供的 2025.1 Integration。2026.1 保留�
 6. 通过 WAAPI 自动创建 Random Container、Event、三个 Game Parameter 和 `RF_ResonanceForge` SoundBank。
 7. Windows SoundBank 生成成功：0 warning、0 error。
 8. 修正 `RootOutputPath` 后运行 Wwise Reconcile，成功创建 6 个 UE Wwise 资源和 Init Bank。
+9. 在 `RF_Impact_Metal` 上建立三条实际 RTPC 曲线：Energy → Volume、Brightness → Low-pass、ObjectSize → Pitch。
+10. 配置脚本支持重复执行：已有 WAV 不再重复导入，相同曲线不重建 GUID；连续两次运行的 Work Unit SHA-256 保持一致。
 
 ## 当前 Wwise 对象
 
@@ -37,15 +39,41 @@ UE 5.8 Demo 使用 Launcher 当前提供的 2025.1 Integration。2026.1 保留�
 | Game Parameter | `RF_ObjectSize` | 声源尺度 |
 | SoundBank | `RF_ResonanceForge` | 演示内容 Bank |
 
+## 实际塑形曲线
+
+| 输入 | Wwise 属性 | 控制点 |
+| --- | --- | --- |
+| `RF_ImpactEnergy` | Voice Volume | `0:-24 dB`、`20:-12 dB`、`55:-4 dB`、`100:0 dB` |
+| `RF_ImpactBrightness` | Voice Low-pass | `0:82`、`45:34`、`100:0` |
+| `RF_ObjectSize` | Voice Pitch | `0:+420 cent`、`50:0`、`100:-520 cent` |
+
+明亮度曲线采用反向 Low-pass：低明亮度保留较强低通，高明亮度逐渐打开高频。尺度曲线以 `50` 为原始音高，小物体升高、大物体降低。
+
 ## 可重复构建脚本
 
 - `scripts/generate_test_impacts.ps1`：确定性生成三条 48 kHz / 16-bit / mono 测试 WAV。
 - `scripts/provision_wwise_project.ps1`：经 HTTP WAAPI 创建或合并 Wwise 对象、保存工程并验证对象路径。
 - `scripts/sync_demo_plugin.ps1`：把仓库根目录的插件源码同步到 Demo。
 
+不依赖 Wwise 用户偏好时，可以先启动官方无界面 WAAPI 服务：
+
+```powershell
+& 'C:\Audiokinetic\Wwise_2025.1.10.9233\Authoring\x64\Release\bin\WwiseConsole.exe' `
+  waapi-server '.\Demo\Demo_WwiseProject\Demo_WwiseProject.wproj' `
+  --http-port 8090 --wamp-port 0 --no-source-control
+```
+
+另一个终端运行 `./scripts/provision_wwise_project.ps1`，保存完成后结束 WAAPI 服务，再执行：
+
+```powershell
+& 'C:\Audiokinetic\Wwise_2025.1.10.9233\Authoring\x64\Release\bin\WwiseConsole.exe' `
+  generate-soundbank '.\Demo\Demo_WwiseProject\Demo_WwiseProject.wproj' `
+  --platform Windows --bank RF_ResonanceForge --no-source-control
+```
+
 ## 当前边界与后续
 
 - 物理碰撞 Actor、数字波导弦、MIDI 输入桥和 Wwise Event / RTPC 发布已经进入基础演示关卡。
-- UE 侧会真实发送三个 RTPC；Wwise 工程仍需继续打磨对应的音量、Pitch 与滤波曲线，避免把“参数抵达 Profiler”误写成最终混音已经完成。
+- UE 侧会真实发送三个 RTPC，Wwise 端已建立音量、Pitch 与 Low-pass 曲线；当前尚未加入压缩器、材质 Switch 分层或最终响度校准。
 - 作品展示优先保留真实工作台、场景联动与 Wwise Profiler 截图，不要求为这个轻量工具单独录制视频。
 - 2026.1 仅作为独立研究环境；Demo 在 Audiokinetic 发布兼容版本前继续锁定 2025.1 Integration。

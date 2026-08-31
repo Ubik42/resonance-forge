@@ -5,21 +5,12 @@
 			<ChildrenList>
 				<GameParameter Name="RF_ImpactEnergy" ID="{C85DD4C5-A340-45E3-99C3-84B1341D5E39}">
 					<Comment>共振铸造台 UE 桥接参数；输入范围 0–100。</Comment>
-					<PropertyList>
-						<Property Name="InitialValue" Type="Real64" Value="0"/>
-					</PropertyList>
 				</GameParameter>
 				<GameParameter Name="RF_ImpactBrightness" ID="{64B54A0F-5ADD-4001-84D5-7AEFBAFD97D8}">
 					<Comment>共振铸造台 UE 桥接参数；输入范围 0–100。</Comment>
-					<PropertyList>
-						<Property Name="InitialValue" Type="Real64" Value="0"/>
-					</PropertyList>
 				</GameParameter>
 				<GameParameter Name="RF_ObjectSize" ID="{816F0A6F-3FC7-4695-A44D-01B4C98AD44B}">
 					<Comment>共振铸造台 UE 桥接参数；输入范围 0–100。</Comment>
-					<PropertyList>
-						<Property Name="InitialValue" Type="Real64" Value="0"/>
-					</PropertyList>
 				</GameParameter>
 			</ChildrenList>
 		</WorkUnit>

@@ -10,7 +10,7 @@
     "Type": "User",
     "GUID": "{A5052D09-03B1-41D5-B575-5654906DC94A}",
     "Language": "SFX",
-    "Hash": "{F65EF8FC-0816-FE3D-478C-8FDCE7264084}",
+    "Hash": "{7E6B939C-76D2-A1CF-F693-4CB2B3566180}",
     "ObjectPath": "\\SoundBanks\\Default Work Unit\\RF_ResonanceForge",
     "ShortName": "RF_ResonanceForge",
     "Path": "RF_ResonanceForge.bnk",
@@ -61,9 +61,29 @@
        }
       ]
      }
+    ],
+    "GameParameters": [
+     {
+      "Id": "1768791903",
+      "Name": "RF_ImpactBrightness",
+      "ObjectPath": "\\Game Parameters\\Default Work Unit\\RF_ImpactBrightness",
+      "GUID": "{64B54A0F-5ADD-4001-84D5-7AEFBAFD97D8}"
+     },
+     {
+      "Id": "3693279050",
+      "Name": "RF_ImpactEnergy",
+      "ObjectPath": "\\Game Parameters\\Default Work Unit\\RF_ImpactEnergy",
+      "GUID": "{C85DD4C5-A340-45E3-99C3-84B1341D5E39}"
+     },
+     {
+      "Id": "3781117686",
+      "Name": "RF_ObjectSize",
+      "ObjectPath": "\\Game Parameters\\Default Work Unit\\RF_ObjectSize",
+      "GUID": "{816F0A6F-3FC7-4695-A44D-01B4C98AD44B}"
+     }
     ]
    }
   ],
-  "FileHash": "{CFD53D6C-0422-EDC6-29B6-6ED6B48B6354}"
+  "FileHash": "{80F0B0B9-3324-FE85-6B33-B8661456BD9C}"
  }
 }

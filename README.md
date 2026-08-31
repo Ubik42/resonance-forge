@@ -8,7 +8,7 @@
 ![Unreal Engine 5.8](https://img.shields.io/badge/Unreal_Engine-5.8.1-0E1128?logo=unrealengine&logoColor=white)
 ![Wwise 2025.1](https://img.shields.io/badge/Wwise-2025.1-00549F)
 ![Platform](https://img.shields.io/badge/Platform-Windows_Editor-0078D4?logo=windows&logoColor=white)
-![Version](https://img.shields.io/badge/Version-0.9.0-D96B2B)
+![Version](https://img.shields.io/badge/Version-0.10.0-D96B2B)
 ![License](https://img.shields.io/badge/License-MIT-2EA44F)
 
 </div>
@@ -170,12 +170,15 @@ flowchart LR
 
 ## Wwise 映射
 
-| 类型 | 名称 | 数据来源 |
-| --- | --- | --- |
-| Event | `Play_RF_Impact_Metal` | 碰撞、MIDI 或面板试听 |
-| RTPC | `RF_ImpactEnergy` | 碰撞冲量 / MIDI Velocity |
-| RTPC | `RF_ImpactBrightness` | 相对速度 / MIDI CC1 |
-| RTPC | `RF_ObjectSize` | 场景对象共振尺度 |
+`Play_RF_Impact_Metal` 由碰撞、MIDI 或面板试听触发。三个 UE 参数进入 Wwise 后继续塑造同一个 `RF_Impact_Metal` Random Container：
+
+| Game Parameter | 数据来源 | Wwise 属性 | 曲线范围 |
+| --- | --- | --- | --- |
+| `RF_ImpactEnergy` | 碰撞冲量 / MIDI Velocity | Voice Volume | `-24 dB → 0 dB` |
+| `RF_ImpactBrightness` | 相对速度 / MIDI CC1 | Voice Low-pass | `82 → 0`，数值越高越明亮 |
+| `RF_ObjectSize` | 场景对象共振尺度 | Voice Pitch | `+420 → -520 cent` |
+
+曲线由 `scripts/provision_wwise_project.ps1` 通过 WAAPI 写入。脚本会先读取现有声音对象，并逐层核对 RTPC 与 Curve；配置相同时不重复导入 WAV，也不重建曲线 GUID。
 
 ## MIDI 映射
 
@@ -221,7 +224,7 @@ ResonanceForge
 | 物理碰撞映射测试 | 通过 |
 | 内置声学预设测试 | 通过 |
 | Wwise 生成资源检查 | 通过 |
-| Wwise RTPC 映射检查 | 通过 |
+| Wwise RTPC 映射检查 | 3 条曲线与 Windows SoundBank 通过 |
 | 基础地图磁盘重载 | 3 个落球 + 1 个波导弦通过 |
 | Carpenter's Workshop UE 5.8 加载 | 通过，本机可选依赖 |
 
