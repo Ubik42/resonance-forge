@@ -13,6 +13,27 @@ public:
     virtual void ShutdownModule() override;
 
 private:
+    struct FLocalRecipeSnapshot
+    {
+        FName Preset = TEXT("拉丝钢");
+        EResonanceModelType Model = EResonanceModelType::ModalImpact;
+        float Energy = 0.78f;
+        float Brightness = 0.58f;
+        float Size = 0.5f;
+        float StrikePosition = 0.5f;
+        float Sustain = 0.90f;
+        float Damping = 0.36f;
+        float Coupling = 0.22f;
+        float Pickup = 0.35f;
+        EResonanceExcitationType Excitation = EResonanceExcitationType::Pick;
+        EResonanceVelocityCurve VelocityCurve = EResonanceVelocityCurve::Linear;
+        int32 MidiNote = 55;
+        float InputVelocity = 0.76f;
+        float BowSpeed = 0.58f;
+        float BowPressure = 0.55f;
+        TArray<FResonanceMode> Modes;
+    };
+
     void RegisterMenus();
     TSharedRef<class SDockTab> SpawnWorkbench(const class FSpawnTabArgs& Args);
     class AResonanceForgeImpactInstrumentActor* ResolveInstrument() const;
@@ -61,6 +82,7 @@ private:
     FText GetStatusText() const;
     FText GetComparisonText() const;
     FText GetRecipeSlotText(int32 SlotIndex) const;
+    FText GetRecipeSlotDetailText(int32 SlotIndex) const;
     FText GetMidiStatusText() const;
     FText GetWwiseStatusText() const;
     FText GetWwiseVolumeText() const;
@@ -84,7 +106,7 @@ private:
     bool HasRecentSampleLabel(int32 LabelIndex) const;
     void RefreshRecentSampleLabels();
     bool HasRecipeSlot(int32 SlotIndex) const;
-    bool ReadRecipeSlot(int32 SlotIndex, FName& OutPreset, EResonanceModelType& OutModel, float& OutEnergy, float& OutBrightness, float& OutSize, float& OutSustain, float& OutDamping, float& OutCoupling, float& OutPickup, EResonanceExcitationType& OutExcitation, EResonanceVelocityCurve& OutVelocityCurve) const;
+    bool ReadRecipeSlot(int32 SlotIndex, FLocalRecipeSnapshot& OutRecipe) const;
 
     FName ActivePreset = TEXT("拉丝钢");
     EResonanceModelType ActiveModel = EResonanceModelType::ModalImpact;

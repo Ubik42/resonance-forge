@@ -28,6 +28,7 @@
 #include "Misc/DateTime.h"
 #include "Misc/EngineVersion.h"
 #include "Misc/FileHelper.h"
+#include "String/LexFromString.h"
 #include "Misc/PackageName.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
@@ -81,6 +82,77 @@ namespace ResonanceForgeEditor
             return TEXT("Play_RF_Impact_Glass");
         }
         return TEXT("Play_RF_Impact_Steel");
+    }
+
+    FString EncodeRecipeModes(const TArray<FResonanceMode>& Modes)
+    {
+        TArray<FString> EncodedModes;
+        EncodedModes.Reserve(Modes.Num());
+        for (const FResonanceMode& Mode : Modes)
+        {
+            EncodedModes.Add(FString::Printf(
+                TEXT("%.6g,%.6g,%.6g"),
+                Mode.FrequencyHz,
+                Mode.Gain,
+                Mode.DecaySeconds));
+        }
+        return FString::Join(EncodedModes, TEXT(";"));
+    }
+
+    bool DecodeRecipeModes(const FString& Encoded, TArray<FResonanceMode>& OutModes)
+    {
+        TArray<FString> ModeTokens;
+        Encoded.ParseIntoArray(ModeTokens, TEXT(";"), true);
+        if (ModeTokens.IsEmpty() || ModeTokens.Num() > 32)
+        {
+            return false;
+        }
+
+        TArray<FResonanceMode> ParsedModes;
+        ParsedModes.Reserve(ModeTokens.Num());
+        for (const FString& ModeToken : ModeTokens)
+        {
+            TArray<FString> Values;
+            ModeToken.ParseIntoArray(Values, TEXT(","), false);
+            if (Values.Num() != 3)
+            {
+                return false;
+            }
+
+            float Frequency = 0.0f;
+            float Gain = 0.0f;
+            float Decay = 0.0f;
+            if (!LexTryParseString(Frequency, *Values[0])
+                || !LexTryParseString(Gain, *Values[1])
+                || !LexTryParseString(Decay, *Values[2])
+                || !FMath::IsFinite(Frequency)
+                || !FMath::IsFinite(Gain)
+                || !FMath::IsFinite(Decay)
+                || Frequency < 20.0f || Frequency > 20000.0f
+                || Gain < 0.0f || Gain > 4.0f
+                || Decay < 0.01f || Decay > 20.0f)
+            {
+                return false;
+            }
+
+            FResonanceMode& Mode = ParsedModes.AddDefaulted_GetRef();
+            Mode.FrequencyHz = Frequency;
+            Mode.Gain = Gain;
+            Mode.DecaySeconds = Decay;
+        }
+
+        OutModes = MoveTemp(ParsedModes);
+        return true;
+    }
+
+    FString GetMidiNoteName(const int32 MidiNote)
+    {
+        static const TCHAR* NoteNames[] = {
+            TEXT("C"), TEXT("C#"), TEXT("D"), TEXT("D#"), TEXT("E"), TEXT("F"),
+            TEXT("F#"), TEXT("G"), TEXT("G#"), TEXT("A"), TEXT("A#"), TEXT("B")
+        };
+        const int32 SafeNote = FMath::Clamp(MidiNote, 0, 127);
+        return FString::Printf(TEXT("%s%d"), NoteNames[SafeNote % 12], SafeNote / 12 - 1);
     }
 
     TSharedRef<SWidget> WorkspaceTitle(const FText& Title, const FText& Detail)
@@ -169,6 +241,13 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
         SampleExportName = TEXT("RF_Bow_G3");
         ApplyWaveguideParameters();
         TriggerKeybedNote(55, 0.76f);
+        if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
+        {
+            Instrument->MidiBowPressure = 0.68f;
+        }
+        SaveRecipeSlot(0);
+        ApplyBowGaugePressure(0.24f, false);
+        RecallRecipeSlot(0);
     }
     FGlobalTabmanager::Get()->TryInvokeTab(ResonanceForgeEditor::TabName);
 
@@ -651,7 +730,7 @@ void FResonanceForgeEditorModule::AuditionCurrentSound(const FText& ChangeLabel)
         Instrument->TriggerInstrument(
             PreviewEnergy,
             PreviewBrightness,
-            60,
+            LastKeybedNote,
             PreviewStrikePosition,
             false,
             Instrument->MidiBowPressure);
@@ -852,17 +931,7 @@ FReply FResonanceForgeEditorModule::ClearReference()
 
 bool FResonanceForgeEditorModule::ReadRecipeSlot(
     const int32 SlotIndex,
-    FName& OutPreset,
-    EResonanceModelType& OutModel,
-    float& OutEnergy,
-    float& OutBrightness,
-    float& OutSize,
-    float& OutSustain,
-    float& OutDamping,
-    float& OutCoupling,
-    float& OutPickup,
-    EResonanceExcitationType& OutExcitation,
-    EResonanceVelocityCurve& OutVelocityCurve) const
+    FLocalRecipeSnapshot& OutRecipe) const
 {
     if (!GConfig || SlotIndex < 0 || SlotIndex > 2)
     {
@@ -877,92 +946,128 @@ bool FResonanceForgeEditorModule::ReadRecipeSlot(
         return false;
     }
 
+    OutRecipe = FLocalRecipeSnapshot();
     FString PresetString;
     int32 ModelValue = 0;
     int32 ExcitationValue = static_cast<int32>(EResonanceExcitationType::Pick);
     int32 VelocityCurveValue = static_cast<int32>(EResonanceVelocityCurve::Linear);
     GConfig->GetString(*Section, *(Prefix + TEXT(".Preset")), PresetString, GEditorPerProjectIni);
     GConfig->GetInt(*Section, *(Prefix + TEXT(".Model")), ModelValue, GEditorPerProjectIni);
-    GConfig->GetFloat(*Section, *(Prefix + TEXT(".Energy")), OutEnergy, GEditorPerProjectIni);
-    GConfig->GetFloat(*Section, *(Prefix + TEXT(".Brightness")), OutBrightness, GEditorPerProjectIni);
-    GConfig->GetFloat(*Section, *(Prefix + TEXT(".Size")), OutSize, GEditorPerProjectIni);
-    OutSustain = 0.90f;
-    OutDamping = 0.36f;
-    OutCoupling = 0.22f;
-    OutPickup = 0.35f;
-    GConfig->GetFloat(*Section, *(Prefix + TEXT(".Sustain")), OutSustain, GEditorPerProjectIni);
-    GConfig->GetFloat(*Section, *(Prefix + TEXT(".Damping")), OutDamping, GEditorPerProjectIni);
-    GConfig->GetFloat(*Section, *(Prefix + TEXT(".Coupling")), OutCoupling, GEditorPerProjectIni);
-    GConfig->GetFloat(*Section, *(Prefix + TEXT(".Pickup")), OutPickup, GEditorPerProjectIni);
+    GConfig->GetFloat(*Section, *(Prefix + TEXT(".Energy")), OutRecipe.Energy, GEditorPerProjectIni);
+    GConfig->GetFloat(*Section, *(Prefix + TEXT(".Brightness")), OutRecipe.Brightness, GEditorPerProjectIni);
+    GConfig->GetFloat(*Section, *(Prefix + TEXT(".Size")), OutRecipe.Size, GEditorPerProjectIni);
+    GConfig->GetFloat(*Section, *(Prefix + TEXT(".StrikePosition")), OutRecipe.StrikePosition, GEditorPerProjectIni);
+    GConfig->GetFloat(*Section, *(Prefix + TEXT(".Sustain")), OutRecipe.Sustain, GEditorPerProjectIni);
+    GConfig->GetFloat(*Section, *(Prefix + TEXT(".Damping")), OutRecipe.Damping, GEditorPerProjectIni);
+    GConfig->GetFloat(*Section, *(Prefix + TEXT(".Coupling")), OutRecipe.Coupling, GEditorPerProjectIni);
+    GConfig->GetFloat(*Section, *(Prefix + TEXT(".Pickup")), OutRecipe.Pickup, GEditorPerProjectIni);
     GConfig->GetInt(*Section, *(Prefix + TEXT(".Excitation")), ExcitationValue, GEditorPerProjectIni);
     GConfig->GetInt(*Section, *(Prefix + TEXT(".VelocityCurve")), VelocityCurveValue, GEditorPerProjectIni);
-    OutPreset = PresetString.IsEmpty() ? FName(TEXT("拉丝钢")) : FName(*PresetString);
-    OutModel = ModelValue == static_cast<int32>(EResonanceModelType::WaveguideString)
+    GConfig->GetInt(*Section, *(Prefix + TEXT(".MidiNote")), OutRecipe.MidiNote, GEditorPerProjectIni);
+    GConfig->GetFloat(*Section, *(Prefix + TEXT(".InputVelocity")), OutRecipe.InputVelocity, GEditorPerProjectIni);
+    OutRecipe.BowSpeed = OutRecipe.Brightness;
+    OutRecipe.BowPressure = OutRecipe.Brightness;
+    GConfig->GetFloat(*Section, *(Prefix + TEXT(".BowSpeed")), OutRecipe.BowSpeed, GEditorPerProjectIni);
+    GConfig->GetFloat(*Section, *(Prefix + TEXT(".BowPressure")), OutRecipe.BowPressure, GEditorPerProjectIni);
+
+    OutRecipe.Preset = PresetString.IsEmpty() ? FName(TEXT("拉丝钢")) : FName(*PresetString);
+    if (!UResonanceForgeSynthComponent::GetBuiltInPresetNames().Contains(OutRecipe.Preset))
+    {
+        OutRecipe.Preset = TEXT("拉丝钢");
+    }
+    OutRecipe.Model = ModelValue == static_cast<int32>(EResonanceModelType::WaveguideString)
         ? EResonanceModelType::WaveguideString
         : EResonanceModelType::ModalImpact;
-    OutEnergy = FMath::Clamp(OutEnergy, 0.0f, 1.0f);
-    OutBrightness = FMath::Clamp(OutBrightness, 0.0f, 1.0f);
-    OutSize = FMath::Clamp(OutSize, 0.0f, 1.0f);
-    OutSustain = FMath::Clamp(OutSustain, 0.0f, 1.0f);
-    OutDamping = FMath::Clamp(OutDamping, 0.0f, 1.0f);
-    OutCoupling = FMath::Clamp(OutCoupling, 0.0f, 1.0f);
-    OutPickup = FMath::Clamp(OutPickup, 0.0f, 1.0f);
-    OutExcitation = ExcitationValue == static_cast<int32>(EResonanceExcitationType::Finger)
+    OutRecipe.Energy = FMath::Clamp(OutRecipe.Energy, 0.0f, 1.0f);
+    OutRecipe.Brightness = FMath::Clamp(OutRecipe.Brightness, 0.0f, 1.0f);
+    OutRecipe.Size = FMath::Clamp(OutRecipe.Size, 0.0f, 1.0f);
+    OutRecipe.StrikePosition = FMath::Clamp(OutRecipe.StrikePosition, 0.0f, 1.0f);
+    OutRecipe.Sustain = FMath::Clamp(OutRecipe.Sustain, 0.0f, 1.0f);
+    OutRecipe.Damping = FMath::Clamp(OutRecipe.Damping, 0.0f, 1.0f);
+    OutRecipe.Coupling = FMath::Clamp(OutRecipe.Coupling, 0.0f, 1.0f);
+    OutRecipe.Pickup = FMath::Clamp(OutRecipe.Pickup, 0.0f, 1.0f);
+    OutRecipe.MidiNote = FMath::Clamp(OutRecipe.MidiNote, 0, 127);
+    OutRecipe.InputVelocity = FMath::Clamp(OutRecipe.InputVelocity, 0.0f, 1.0f);
+    OutRecipe.BowSpeed = FMath::Clamp(OutRecipe.BowSpeed, 0.0f, 1.0f);
+    OutRecipe.BowPressure = FMath::Clamp(OutRecipe.BowPressure, 0.0f, 1.0f);
+    OutRecipe.Excitation = ExcitationValue == static_cast<int32>(EResonanceExcitationType::Finger)
         ? EResonanceExcitationType::Finger
         : ExcitationValue == static_cast<int32>(EResonanceExcitationType::Hammer)
             ? EResonanceExcitationType::Hammer
             : ExcitationValue == static_cast<int32>(EResonanceExcitationType::Bow)
                 ? EResonanceExcitationType::Bow
                 : EResonanceExcitationType::Pick;
-    OutVelocityCurve = VelocityCurveValue == static_cast<int32>(EResonanceVelocityCurve::SoftTouch)
+    OutRecipe.VelocityCurve = VelocityCurveValue == static_cast<int32>(EResonanceVelocityCurve::SoftTouch)
         ? EResonanceVelocityCurve::SoftTouch
         : VelocityCurveValue == static_cast<int32>(EResonanceVelocityCurve::HeavyHand)
             ? EResonanceVelocityCurve::HeavyHand
             : EResonanceVelocityCurve::Linear;
+
+    FString EncodedModes;
+    if (!GConfig->GetString(*Section, *(Prefix + TEXT(".Modes")), EncodedModes, GEditorPerProjectIni)
+        || !ResonanceForgeEditor::DecodeRecipeModes(EncodedModes, OutRecipe.Modes))
+    {
+        OutRecipe.Modes = UResonanceForgeSynthComponent::GetBuiltInModes(OutRecipe.Preset);
+    }
     return true;
 }
 
 bool FResonanceForgeEditorModule::HasRecipeSlot(const int32 SlotIndex) const
 {
-    FName Preset;
-    EResonanceModelType Model = EResonanceModelType::ModalImpact;
-    float Energy = 0.0f;
-    float Brightness = 0.0f;
-    float Size = 0.0f;
-    float Sustain = 0.0f;
-    float Damping = 0.0f;
-    float Coupling = 0.0f;
-    float Pickup = 0.0f;
-    EResonanceExcitationType Excitation = EResonanceExcitationType::Pick;
-    EResonanceVelocityCurve SavedVelocityCurve = EResonanceVelocityCurve::Linear;
-    return ReadRecipeSlot(SlotIndex, Preset, Model, Energy, Brightness, Size, Sustain, Damping, Coupling, Pickup, Excitation, SavedVelocityCurve);
+    FLocalRecipeSnapshot Recipe;
+    return ReadRecipeSlot(SlotIndex, Recipe);
 }
 
 FText FResonanceForgeEditorModule::GetRecipeSlotText(const int32 SlotIndex) const
 {
     static const TCHAR* SlotNames[] = {TEXT("甲槽"), TEXT("乙槽"), TEXT("丙槽")};
-    FName Preset;
-    EResonanceModelType Model = EResonanceModelType::ModalImpact;
-    float Energy = 0.0f;
-    float Brightness = 0.0f;
-    float Size = 0.0f;
-    float Sustain = 0.0f;
-    float Damping = 0.0f;
-    float Coupling = 0.0f;
-    float Pickup = 0.0f;
-    EResonanceExcitationType Excitation = EResonanceExcitationType::Pick;
-    EResonanceVelocityCurve SavedVelocityCurve = EResonanceVelocityCurve::Linear;
-    if (!ReadRecipeSlot(SlotIndex, Preset, Model, Energy, Brightness, Size, Sustain, Damping, Coupling, Pickup, Excitation, SavedVelocityCurve))
+    FLocalRecipeSnapshot Recipe;
+    if (!ReadRecipeSlot(SlotIndex, Recipe))
     {
-        return FText::Format(NSLOCTEXT("ResonanceForge", "EmptyRecipeSlot", "{0} · 空"), FText::FromString(SlotNames[SlotIndex]));
+        return FText::Format(NSLOCTEXT("ResonanceForge", "EmptyRecipeSlot", "{0} · 待铸"), FText::FromString(SlotNames[SlotIndex]));
     }
 
-    const FText ModelText = Model == EResonanceModelType::WaveguideString
+    return FText::Format(
+        NSLOCTEXT("ResonanceForge", "FilledRecipeSlot", "{0} · {1}"),
+        FText::FromString(SlotNames[SlotIndex]), FText::FromName(Recipe.Preset));
+}
+
+FText FResonanceForgeEditorModule::GetRecipeSlotDetailText(const int32 SlotIndex) const
+{
+    FLocalRecipeSnapshot Recipe;
+    if (!ReadRecipeSlot(SlotIndex, Recipe))
+    {
+        return NSLOCTEXT("ResonanceForge", "EmptyRecipeSlotDetail", "把当前声音压进这块铭牌");
+    }
+
+    const FText ModelText = Recipe.Model == EResonanceModelType::WaveguideString
         ? NSLOCTEXT("ResonanceForge", "RecipeWaveguide", "波导弦")
         : NSLOCTEXT("ResonanceForge", "RecipeModal", "撞击体");
+    if (Recipe.Model == EResonanceModelType::WaveguideString)
+    {
+        const FText GestureText = Recipe.Excitation == EResonanceExcitationType::Bow
+            ? NSLOCTEXT("ResonanceForge", "RecipeBow", "弓擦")
+            : Recipe.Excitation == EResonanceExcitationType::Hammer
+                ? NSLOCTEXT("ResonanceForge", "RecipeHammer", "锤击")
+                : Recipe.Excitation == EResonanceExcitationType::Finger
+                    ? NSLOCTEXT("ResonanceForge", "RecipeFinger", "指腹")
+                    : NSLOCTEXT("ResonanceForge", "RecipePick", "拨片");
+        return FText::Format(
+            NSLOCTEXT("ResonanceForge", "WaveguideRecipeDetail", "{0} · {1} · {2}\n弓速 {3}% / 弓压 {4}% · {5} 根共振齿"),
+            ModelText,
+            GestureText,
+            FText::FromString(ResonanceForgeEditor::GetMidiNoteName(Recipe.MidiNote)),
+            FText::AsNumber(FMath::RoundToInt(Recipe.BowSpeed * 100.0f)),
+            FText::AsNumber(FMath::RoundToInt(Recipe.BowPressure * 100.0f)),
+            FText::AsNumber(Recipe.Modes.Num()));
+    }
     return FText::Format(
-        NSLOCTEXT("ResonanceForge", "FilledRecipeSlot", "{0} · {1} / {2}"),
-        FText::FromString(SlotNames[SlotIndex]), FText::FromName(Preset), ModelText);
+        NSLOCTEXT("ResonanceForge", "ModalRecipeDetail", "{0} · 落点 {1}%\n能量 {2}% / 明亮度 {3}% · {4} 根共振齿"),
+        ModelText,
+        FText::AsNumber(FMath::RoundToInt(Recipe.StrikePosition * 100.0f)),
+        FText::AsNumber(FMath::RoundToInt(Recipe.Energy * 100.0f)),
+        FText::AsNumber(FMath::RoundToInt(Recipe.Brightness * 100.0f)),
+        FText::AsNumber(Recipe.Modes.Num()));
 }
 
 FReply FResonanceForgeEditorModule::SaveRecipeSlot(const int32 SlotIndex)
@@ -974,7 +1079,11 @@ FReply FResonanceForgeEditorModule::SaveRecipeSlot(const int32 SlotIndex)
 
     const FString Section(TEXT("ResonanceForge.UserRecipes"));
     const FString Prefix = FString::Printf(TEXT("Slot%d"), SlotIndex + 1);
+    const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+    const float BowSpeed = Instrument ? Instrument->MidiBrightness : PreviewBrightness;
+    const float BowPressure = Instrument ? Instrument->MidiBowPressure : PreviewBrightness;
     GConfig->SetBool(*Section, *(Prefix + TEXT(".Valid")), true, GEditorPerProjectIni);
+    GConfig->SetInt(*Section, *(Prefix + TEXT(".SchemaVersion")), 2, GEditorPerProjectIni);
     GConfig->SetString(*Section, *(Prefix + TEXT(".Preset")), *ActivePreset.ToString(), GEditorPerProjectIni);
     GConfig->SetInt(*Section, *(Prefix + TEXT(".Model")), static_cast<int32>(ActiveModel), GEditorPerProjectIni);
     GConfig->SetFloat(*Section, *(Prefix + TEXT(".Energy")), PreviewEnergy, GEditorPerProjectIni);
@@ -987,6 +1096,11 @@ FReply FResonanceForgeEditorModule::SaveRecipeSlot(const int32 SlotIndex)
     GConfig->SetFloat(*Section, *(Prefix + TEXT(".Pickup")), WaveguidePickup, GEditorPerProjectIni);
     GConfig->SetInt(*Section, *(Prefix + TEXT(".Excitation")), static_cast<int32>(WaveguideExcitation), GEditorPerProjectIni);
     GConfig->SetInt(*Section, *(Prefix + TEXT(".VelocityCurve")), static_cast<int32>(VelocityCurve), GEditorPerProjectIni);
+    GConfig->SetInt(*Section, *(Prefix + TEXT(".MidiNote")), LastKeybedNote, GEditorPerProjectIni);
+    GConfig->SetFloat(*Section, *(Prefix + TEXT(".InputVelocity")), LastKeybedVelocity, GEditorPerProjectIni);
+    GConfig->SetFloat(*Section, *(Prefix + TEXT(".BowSpeed")), BowSpeed, GEditorPerProjectIni);
+    GConfig->SetFloat(*Section, *(Prefix + TEXT(".BowPressure")), BowPressure, GEditorPerProjectIni);
+    GConfig->SetString(*Section, *(Prefix + TEXT(".Modes")), *ResonanceForgeEditor::EncodeRecipeModes(ActiveModes), GEditorPerProjectIni);
     GConfig->Flush(false, GEditorPerProjectIni);
     LastStatus = FText::Format(
         NSLOCTEXT("ResonanceForge", "RecipeSaved", "已把当前声音存入{0} · 仅保存在本机工程设置中"),
@@ -996,49 +1110,48 @@ FReply FResonanceForgeEditorModule::SaveRecipeSlot(const int32 SlotIndex)
 
 FReply FResonanceForgeEditorModule::RecallRecipeSlot(const int32 SlotIndex)
 {
-    FName Preset;
-    EResonanceModelType Model = EResonanceModelType::ModalImpact;
-    float Energy = 0.0f;
-    float Brightness = 0.0f;
-    float Size = 0.0f;
-    float Sustain = 0.0f;
-    float Damping = 0.0f;
-    float Coupling = 0.0f;
-    float Pickup = 0.0f;
-    EResonanceExcitationType Excitation = EResonanceExcitationType::Pick;
-    EResonanceVelocityCurve SavedVelocityCurve = EResonanceVelocityCurve::Linear;
-    if (!ReadRecipeSlot(SlotIndex, Preset, Model, Energy, Brightness, Size, Sustain, Damping, Coupling, Pickup, Excitation, SavedVelocityCurve))
+    FLocalRecipeSnapshot Recipe;
+    if (!ReadRecipeSlot(SlotIndex, Recipe))
     {
         LastStatus = NSLOCTEXT("ResonanceForge", "RecipeSlotEmpty", "这个配方槽还是空的 · 先把当前声音存进去");
         return FReply::Handled();
     }
 
-    ActiveModel = Model;
-    ActivePreset = Preset;
-    PreviewEnergy = Energy;
-    PreviewBrightness = Brightness;
-    PreviewSize = Size;
-    WaveguideSustain = Sustain;
-    WaveguideDamping = Damping;
-    WaveguideCoupling = Coupling;
-    WaveguidePickup = Pickup;
-    WaveguideExcitation = Excitation;
-    VelocityCurve = SavedVelocityCurve;
-    const FString RecipeSection(TEXT("ResonanceForge.UserRecipes"));
-    const FString RecipePrefix = FString::Printf(TEXT("Slot%d"), SlotIndex + 1);
-    PreviewStrikePosition = 0.5f;
-    GConfig->GetFloat(*RecipeSection, *(RecipePrefix + TEXT(".StrikePosition")), PreviewStrikePosition, GEditorPerProjectIni);
-    PreviewStrikePosition = FMath::Clamp(PreviewStrikePosition, 0.0f, 1.0f);
+    ActiveModel = Recipe.Model;
+    ActivePreset = Recipe.Preset;
+    PreviewEnergy = Recipe.Energy;
+    PreviewBrightness = Recipe.BowSpeed;
+    PreviewSize = Recipe.Size;
+    PreviewStrikePosition = Recipe.StrikePosition;
+    WaveguideSustain = Recipe.Sustain;
+    WaveguideDamping = Recipe.Damping;
+    WaveguideCoupling = Recipe.Coupling;
+    WaveguidePickup = Recipe.Pickup;
+    WaveguideExcitation = Recipe.Excitation;
+    VelocityCurve = Recipe.VelocityCurve;
+    LastKeybedNote = Recipe.MidiNote;
+    LastKeybedVelocity = Recipe.InputVelocity;
     ApplyModel(ActiveModel);
     ApplyPreset(ActivePreset);
+    ActiveModes = Recipe.Modes;
+    SelectedModeIndex = FMath::Clamp(SelectedModeIndex, 0, FMath::Max(0, ActiveModes.Num() - 1));
+    ApplyModalModes(false, FText::GetEmpty());
     ApplyWaveguideParameters();
     ApplyStrikePosition(PreviewStrikePosition, false);
     if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
     {
         Instrument->ObjectSize = PreviewSize;
         Instrument->VelocityCurve = VelocityCurve;
+        Instrument->MidiBrightness = Recipe.BowSpeed;
+        Instrument->MidiBowPressure = Recipe.BowPressure;
+        if (Instrument->NativeSynth)
+        {
+            Instrument->NativeSynth->SetBowSpeed(Recipe.BowSpeed);
+            Instrument->NativeSynth->SetBowPressure(Recipe.BowPressure);
+        }
         Instrument->MarkPackageDirty();
     }
+    AuditionCurrentSound(NSLOCTEXT("ResonanceForge", "RecipeRecallAudition", "配方铭牌回炉"));
     LastStatus = FText::Format(
         NSLOCTEXT("ResonanceForge", "RecipeRecalled", "已召回{0} · 模型、材质与演奏参数已同步到当前对象"),
         FText::FromString(SlotIndex == 0 ? TEXT("甲槽") : (SlotIndex == 1 ? TEXT("乙槽") : TEXT("丙槽"))));
@@ -2453,19 +2566,37 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
     {
         return SNew(SBorder)
             .BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel")))
-            .BorderBackgroundColor(FLinearColor(0.028f, 0.032f, 0.030f, 1.0f))
-            .Padding(FMargin(12, 10))
+            .BorderBackgroundColor_Lambda([this, SlotIndex, Color]
+            {
+                return HasRecipeSlot(SlotIndex)
+                    ? FLinearColor(Color.R * 0.075f, Color.G * 0.075f, Color.B * 0.075f, 1.0f)
+                    : FLinearColor(0.024f, 0.027f, 0.026f, 1.0f);
+            })
+            .Padding(FMargin(12, 11))
             [
-                SNew(SVerticalBox)
-                + SVerticalBox::Slot().AutoHeight()
-                [SNew(STextBlock).Text_Lambda([this, SlotIndex]{ return GetRecipeSlotText(SlotIndex); }).ColorAndOpacity(Color).Font(FAppStyle::GetFontStyle(TEXT("BoldFont")))]
-                + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
+                SNew(SHorizontalBox)
+                + SHorizontalBox::Slot().AutoWidth().Padding(0, 1, 10, 0)
                 [
-                    SNew(SHorizontalBox)
-                    + SHorizontalBox::Slot().FillWidth(1.0f).Padding(0, 0, 4, 0)
-                    [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "StoreRecipe", "存入当前")).OnClicked_Lambda([this, SlotIndex]{ return SaveRecipeSlot(SlotIndex); })]
-                    + SHorizontalBox::Slot().FillWidth(1.0f).Padding(4, 0, 0, 0)
-                    [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "RecallRecipe", "召回")).IsEnabled_Lambda([this, SlotIndex]{ return HasRecipeSlot(SlotIndex); }).OnClicked_Lambda([this, SlotIndex]{ return RecallRecipeSlot(SlotIndex); })]
+                    SNew(SBorder)
+                    .BorderImage(FAppStyle::GetBrush(TEXT("WhiteBrush")))
+                    .BorderBackgroundColor(Color)
+                    .Padding(FMargin(2, 18))
+                ]
+                + SHorizontalBox::Slot().FillWidth(1.0f)
+                [
+                    SNew(SVerticalBox)
+                    + SVerticalBox::Slot().AutoHeight()
+                    [SNew(STextBlock).Text_Lambda([this, SlotIndex]{ return GetRecipeSlotText(SlotIndex); }).ColorAndOpacity(Color).Font(FAppStyle::GetFontStyle(TEXT("BoldFont")))]
+                    + SVerticalBox::Slot().AutoHeight().Padding(0, 5, 0, 0)
+                    [SNew(STextBlock).Text_Lambda([this, SlotIndex]{ return GetRecipeSlotDetailText(SlotIndex); }).ColorAndOpacity(Muted).AutoWrapText(true)]
+                    + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
+                    [
+                        SNew(SHorizontalBox)
+                        + SHorizontalBox::Slot().FillWidth(1.0f).Padding(0, 0, 4, 0)
+                        [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "StoreRecipe", "压入铭牌")).OnClicked_Lambda([this, SlotIndex]{ return SaveRecipeSlot(SlotIndex); })]
+                        + SHorizontalBox::Slot().FillWidth(1.0f).Padding(4, 0, 0, 0)
+                        [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "RecallRecipe", "回炉试听")).IsEnabled_Lambda([this, SlotIndex]{ return HasRecipeSlot(SlotIndex); }).OnClicked_Lambda([this, SlotIndex]{ return RecallRecipeSlot(SlotIndex); })]
+                    ]
                 ]
             ];
     };
@@ -3049,7 +3180,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                     [
                         SNew(SVerticalBox)
                         + SVerticalBox::Slot().AutoHeight()
-                        [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "RecipeShelf", "配方架"), NSLOCTEXT("ResonanceForge", "RecipeShelfDetail", "把顺手的声纹存进三个本地槽位；关闭编辑器后仍可召回，不会污染团队资产。"))]
+                        [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "RecipeShelf", "配方铭牌架"), NSLOCTEXT("ResonanceForge", "RecipeShelfDetail", "保存当前物体、共振齿、落点与演奏手势；点击回炉即可恢复并试听。三个槽位只留在本机工程。"))]
                         + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
                         [
                             SNew(SHorizontalBox)
