@@ -182,6 +182,19 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
                 {
                     CaptureWorkbenchImage(TEXT("resonance-forge-keybed.png"));
                     ExportCurrentSample();
+                    ActivePreset = TEXT("拉丝钢");
+                    ActiveModel = EResonanceModelType::ModalImpact;
+                    PreviewEnergy = 0.11f;
+                    PreviewBrightness = 0.12f;
+                    PreviewSize = 0.13f;
+                    PreviewStrikePosition = 0.14f;
+                    LastKeybedNote = 36;
+                    LastKeybedVelocity = 0.15f;
+                    WaveguideSustain = 0.16f;
+                    WaveguideDamping = 0.17f;
+                    WaveguideCoupling = 0.18f;
+                    ActiveModes.Reset();
+                    ReforgeLatestSampleLabel();
                     if (WorkbenchScrollBox.IsValid())
                     {
                         WorkbenchScrollBox->ScrollToEnd();
@@ -360,11 +373,14 @@ bool FResonanceForgeEditorModule::PollLiveImpact(float)
         LiveImpactBrightness = Instrument->LastImpactBrightness;
         LiveImpactObservedSeconds = FPlatformTime::Seconds();
         PreviewStrikePosition = LiveImpactPosition;
-        LastStatus = FText::Format(
-            NSLOCTEXT("ResonanceForge", "LiveImpactReturned", "触发回传 · 落点 {0}% / 能量 {1}% / 明亮度 {2}%"),
-            FText::AsNumber(FMath::RoundToInt(LiveImpactPosition * 100.0f)),
-            FText::AsNumber(FMath::RoundToInt(LiveImpactEnergy * 100.0f)),
-            FText::AsNumber(FMath::RoundToInt(LiveImpactBrightness * 100.0f)));
+        if (FPlatformTime::Seconds() - LastSampleReforgedSeconds > 2.0)
+        {
+            LastStatus = FText::Format(
+                NSLOCTEXT("ResonanceForge", "LiveImpactReturned", "触发回传 · 落点 {0}% / 能量 {1}% / 明亮度 {2}%"),
+                FText::AsNumber(FMath::RoundToInt(LiveImpactPosition * 100.0f)),
+                FText::AsNumber(FMath::RoundToInt(LiveImpactEnergy * 100.0f)),
+                FText::AsNumber(FMath::RoundToInt(LiveImpactBrightness * 100.0f)));
+        }
     }
     return true;
 }
@@ -1185,6 +1201,13 @@ FReply FResonanceForgeEditorModule::ExportCurrentSample()
     Audio->SetNumberField(TEXT("bitDepth"), 16);
     Audio->SetNumberField(TEXT("tailRelativeDb"), LastSampleTailDb);
     Audio->SetBoolField(TEXT("tailSettled"), LastSampleTailDb <= -48.0f);
+    TArray<TSharedPtr<FJsonValue>> EnvelopeValues;
+    EnvelopeValues.Reserve(LastSampleEnvelope.Num());
+    for (const float EnvelopePeak : LastSampleEnvelope)
+    {
+        EnvelopeValues.Add(MakeShared<FJsonValueNumber>(EnvelopePeak));
+    }
+    Audio->SetArrayField(TEXT("envelopePeaks"), EnvelopeValues);
     Root->SetObjectField(TEXT("audio"), Audio);
 
     const TSharedRef<FJsonObject> Source = MakeShared<FJsonObject>();
@@ -1248,6 +1271,267 @@ FReply FResonanceForgeEditorModule::ExportCurrentSample()
     return FReply::Handled();
 }
 
+FReply FResonanceForgeEditorModule::ReforgeLatestSampleLabel()
+{
+    auto Fail = [this](const FText& Message)
+    {
+        LastStatus = Message;
+        return FReply::Handled();
+    };
+
+    AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+    if (!Instrument)
+    {
+        return Fail(NSLOCTEXT("ResonanceForge", "ReforgeNoInstrument", "铭牌回炉失败 · 请先打开试听场景并选择一个共振体"));
+    }
+
+    const FString ExportDirectory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("ResonanceForge"), TEXT("Exports"));
+    TArray<FString> LabelFiles;
+    IFileManager::Get().FindFiles(LabelFiles, *FPaths::Combine(ExportDirectory, TEXT("*.rfrecipe.json")), true, false);
+    FString LatestLabelPath;
+    FDateTime LatestTimestamp = FDateTime::MinValue();
+    for (const FString& LabelFile : LabelFiles)
+    {
+        const FString CandidatePath = FPaths::Combine(ExportDirectory, LabelFile);
+        const FDateTime CandidateTimestamp = IFileManager::Get().GetTimeStamp(*CandidatePath);
+        if (LatestLabelPath.IsEmpty() || CandidateTimestamp > LatestTimestamp
+            || (CandidateTimestamp == LatestTimestamp && CandidatePath > LatestLabelPath))
+        {
+            LatestLabelPath = CandidatePath;
+            LatestTimestamp = CandidateTimestamp;
+        }
+    }
+    if (LatestLabelPath.IsEmpty())
+    {
+        return Fail(NSLOCTEXT("ResonanceForge", "ReforgeNoLabel", "铭牌回炉失败 · 铸样目录中还没有 .rfrecipe.json"));
+    }
+
+    FString LabelJson;
+    TSharedPtr<FJsonObject> Root;
+    if (!FFileHelper::LoadFileToString(LabelJson, *LatestLabelPath)
+        || !FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(LabelJson), Root)
+        || !Root.IsValid())
+    {
+        return Fail(NSLOCTEXT("ResonanceForge", "ReforgeInvalidJson", "铭牌回炉失败 · 最近铭牌不是有效 JSON"));
+    }
+
+    FString Schema;
+    if (!Root->TryGetStringField(TEXT("schema"), Schema) || Schema != TEXT("resonance-forge/sample-label/v1"))
+    {
+        return Fail(NSLOCTEXT("ResonanceForge", "ReforgeUnsupportedSchema", "铭牌回炉失败 · 仅支持 sample-label/v1"));
+    }
+    if (!Root->HasTypedField<EJson::Object>(TEXT("audio"))
+        || !Root->HasTypedField<EJson::Object>(TEXT("source"))
+        || !Root->HasTypedField<EJson::Object>(TEXT("waveguide")))
+    {
+        return Fail(NSLOCTEXT("ResonanceForge", "ReforgeMissingSection", "铭牌回炉失败 · 缺少 audio、source 或 waveguide 段"));
+    }
+
+    const TSharedPtr<FJsonObject> AudioObject = Root->GetObjectField(TEXT("audio"));
+    const TSharedPtr<FJsonObject> SourceObject = Root->GetObjectField(TEXT("source"));
+    const TSharedPtr<FJsonObject> WaveguideObject = Root->GetObjectField(TEXT("waveguide"));
+    auto ReadFinite = [](const TSharedPtr<FJsonObject>& Object, const TCHAR* Field, double& OutValue)
+    {
+        return Object.IsValid() && Object->TryGetNumberField(Field, OutValue) && FMath::IsFinite(OutValue);
+    };
+    auto InRange = [](const double Value, const double Min, const double Max)
+    {
+        return Value >= Min && Value <= Max;
+    };
+
+    FString AudioFile;
+    double Duration = 0.0;
+    double TailDb = 0.0;
+    double SampleRate = 0.0;
+    double Channels = 0.0;
+    double BitDepth = 0.0;
+    if (!AudioObject->TryGetStringField(TEXT("file"), AudioFile)
+        || FPaths::GetCleanFilename(AudioFile) != AudioFile
+        || FPaths::GetExtension(AudioFile).ToLower() != TEXT("wav")
+        || !ReadFinite(AudioObject, TEXT("durationSeconds"), Duration)
+        || !InRange(Duration, 0.1, 12.0)
+        || !ReadFinite(AudioObject, TEXT("sampleRate"), SampleRate) || SampleRate != 48000.0
+        || !ReadFinite(AudioObject, TEXT("channels"), Channels) || Channels != 2.0
+        || !ReadFinite(AudioObject, TEXT("bitDepth"), BitDepth) || BitDepth != 16.0
+        || !ReadFinite(AudioObject, TEXT("tailRelativeDb"), TailDb)
+        || !InRange(TailDb, -120.0, 6.0))
+    {
+        return Fail(NSLOCTEXT("ResonanceForge", "ReforgeInvalidAudio", "铭牌回炉失败 · 音频规格或文件名越界"));
+    }
+    const FString AudioPath = FPaths::Combine(ExportDirectory, AudioFile);
+    if (!FPaths::FileExists(AudioPath))
+    {
+        return Fail(NSLOCTEXT("ResonanceForge", "ReforgeMissingWave", "铭牌回炉失败 · 铭牌对应的 WAV 已不存在"));
+    }
+
+    TArray<uint8> WaveBytes;
+    uint16 WaveChannels = 0;
+    uint32 WaveSampleRate = 0;
+    uint16 WaveBitDepth = 0;
+    uint32 WaveDataBytes = 0;
+    if (!FFileHelper::LoadFileToArray(WaveBytes, *AudioPath) || WaveBytes.Num() < 44
+        || FMemory::Memcmp(WaveBytes.GetData(), "RIFF", 4) != 0
+        || FMemory::Memcmp(WaveBytes.GetData() + 8, "WAVE", 4) != 0
+        || FMemory::Memcmp(WaveBytes.GetData() + 12, "fmt ", 4) != 0
+        || FMemory::Memcmp(WaveBytes.GetData() + 36, "data", 4) != 0)
+    {
+        return Fail(NSLOCTEXT("ResonanceForge", "ReforgeInvalidWave", "铭牌回炉失败 · 配套文件不是铸样台生成的标准 PCM WAV"));
+    }
+    FMemory::Memcpy(&WaveChannels, WaveBytes.GetData() + 22, sizeof(WaveChannels));
+    FMemory::Memcpy(&WaveSampleRate, WaveBytes.GetData() + 24, sizeof(WaveSampleRate));
+    FMemory::Memcpy(&WaveBitDepth, WaveBytes.GetData() + 34, sizeof(WaveBitDepth));
+    FMemory::Memcpy(&WaveDataBytes, WaveBytes.GetData() + 40, sizeof(WaveDataBytes));
+    const double WaveDuration = static_cast<double>(WaveDataBytes) / (48000.0 * 2.0 * 2.0);
+    if (WaveChannels != 2 || WaveSampleRate != 48000 || WaveBitDepth != 16
+        || WaveDataBytes + 44u > static_cast<uint32>(WaveBytes.Num())
+        || !FMath::IsNearlyEqual(WaveDuration, Duration, 0.01))
+    {
+        return Fail(NSLOCTEXT("ResonanceForge", "ReforgeWaveMismatch", "铭牌回炉失败 · WAV 真实规格与铭牌不一致"));
+    }
+
+    const TArray<TSharedPtr<FJsonValue>>* EnvelopeValues = nullptr;
+    TArray<float> ImportedEnvelope;
+    if (AudioObject->TryGetArrayField(TEXT("envelopePeaks"), EnvelopeValues))
+    {
+        if (!EnvelopeValues || EnvelopeValues->Num() != 180)
+        {
+            return Fail(NSLOCTEXT("ResonanceForge", "ReforgeInvalidEnvelope", "铭牌回炉失败 · 余响拓片必须包含 180 段"));
+        }
+        ImportedEnvelope.Reserve(EnvelopeValues->Num());
+        for (const TSharedPtr<FJsonValue>& Value : *EnvelopeValues)
+        {
+            if (!Value.IsValid() || Value->Type != EJson::Number)
+            {
+                return Fail(NSLOCTEXT("ResonanceForge", "ReforgeEnvelopeType", "铭牌回炉失败 · 余响拓片含有非数字数据"));
+            }
+            const double Peak = Value->AsNumber();
+            if (!FMath::IsFinite(Peak) || !InRange(Peak, 0.0, 1.0))
+            {
+                return Fail(NSLOCTEXT("ResonanceForge", "ReforgeEnvelopeRange", "铭牌回炉失败 · 余响拓片含有越界数据"));
+            }
+            ImportedEnvelope.Add(static_cast<float>(Peak));
+        }
+    }
+
+    FString PresetString;
+    FString ModelString;
+    double Energy = 0.0;
+    double Brightness = 0.0;
+    double ObjectSize = 0.0;
+    double StrikePosition = 0.0;
+    double MidiNote = 0.0;
+    double Velocity = 0.0;
+    if (!SourceObject->TryGetStringField(TEXT("preset"), PresetString)
+        || !SourceObject->TryGetStringField(TEXT("model"), ModelString)
+        || !ReadFinite(SourceObject, TEXT("energy"), Energy)
+        || !ReadFinite(SourceObject, TEXT("brightness"), Brightness)
+        || !ReadFinite(SourceObject, TEXT("objectSize"), ObjectSize)
+        || !ReadFinite(SourceObject, TEXT("strikePosition"), StrikePosition)
+        || !ReadFinite(SourceObject, TEXT("midiNote"), MidiNote)
+        || !ReadFinite(SourceObject, TEXT("velocity"), Velocity)
+        || !InRange(Energy, 0.0, 1.0) || !InRange(Brightness, 0.0, 1.0)
+        || !InRange(ObjectSize, 0.0, 1.0) || !InRange(StrikePosition, 0.0, 1.0)
+        || !InRange(MidiNote, 0.0, 127.0) || !InRange(Velocity, 0.0, 1.0))
+    {
+        return Fail(NSLOCTEXT("ResonanceForge", "ReforgeInvalidSource", "铭牌回炉失败 · 声源参数缺失或越界"));
+    }
+    const FName ImportedPreset(*PresetString);
+    if (!UResonanceForgeSynthComponent::GetBuiltInPresetNames().Contains(ImportedPreset))
+    {
+        return Fail(NSLOCTEXT("ResonanceForge", "ReforgeUnknownPreset", "铭牌回炉失败 · 材质预设不受当前版本支持"));
+    }
+    EResonanceModelType ImportedModel;
+    if (ModelString == TEXT("ModalImpact"))
+    {
+        ImportedModel = EResonanceModelType::ModalImpact;
+    }
+    else if (ModelString == TEXT("WaveguideString"))
+    {
+        ImportedModel = EResonanceModelType::WaveguideString;
+    }
+    else
+    {
+        return Fail(NSLOCTEXT("ResonanceForge", "ReforgeUnknownModel", "铭牌回炉失败 · 声学模型不受当前版本支持"));
+    }
+
+    double Sustain = 0.0;
+    double Damping = 0.0;
+    double Coupling = 0.0;
+    if (!ReadFinite(WaveguideObject, TEXT("sustainNormalized"), Sustain)
+        || !ReadFinite(WaveguideObject, TEXT("damping"), Damping)
+        || !ReadFinite(WaveguideObject, TEXT("bodyCoupling"), Coupling)
+        || !InRange(Sustain, 0.0, 1.0) || !InRange(Damping, 0.0, 1.0) || !InRange(Coupling, 0.0, 1.0))
+    {
+        return Fail(NSLOCTEXT("ResonanceForge", "ReforgeInvalidWaveguide", "铭牌回炉失败 · 弦床参数缺失或越界"));
+    }
+
+    const TArray<TSharedPtr<FJsonValue>>* ModeValues = nullptr;
+    if (!Root->TryGetArrayField(TEXT("modes"), ModeValues) || !ModeValues || ModeValues->IsEmpty() || ModeValues->Num() > 64)
+    {
+        return Fail(NSLOCTEXT("ResonanceForge", "ReforgeInvalidModes", "铭牌回炉失败 · 共振齿列数量无效"));
+    }
+    TArray<FResonanceMode> ImportedModes;
+    ImportedModes.Reserve(ModeValues->Num());
+    for (const TSharedPtr<FJsonValue>& Value : *ModeValues)
+    {
+        if (!Value.IsValid() || Value->Type != EJson::Object)
+        {
+            return Fail(NSLOCTEXT("ResonanceForge", "ReforgeModeType", "铭牌回炉失败 · 共振齿必须是对象"));
+        }
+        const TSharedPtr<FJsonObject> ModeObject = Value->AsObject();
+        double Frequency = 0.0;
+        double Gain = 0.0;
+        double Decay = 0.0;
+        if (!ReadFinite(ModeObject, TEXT("frequencyHz"), Frequency)
+            || !ReadFinite(ModeObject, TEXT("gain"), Gain)
+            || !ReadFinite(ModeObject, TEXT("decaySeconds"), Decay)
+            || !InRange(Frequency, 20.0, 20000.0) || !InRange(Gain, 0.0, 4.0) || !InRange(Decay, 0.01, 20.0))
+        {
+            return Fail(NSLOCTEXT("ResonanceForge", "ReforgeModeRange", "铭牌回炉失败 · 共振齿含有缺失或越界数据"));
+        }
+        FResonanceMode& ImportedMode = ImportedModes.AddDefaulted_GetRef();
+        ImportedMode.FrequencyHz = static_cast<float>(Frequency);
+        ImportedMode.Gain = static_cast<float>(Gain);
+        ImportedMode.DecaySeconds = static_cast<float>(Decay);
+    }
+
+    ActivePreset = ImportedPreset;
+    ActiveModel = ImportedModel;
+    PreviewEnergy = static_cast<float>(Energy);
+    PreviewBrightness = static_cast<float>(Brightness);
+    PreviewSize = static_cast<float>(ObjectSize);
+    PreviewStrikePosition = static_cast<float>(StrikePosition);
+    LastKeybedNote = FMath::RoundToInt(MidiNote);
+    LastKeybedVelocity = static_cast<float>(Velocity);
+    WaveguideSustain = static_cast<float>(Sustain);
+    WaveguideDamping = static_cast<float>(Damping);
+    WaveguideCoupling = static_cast<float>(Coupling);
+    LastSampleEnvelope = MoveTemp(ImportedEnvelope);
+    LastSampleTailDb = static_cast<float>(TailDb);
+    LastSampleDurationSeconds = static_cast<float>(Duration);
+    LastSampleExportPath = FPaths::ConvertRelativePathToFull(AudioPath);
+
+    ApplyPreset(ActivePreset);
+    ApplyModel(ActiveModel);
+    ActiveModes = MoveTemp(ImportedModes);
+    SelectedModeIndex = 0;
+    ApplyModalModes(false, FText::GetEmpty());
+    Instrument->Modify();
+    Instrument->ObjectSize = PreviewSize;
+    Instrument->ManualStrikePosition = PreviewStrikePosition;
+    Instrument->LastStrikePosition = PreviewStrikePosition;
+    ApplyWaveguideParameters();
+    Instrument->MarkPackageDirty();
+    LastSampleReforgedSeconds = FPlatformTime::Seconds();
+    Instrument->TriggerInstrument(PreviewEnergy, PreviewBrightness, LastKeybedNote, PreviewStrikePosition);
+    LastStatus = FText::Format(
+        NSLOCTEXT("ResonanceForge", "ReforgeComplete", "铭牌回炉完成 · {0} / {1} 根共振齿 / Note {2} · 已试听"),
+        FText::FromName(ActivePreset),
+        FText::AsNumber(ActiveModes.Num()),
+        FText::AsNumber(LastKeybedNote));
+    return FReply::Handled();
+}
+
 FReply FResonanceForgeEditorModule::RevealSampleExport()
 {
     const FString Directory = LastSampleExportPath.IsEmpty()
@@ -1273,6 +1557,12 @@ FText FResonanceForgeEditorModule::GetSampleTailStatusText() const
 {
     if (LastSampleEnvelope.IsEmpty())
     {
+        if (LastSampleDurationSeconds > 0.0f)
+        {
+            return FText::Format(
+                NSLOCTEXT("ResonanceForge", "SampleTailLegacyLabel", "旧版 v1 铭牌未携带余响拓片 · 末段记录约 {0} dB（相对峰值）"),
+                FText::AsNumber(FMath::RoundToInt(LastSampleTailDb)));
+        }
         return NSLOCTEXT("ResonanceForge", "SampleTailWaiting", "余响拓片 · 铸样后显示真实振幅包络与末段电平");
     }
     if (LastSampleTailDb <= -48.0f)
@@ -2159,6 +2449,8 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                                 [SNew(SButton).Text(FText::FromString(TEXT("6 秒"))).ButtonColorAndOpacity_Lambda([this]{ return FMath::IsNearlyEqual(SampleExportDurationSeconds, 6.0f) ? ResonanceForgeEditor::Wood * 0.55f : FLinearColor::White; }).OnClicked_Lambda([this]{ SampleExportDurationSeconds = 6.0f; return FReply::Handled(); })]
                                 + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
                                 [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "ExportSample", "铸成 WAV")).OnClicked_Raw(this, &FResonanceForgeEditorModule::ExportCurrentSample)]
+                                + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
+                                [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "ReforgeSample", "回炉最近铭牌")).OnClicked_Raw(this, &FResonanceForgeEditorModule::ReforgeLatestSampleLabel)]
                                 + SHorizontalBox::Slot().AutoWidth()
                                 [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "RevealSample", "打开目录")).OnClicked_Raw(this, &FResonanceForgeEditorModule::RevealSampleExport)]
                             ]

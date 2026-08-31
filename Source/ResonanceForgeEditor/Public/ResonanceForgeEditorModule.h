@@ -37,6 +37,7 @@ private:
     FReply DisconnectMidiDevice();
     FReply ForgeSharedRecipeAsset();
     FReply ExportCurrentSample();
+    FReply ReforgeLatestSampleLabel();
     FReply RevealSampleExport();
     FReply CaptureWorkbenchScreenshot();
     void QueueAutomatedCapture();
@@ -114,5 +115,6 @@ private:
     TArray<float> LastSampleEnvelope;
     float LastSampleTailDb = -96.0f;
     float LastSampleDurationSeconds = 0.0f;
+    double LastSampleReforgedSeconds = -1000.0;
     FText LastStatus;
 };
