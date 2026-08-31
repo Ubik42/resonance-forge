@@ -8,7 +8,7 @@
 ![Unreal Engine 5.8](https://img.shields.io/badge/Unreal_Engine-5.8.1-0E1128?logo=unrealengine&logoColor=white)
 ![Wwise 2025.1](https://img.shields.io/badge/Wwise-2025.1-00549F)
 ![Platform](https://img.shields.io/badge/Platform-Windows_Editor-0078D4?logo=windows&logoColor=white)
-![Version](https://img.shields.io/badge/Version-0.4.0-D96B2B)
+![Version](https://img.shields.io/badge/Version-0.4.1-D96B2B)
 ![License](https://img.shields.io/badge/License-MIT-2EA44F)
 
 </div>
@@ -24,7 +24,7 @@
 - **UE × Wwise 双路径**：UE 原生合成可独立试听，同时发布 Wwise Event 与 3 个 RTPC。
 - **可演奏**：MIDI Note On 控制音高与力度，CC1 控制音色明亮度。
 - **声纹炉膛**：用随模型、材质与演奏参数实时变化的声学指纹理解声音，而不是只看抽象滑杆。
-- **A/B 声纹比较**：钉住一次参考声纹，再更换材质或参数，对照轮廓与数值差异试听。
+- **A/B 声纹比较**：钉住一次参考声纹，再更换材质或参数；“交换并试听 A/B”可在两个版本间往返切换。
 - **编辑器工作流**：中文 Slate 面板按“对象 → 激励 → 共振 → 出口”组织一件声音的配方。
 - **可重复验证**：测试音频、PBR 贴图、演示地图和复检报告均可由脚本重建。
 
@@ -101,7 +101,7 @@ flowchart LR
 4. 选择共振模型和材质预设。
 5. 调整激励能量、明亮度与共振尺度，观察“声纹炉膛”的轮廓变化。
 6. 点击“钉住当前声纹”，再切换材质或参数，比较橙色参考轮廓与当前声纹。
-7. 点击“敲击当前对象”或“拨动当前弦”完成 A/B 试听。
+7. 点击“交换并试听 A/B”在两版之间往返切换；每次交换都会立即触发当前版本。
 8. 进入 PIE，观察落球碰撞并在 Wwise Profiler 中检查 RTPC。
 
 ## 演示场景

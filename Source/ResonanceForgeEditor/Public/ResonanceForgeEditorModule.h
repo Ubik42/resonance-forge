@@ -18,6 +18,7 @@ private:
     FReply SyncFromSelection();
     FReply TriggerPreview();
     FReply PinReference();
+    FReply SwapAndPreviewReference();
     FReply ClearReference();
     FReply OpenDemoMap();
     FText GetSelectionText() const;

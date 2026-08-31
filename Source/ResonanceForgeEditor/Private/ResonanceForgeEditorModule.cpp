@@ -217,6 +217,41 @@ FReply FResonanceForgeEditorModule::PinReference()
     return FReply::Handled();
 }
 
+FReply FResonanceForgeEditorModule::SwapAndPreviewReference()
+{
+    if (!bHasReference)
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "ReferenceSwapMissing", "还没有参考声纹 · 先钉住当前版本");
+        return FReply::Handled();
+    }
+
+    const FName PreviousPreset = ActivePreset;
+    const EResonanceModelType PreviousModel = ActiveModel;
+    const float PreviousEnergy = PreviewEnergy;
+    const float PreviousBrightness = PreviewBrightness;
+    const float PreviousSize = PreviewSize;
+
+    ActivePreset = ReferencePreset;
+    ActiveModel = ReferenceModel;
+    PreviewEnergy = ReferenceEnergy;
+    PreviewBrightness = ReferenceBrightness;
+    PreviewSize = ReferenceSize;
+
+    ReferencePreset = PreviousPreset;
+    ReferenceModel = PreviousModel;
+    ReferenceEnergy = PreviousEnergy;
+    ReferenceBrightness = PreviousBrightness;
+    ReferenceSize = PreviousSize;
+
+    ApplyModel(ActiveModel);
+    ApplyPreset(ActivePreset);
+    TriggerPreview();
+    LastStatus = FText::Format(
+        NSLOCTEXT("ResonanceForge", "ReferenceSwapped", "正在试听「{0}」· 再按一次即可切回另一版"),
+        FText::FromName(ActivePreset));
+    return FReply::Handled();
+}
+
 FReply FResonanceForgeEditorModule::ClearReference()
 {
     bHasReference = false;
@@ -460,6 +495,8 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                                 [SNew(STextBlock).Text_Raw(this, &FResonanceForgeEditorModule::GetComparisonText).ColorAndOpacity(Muted)]
                                 + SHorizontalBox::Slot().AutoWidth().Padding(8, 0)
                                 [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "PinReference", "钉住当前声纹")).OnClicked_Raw(this, &FResonanceForgeEditorModule::PinReference)]
+                                + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 8, 0)
+                                [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "SwapReference", "交换并试听 A/B")).IsEnabled_Lambda([this]{ return bHasReference; }).OnClicked_Raw(this, &FResonanceForgeEditorModule::SwapAndPreviewReference)]
                                 + SHorizontalBox::Slot().AutoWidth()
                                 [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "ClearReference", "清除参考")).IsEnabled_Lambda([this]{ return bHasReference; }).OnClicked_Raw(this, &FResonanceForgeEditorModule::ClearReference)]
                             ]
