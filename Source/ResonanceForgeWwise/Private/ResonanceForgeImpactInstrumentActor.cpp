@@ -83,6 +83,22 @@ bool AResonanceForgeImpactInstrumentActor::ListenModeIncludesWwise(const EResona
     return Mode == EResonanceForgeListenMode::WwiseOnly || Mode == EResonanceForgeListenMode::Layered;
 }
 
+float AResonanceForgeImpactInstrumentActor::ShapePerformanceVelocity(
+    const float NormalizedVelocity,
+    const EResonanceVelocityCurve Curve)
+{
+    const float Input = FMath::Clamp(NormalizedVelocity, 0.0f, 1.0f);
+    switch (Curve)
+    {
+    case EResonanceVelocityCurve::SoftTouch:
+        return FMath::Pow(Input, 0.62f);
+    case EResonanceVelocityCurve::HeavyHand:
+        return FMath::Pow(Input, 1.75f);
+    default:
+        return Input;
+    }
+}
+
 int32 AResonanceForgeImpactInstrumentActor::TriggerInstrument(
     const float Energy,
     const float Brightness,
@@ -231,6 +247,6 @@ void AResonanceForgeImpactInstrumentActor::HandleMidiEvent(
     {
         LastMidiNote = ControlId;
         LastMidiVelocity = Velocity;
-        TriggerInstrument(Velocity / 127.0f, MidiBrightness, ControlId);
+        TriggerInstrument(ShapePerformanceVelocity(Velocity / 127.0f, VelocityCurve), MidiBrightness, ControlId);
     }
 }

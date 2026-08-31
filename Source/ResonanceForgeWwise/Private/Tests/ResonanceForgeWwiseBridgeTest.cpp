@@ -1,4 +1,5 @@
 #include "ResonanceForgeWwiseBridgeComponent.h"
+#include "ResonanceForgeImpactInstrumentActor.h"
 
 #include "AkAudioEvent.h"
 #include "AkRtpc.h"
@@ -17,6 +18,25 @@ bool FResonanceForgeWwiseRtpcMappingTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("0.5 映射到 50"), UResonanceForgeWwiseBridgeComponent::ToWwiseRtpc(0.5f), 50.0f);
     TestEqual(TEXT("1 映射到 100"), UResonanceForgeWwiseBridgeComponent::ToWwiseRtpc(1.0f), 100.0f);
     TestEqual(TEXT("输入会限制在有效范围"), UResonanceForgeWwiseBridgeComponent::ToWwiseRtpc(1.5f), 100.0f);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FResonanceForgeVelocityCurveTest,
+    "ResonanceForge.Performance.VelocityCurve",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FResonanceForgeVelocityCurveTest::RunTest(const FString& Parameters)
+{
+    const float Input = 0.76f;
+    const float Soft = AResonanceForgeImpactInstrumentActor::ShapePerformanceVelocity(Input, EResonanceVelocityCurve::SoftTouch);
+    const float Linear = AResonanceForgeImpactInstrumentActor::ShapePerformanceVelocity(Input, EResonanceVelocityCurve::Linear);
+    const float Heavy = AResonanceForgeImpactInstrumentActor::ShapePerformanceVelocity(Input, EResonanceVelocityCurve::HeavyHand);
+    TestTrue(TEXT("软触抬升同一输入"), Soft > Linear);
+    TestTrue(TEXT("重手压低同一输入"), Heavy < Linear);
+    TestTrue(TEXT("线性保持原始力度"), FMath::IsNearlyEqual(Linear, Input));
+    TestEqual(TEXT("所有曲线保留静音端点"), AResonanceForgeImpactInstrumentActor::ShapePerformanceVelocity(0.0f, EResonanceVelocityCurve::SoftTouch), 0.0f);
+    TestEqual(TEXT("所有曲线保留满力度端点"), AResonanceForgeImpactInstrumentActor::ShapePerformanceVelocity(1.0f, EResonanceVelocityCurve::HeavyHand), 1.0f);
     return true;
 }
 

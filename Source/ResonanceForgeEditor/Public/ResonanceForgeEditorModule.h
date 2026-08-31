@@ -25,6 +25,7 @@ private:
     void ApplyStrikePosition(float NewPosition, bool bFinished);
     void ApplyWaveguidePickup(float NewPosition, bool bFinished);
     FReply SetWaveguideExcitation(EResonanceExcitationType NewType);
+    FReply SetVelocityCurve(EResonanceVelocityCurve NewCurve);
     void TriggerKeybedNote(int32 MidiNote, float Velocity);
     void AuditionCurrentSound(const FText& ChangeLabel);
     FReply SyncFromSelection();
@@ -65,6 +66,8 @@ private:
     FText GetWwisePitchText() const;
     FText GetListenModeText() const;
     FText GetWaveguideExcitationText() const;
+    FText GetVelocityCurveText() const;
+    FText GetVelocityMappingText() const;
     FText GetSelectedModeFrequencyText() const;
     FText GetSelectedModeGainText() const;
     FText GetSelectedModeDecayText() const;
@@ -78,7 +81,7 @@ private:
     bool HasRecentSampleLabel(int32 LabelIndex) const;
     void RefreshRecentSampleLabels();
     bool HasRecipeSlot(int32 SlotIndex) const;
-    bool ReadRecipeSlot(int32 SlotIndex, FName& OutPreset, EResonanceModelType& OutModel, float& OutEnergy, float& OutBrightness, float& OutSize, float& OutSustain, float& OutDamping, float& OutCoupling, float& OutPickup, EResonanceExcitationType& OutExcitation) const;
+    bool ReadRecipeSlot(int32 SlotIndex, FName& OutPreset, EResonanceModelType& OutModel, float& OutEnergy, float& OutBrightness, float& OutSize, float& OutSustain, float& OutDamping, float& OutCoupling, float& OutPickup, EResonanceExcitationType& OutExcitation, EResonanceVelocityCurve& OutVelocityCurve) const;
 
     FName ActivePreset = TEXT("拉丝钢");
     EResonanceModelType ActiveModel = EResonanceModelType::ModalImpact;
@@ -91,6 +94,7 @@ private:
     float WaveguideCoupling = 0.22f;
     float WaveguidePickup = 0.35f;
     EResonanceExcitationType WaveguideExcitation = EResonanceExcitationType::Pick;
+    EResonanceVelocityCurve VelocityCurve = EResonanceVelocityCurve::Linear;
     EResonanceForgeListenMode ListenMode = EResonanceForgeListenMode::Layered;
     TArray<FResonanceMode> ActiveModes;
     int32 SelectedModeIndex = 0;
@@ -125,7 +129,7 @@ private:
     float LastKeybedVelocity = 0.0f;
     double LastKeybedPlayedSeconds = -1000.0;
     FString SharedRecipeName = TEXT("新声学配方");
-    FString SampleExportName = TEXT("RF_FingerString_G3");
+    FString SampleExportName = TEXT("RF_HammerBridge_G3");
     float SampleExportDurationSeconds = 3.0f;
     FString LastSampleExportPath;
     TArray<float> LastSampleEnvelope;

@@ -27,6 +27,14 @@ enum class EResonanceForgeListenMode : uint8
     Layered UMETA(DisplayName="双路叠听")
 };
 
+UENUM(BlueprintType)
+enum class EResonanceVelocityCurve : uint8
+{
+    SoftTouch UMETA(DisplayName="软触"),
+    Linear UMETA(DisplayName="线性"),
+    HeavyHand UMETA(DisplayName="重手")
+};
+
 UCLASS(BlueprintType, Blueprintable, meta=(DisplayName="共振铸造台撞击乐器"))
 class RESONANCEFORGEWWISE_API AResonanceForgeImpactInstrumentActor final : public AActor
 {
@@ -92,6 +100,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|MIDI", meta=(ClampMin="0.0", ClampMax="1.0"))
     float MidiBrightness = 0.55f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|MIDI", meta=(DisplayName="力度响应"))
+    EResonanceVelocityCurve VelocityCurve = EResonanceVelocityCurve::Linear;
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="共振铸造台|MIDI")
     int32 LastMidiNote = -1;
 
@@ -136,6 +147,9 @@ public:
 
     UFUNCTION(BlueprintPure, Category="共振铸造台|监听")
     static bool ListenModeIncludesWwise(EResonanceForgeListenMode Mode);
+
+    UFUNCTION(BlueprintPure, Category="共振铸造台|MIDI")
+    static float ShapePerformanceVelocity(float NormalizedVelocity, EResonanceVelocityCurve Curve);
 
 protected:
     virtual void BeginPlay() override;

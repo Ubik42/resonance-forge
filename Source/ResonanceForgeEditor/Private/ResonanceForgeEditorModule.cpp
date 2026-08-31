@@ -4,6 +4,7 @@
 #include "SResonanceStrikeRail.h"
 #include "SResonanceStringPath.h"
 #include "SResonanceKeybed.h"
+#include "SResonanceVelocityCam.h"
 #include "SResonanceDecayPrint.h"
 
 #include "Editor.h"
@@ -167,6 +168,11 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
         WaveguideCoupling = 0.26f;
         WaveguidePickup = 0.82f;
         WaveguideExcitation = EResonanceExcitationType::Hammer;
+        VelocityCurve = EResonanceVelocityCurve::SoftTouch;
+        if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
+        {
+            Instrument->VelocityCurve = VelocityCurve;
+        }
         ApplyStrikePosition(0.08f, false);
         SampleExportName = TEXT("RF_HammerBridge_G3");
         ApplyWaveguideParameters();
@@ -180,7 +186,7 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
             CaptureWorkbenchScreenshot();
             if (WorkbenchScrollBox.IsValid())
             {
-                WorkbenchScrollBox->SetScrollOffset(650.0f);
+                WorkbenchScrollBox->SetScrollOffset(790.0f);
             }
             FTSTicker::GetCoreTicker().AddTicker(
                 FTickerDelegate::CreateLambda([this](float)
@@ -216,7 +222,7 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
                             ClearReference();
                             if (WorkbenchScrollBox.IsValid())
                             {
-                                WorkbenchScrollBox->SetScrollOffset(620.0f);
+                                WorkbenchScrollBox->SetScrollOffset(920.0f);
                             }
                             FTSTicker::GetCoreTicker().AddTicker(
                                 FTickerDelegate::CreateLambda([this](float)
@@ -480,6 +486,19 @@ FReply FResonanceForgeEditorModule::SetWaveguideExcitation(const EResonanceExcit
     return FReply::Handled();
 }
 
+FReply FResonanceForgeEditorModule::SetVelocityCurve(const EResonanceVelocityCurve NewCurve)
+{
+    VelocityCurve = NewCurve;
+    if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
+    {
+        Instrument->Modify();
+        Instrument->VelocityCurve = VelocityCurve;
+        Instrument->MarkPackageDirty();
+    }
+    TriggerKeybedNote(LastKeybedNote, LastKeybedVelocity > 0.0f ? LastKeybedVelocity : 0.65f);
+    return FReply::Handled();
+}
+
 void FResonanceForgeEditorModule::ApplyModalModes(const bool bAudition, const FText& ChangeLabel)
 {
     if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
@@ -537,18 +556,21 @@ void FResonanceForgeEditorModule::TriggerKeybedNote(const int32 MidiNote, const 
     LastKeybedNote = SafeNote;
     LastKeybedVelocity = SafeVelocity;
     LastKeybedPlayedSeconds = FPlatformTime::Seconds();
-    PreviewEnergy = SafeVelocity;
+    const float ShapedVelocity = AResonanceForgeImpactInstrumentActor::ShapePerformanceVelocity(SafeVelocity, VelocityCurve);
+    PreviewEnergy = ShapedVelocity;
     if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
     {
         Instrument->ObjectSize = PreviewSize;
+        Instrument->VelocityCurve = VelocityCurve;
         ApplyWaveguideParameters();
         Instrument->ListenMode = ListenMode;
-        Instrument->TriggerInstrument(SafeVelocity, PreviewBrightness, SafeNote, PreviewStrikePosition);
+        Instrument->TriggerInstrument(ShapedVelocity, PreviewBrightness, SafeNote, PreviewStrikePosition);
         LastStatus = FText::Format(
-            NSLOCTEXT("ResonanceForge", "KeybedPlayed", "试音键床 · Note {0} / 力度 {1}% · 监听 {2}"),
+            NSLOCTEXT("ResonanceForge", "KeybedPlayed", "试音键床 · Note {0} / 输入 {1}% → 能量 {2}% · {3}"),
             FText::AsNumber(SafeNote),
             FText::AsNumber(FMath::RoundToInt(SafeVelocity * 100.0f)),
-            GetListenModeText());
+            FText::AsNumber(FMath::RoundToInt(ShapedVelocity * 100.0f)),
+            GetVelocityCurveText());
     }
     else
     {
@@ -586,6 +608,7 @@ FReply FResonanceForgeEditorModule::SyncFromSelection()
         ActiveModel = SharedProfile ? SharedProfile->ModelType : Instrument->SynthesisModel;
         ActivePreset = SharedProfile ? SharedProfile->SourcePreset : Instrument->ResonancePreset;
         PreviewSize = Instrument->ObjectSize;
+        VelocityCurve = Instrument->VelocityCurve;
         ListenMode = Instrument->ListenMode;
         PreviewStrikePosition = Instrument->LastStrikePosition;
         if (Instrument->NativeSynth)
@@ -765,7 +788,8 @@ bool FResonanceForgeEditorModule::ReadRecipeSlot(
     float& OutDamping,
     float& OutCoupling,
     float& OutPickup,
-    EResonanceExcitationType& OutExcitation) const
+    EResonanceExcitationType& OutExcitation,
+    EResonanceVelocityCurve& OutVelocityCurve) const
 {
     if (!GConfig || SlotIndex < 0 || SlotIndex > 2)
     {
@@ -783,6 +807,7 @@ bool FResonanceForgeEditorModule::ReadRecipeSlot(
     FString PresetString;
     int32 ModelValue = 0;
     int32 ExcitationValue = static_cast<int32>(EResonanceExcitationType::Pick);
+    int32 VelocityCurveValue = static_cast<int32>(EResonanceVelocityCurve::Linear);
     GConfig->GetString(*Section, *(Prefix + TEXT(".Preset")), PresetString, GEditorPerProjectIni);
     GConfig->GetInt(*Section, *(Prefix + TEXT(".Model")), ModelValue, GEditorPerProjectIni);
     GConfig->GetFloat(*Section, *(Prefix + TEXT(".Energy")), OutEnergy, GEditorPerProjectIni);
@@ -797,6 +822,7 @@ bool FResonanceForgeEditorModule::ReadRecipeSlot(
     GConfig->GetFloat(*Section, *(Prefix + TEXT(".Coupling")), OutCoupling, GEditorPerProjectIni);
     GConfig->GetFloat(*Section, *(Prefix + TEXT(".Pickup")), OutPickup, GEditorPerProjectIni);
     GConfig->GetInt(*Section, *(Prefix + TEXT(".Excitation")), ExcitationValue, GEditorPerProjectIni);
+    GConfig->GetInt(*Section, *(Prefix + TEXT(".VelocityCurve")), VelocityCurveValue, GEditorPerProjectIni);
     OutPreset = PresetString.IsEmpty() ? FName(TEXT("拉丝钢")) : FName(*PresetString);
     OutModel = ModelValue == static_cast<int32>(EResonanceModelType::WaveguideString)
         ? EResonanceModelType::WaveguideString
@@ -813,6 +839,11 @@ bool FResonanceForgeEditorModule::ReadRecipeSlot(
         : ExcitationValue == static_cast<int32>(EResonanceExcitationType::Hammer)
             ? EResonanceExcitationType::Hammer
             : EResonanceExcitationType::Pick;
+    OutVelocityCurve = VelocityCurveValue == static_cast<int32>(EResonanceVelocityCurve::SoftTouch)
+        ? EResonanceVelocityCurve::SoftTouch
+        : VelocityCurveValue == static_cast<int32>(EResonanceVelocityCurve::HeavyHand)
+            ? EResonanceVelocityCurve::HeavyHand
+            : EResonanceVelocityCurve::Linear;
     return true;
 }
 
@@ -828,7 +859,8 @@ bool FResonanceForgeEditorModule::HasRecipeSlot(const int32 SlotIndex) const
     float Coupling = 0.0f;
     float Pickup = 0.0f;
     EResonanceExcitationType Excitation = EResonanceExcitationType::Pick;
-    return ReadRecipeSlot(SlotIndex, Preset, Model, Energy, Brightness, Size, Sustain, Damping, Coupling, Pickup, Excitation);
+    EResonanceVelocityCurve SavedVelocityCurve = EResonanceVelocityCurve::Linear;
+    return ReadRecipeSlot(SlotIndex, Preset, Model, Energy, Brightness, Size, Sustain, Damping, Coupling, Pickup, Excitation, SavedVelocityCurve);
 }
 
 FText FResonanceForgeEditorModule::GetRecipeSlotText(const int32 SlotIndex) const
@@ -844,7 +876,8 @@ FText FResonanceForgeEditorModule::GetRecipeSlotText(const int32 SlotIndex) cons
     float Coupling = 0.0f;
     float Pickup = 0.0f;
     EResonanceExcitationType Excitation = EResonanceExcitationType::Pick;
-    if (!ReadRecipeSlot(SlotIndex, Preset, Model, Energy, Brightness, Size, Sustain, Damping, Coupling, Pickup, Excitation))
+    EResonanceVelocityCurve SavedVelocityCurve = EResonanceVelocityCurve::Linear;
+    if (!ReadRecipeSlot(SlotIndex, Preset, Model, Energy, Brightness, Size, Sustain, Damping, Coupling, Pickup, Excitation, SavedVelocityCurve))
     {
         return FText::Format(NSLOCTEXT("ResonanceForge", "EmptyRecipeSlot", "{0} · 空"), FText::FromString(SlotNames[SlotIndex]));
     }
@@ -878,6 +911,7 @@ FReply FResonanceForgeEditorModule::SaveRecipeSlot(const int32 SlotIndex)
     GConfig->SetFloat(*Section, *(Prefix + TEXT(".Coupling")), WaveguideCoupling, GEditorPerProjectIni);
     GConfig->SetFloat(*Section, *(Prefix + TEXT(".Pickup")), WaveguidePickup, GEditorPerProjectIni);
     GConfig->SetInt(*Section, *(Prefix + TEXT(".Excitation")), static_cast<int32>(WaveguideExcitation), GEditorPerProjectIni);
+    GConfig->SetInt(*Section, *(Prefix + TEXT(".VelocityCurve")), static_cast<int32>(VelocityCurve), GEditorPerProjectIni);
     GConfig->Flush(false, GEditorPerProjectIni);
     LastStatus = FText::Format(
         NSLOCTEXT("ResonanceForge", "RecipeSaved", "已把当前声音存入{0} · 仅保存在本机工程设置中"),
@@ -897,7 +931,8 @@ FReply FResonanceForgeEditorModule::RecallRecipeSlot(const int32 SlotIndex)
     float Coupling = 0.0f;
     float Pickup = 0.0f;
     EResonanceExcitationType Excitation = EResonanceExcitationType::Pick;
-    if (!ReadRecipeSlot(SlotIndex, Preset, Model, Energy, Brightness, Size, Sustain, Damping, Coupling, Pickup, Excitation))
+    EResonanceVelocityCurve SavedVelocityCurve = EResonanceVelocityCurve::Linear;
+    if (!ReadRecipeSlot(SlotIndex, Preset, Model, Energy, Brightness, Size, Sustain, Damping, Coupling, Pickup, Excitation, SavedVelocityCurve))
     {
         LastStatus = NSLOCTEXT("ResonanceForge", "RecipeSlotEmpty", "这个配方槽还是空的 · 先把当前声音存进去");
         return FReply::Handled();
@@ -913,6 +948,7 @@ FReply FResonanceForgeEditorModule::RecallRecipeSlot(const int32 SlotIndex)
     WaveguideCoupling = Coupling;
     WaveguidePickup = Pickup;
     WaveguideExcitation = Excitation;
+    VelocityCurve = SavedVelocityCurve;
     const FString RecipeSection(TEXT("ResonanceForge.UserRecipes"));
     const FString RecipePrefix = FString::Printf(TEXT("Slot%d"), SlotIndex + 1);
     PreviewStrikePosition = 0.5f;
@@ -925,6 +961,7 @@ FReply FResonanceForgeEditorModule::RecallRecipeSlot(const int32 SlotIndex)
     if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
     {
         Instrument->ObjectSize = PreviewSize;
+        Instrument->VelocityCurve = VelocityCurve;
         Instrument->MarkPackageDirty();
     }
     LastStatus = FText::Format(
@@ -1027,11 +1064,16 @@ FText FResonanceForgeEditorModule::GetMidiStatusText() const
 
     if (Instrument->LastMidiNote >= 0)
     {
+        const int32 ShapedEnergy = FMath::RoundToInt(
+            AResonanceForgeImpactInstrumentActor::ShapePerformanceVelocity(
+                Instrument->LastMidiVelocity / 127.0f,
+                Instrument->VelocityCurve) * 127.0f);
         return FText::Format(
-            NSLOCTEXT("ResonanceForge", "MidiLiveActivity", "{0} · Note {1} / Velocity {2} · CC1 {3}"),
+            NSLOCTEXT("ResonanceForge", "MidiLiveActivity", "{0} · Note {1} / Velocity {2} → Energy {3} · CC1 {4}"),
             FText::FromString(Instrument->GetConnectedMidiDeviceName()),
             FText::AsNumber(Instrument->LastMidiNote),
             FText::AsNumber(Instrument->LastMidiVelocity),
+            FText::AsNumber(ShapedEnergy),
             FText::AsNumber(Instrument->LastMidiControlValue));
     }
     return FText::Format(
@@ -1124,6 +1166,29 @@ FText FResonanceForgeEditorModule::GetWaveguideExcitationText() const
     }
 }
 
+FText FResonanceForgeEditorModule::GetVelocityCurveText() const
+{
+    switch (VelocityCurve)
+    {
+    case EResonanceVelocityCurve::SoftTouch:
+        return NSLOCTEXT("ResonanceForge", "VelocitySoftText", "软触");
+    case EResonanceVelocityCurve::HeavyHand:
+        return NSLOCTEXT("ResonanceForge", "VelocityHeavyText", "重手");
+    default:
+        return NSLOCTEXT("ResonanceForge", "VelocityLinearText", "线性");
+    }
+}
+
+FText FResonanceForgeEditorModule::GetVelocityMappingText() const
+{
+    const float Input = FMath::Clamp(LastKeybedVelocity, 0.0f, 1.0f);
+    const float Output = AResonanceForgeImpactInstrumentActor::ShapePerformanceVelocity(Input, VelocityCurve);
+    return FText::Format(
+        NSLOCTEXT("ResonanceForge", "VelocityMappingReading", "输入 {0}%  →  输出 {1}%"),
+        FText::AsNumber(FMath::RoundToInt(Input * 100.0f)),
+        FText::AsNumber(FMath::RoundToInt(Output * 100.0f)));
+}
+
 FText FResonanceForgeEditorModule::GetSelectedModeFrequencyText() const
 {
     return ActiveModes.IsValidIndex(SelectedModeIndex)
@@ -1182,9 +1247,10 @@ FText FResonanceForgeEditorModule::GetKeybedStatusText() const
 {
     return LastKeybedVelocity > 0.0f
         ? FText::Format(
-            NSLOCTEXT("ResonanceForge", "KeybedLastNote", "最近试音 · Note {0} / 力度 {1}% / 明亮度 {2}%"),
+            NSLOCTEXT("ResonanceForge", "KeybedLastNote", "最近试音 · Note {0} / 输入 {1}% → 能量 {2}% / 明亮度 {3}%"),
             FText::AsNumber(LastKeybedNote),
             FText::AsNumber(FMath::RoundToInt(LastKeybedVelocity * 100.0f)),
+            FText::AsNumber(FMath::RoundToInt(PreviewEnergy * 100.0f)),
             FText::AsNumber(FMath::RoundToInt(PreviewBrightness * 100.0f)))
         : NSLOCTEXT("ResonanceForge", "KeybedReady", "无需 MIDI 设备 · 点击或横向拖过锤键即可演奏");
 }
@@ -1332,6 +1398,15 @@ FReply FResonanceForgeEditorModule::ExportCurrentSample()
     Source->SetNumberField(TEXT("midiNote"), LastKeybedNote);
     Source->SetNumberField(TEXT("velocity"), LastKeybedVelocity);
     Root->SetObjectField(TEXT("source"), Source);
+
+    const TSharedRef<FJsonObject> Performance = MakeShared<FJsonObject>();
+    Performance->SetStringField(TEXT("velocityCurve"),
+        VelocityCurve == EResonanceVelocityCurve::SoftTouch ? TEXT("SoftTouch")
+        : VelocityCurve == EResonanceVelocityCurve::HeavyHand ? TEXT("HeavyHand")
+        : TEXT("Linear"));
+    Performance->SetNumberField(TEXT("inputVelocity"), LastKeybedVelocity);
+    Performance->SetNumberField(TEXT("outputEnergy"), PreviewEnergy);
+    Root->SetObjectField(TEXT("performance"), Performance);
 
     TArray<TSharedPtr<FJsonValue>> ModeValues;
     ModeValues.Reserve(RenderedModes.Num());
@@ -1568,6 +1643,9 @@ FReply FResonanceForgeEditorModule::ReforgeSampleLabelFromPath(const FString& La
     const TSharedPtr<FJsonObject> AudioObject = Root->GetObjectField(TEXT("audio"));
     const TSharedPtr<FJsonObject> SourceObject = Root->GetObjectField(TEXT("source"));
     const TSharedPtr<FJsonObject> WaveguideObject = Root->GetObjectField(TEXT("waveguide"));
+    const TSharedPtr<FJsonObject> PerformanceObject = Root->HasTypedField<EJson::Object>(TEXT("performance"))
+        ? Root->GetObjectField(TEXT("performance"))
+        : nullptr;
     auto ReadFinite = [](const TSharedPtr<FJsonObject>& Object, const TCHAR* Field, double& OutValue)
     {
         return Object.IsValid() && Object->TryGetNumberField(Field, OutValue) && FMath::IsFinite(OutValue);
@@ -1692,6 +1770,14 @@ FReply FResonanceForgeEditorModule::ReforgeSampleLabelFromPath(const FString& La
         return Fail(NSLOCTEXT("ResonanceForge", "ReforgeUnknownModel", "铭牌回炉失败 · 声学模型不受当前版本支持"));
     }
 
+    FString VelocityCurveName(TEXT("Linear"));
+    if (PerformanceObject.IsValid()
+        && (!PerformanceObject->TryGetStringField(TEXT("velocityCurve"), VelocityCurveName)
+            || (VelocityCurveName != TEXT("SoftTouch") && VelocityCurveName != TEXT("Linear") && VelocityCurveName != TEXT("HeavyHand"))))
+    {
+        return Fail(NSLOCTEXT("ResonanceForge", "ReforgeInvalidVelocityCurve", "铭牌回炉失败 · 力度响应曲线不受当前版本支持"));
+    }
+
     double Sustain = 0.0;
     double Damping = 0.0;
     double Coupling = 0.0;
@@ -1754,6 +1840,11 @@ FReply FResonanceForgeEditorModule::ReforgeSampleLabelFromPath(const FString& La
     PreviewStrikePosition = static_cast<float>(StrikePosition);
     LastKeybedNote = FMath::RoundToInt(MidiNote);
     LastKeybedVelocity = static_cast<float>(Velocity);
+    VelocityCurve = VelocityCurveName == TEXT("SoftTouch")
+        ? EResonanceVelocityCurve::SoftTouch
+        : VelocityCurveName == TEXT("HeavyHand")
+            ? EResonanceVelocityCurve::HeavyHand
+            : EResonanceVelocityCurve::Linear;
     WaveguideSustain = static_cast<float>(Sustain);
     WaveguideDamping = static_cast<float>(Damping);
     WaveguideCoupling = static_cast<float>(Coupling);
@@ -1775,6 +1866,7 @@ FReply FResonanceForgeEditorModule::ReforgeSampleLabelFromPath(const FString& La
     ApplyModalModes(false, FText::GetEmpty());
     Instrument->Modify();
     Instrument->ObjectSize = PreviewSize;
+    Instrument->VelocityCurve = VelocityCurve;
     Instrument->ManualStrikePosition = PreviewStrikePosition;
     Instrument->LastStrikePosition = PreviewStrikePosition;
     ApplyWaveguideParameters();
@@ -2069,6 +2161,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
         ActiveModel = SharedProfile ? SharedProfile->ModelType : Instrument->SynthesisModel;
         ActivePreset = SharedProfile ? SharedProfile->SourcePreset : Instrument->ResonancePreset;
         PreviewSize = Instrument->ObjectSize;
+        VelocityCurve = Instrument->VelocityCurve;
         PreviewStrikePosition = Instrument->LastStrikePosition;
         ListenMode = Instrument->ListenMode;
         if (Instrument->NativeSynth)
@@ -2144,6 +2237,24 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                 return WaveguideExcitation == Type ? Color * 0.55f : FLinearColor(0.035f, 0.030f, 0.025f, 1.0f);
             })
             .OnClicked_Lambda([this, Type]{ return SetWaveguideExcitation(Type); })
+            [
+                SNew(SVerticalBox)
+                + SVerticalBox::Slot().AutoHeight()
+                [SNew(STextBlock).Text(Label).Font(FAppStyle::GetFontStyle(TEXT("BoldFont")))]
+                + SVerticalBox::Slot().AutoHeight().Padding(0, 2, 0, 0)
+                [SNew(STextBlock).Text(Detail).ColorAndOpacity(Muted)]
+            ];
+    };
+
+    auto VelocityCurveButton = [this](const EResonanceVelocityCurve Curve, const FText& Label, const FText& Detail, const FLinearColor& Color)
+    {
+        return SNew(SButton)
+            .ContentPadding(FMargin(10, 7))
+            .ButtonColorAndOpacity_Lambda([this, Curve, Color]
+            {
+                return VelocityCurve == Curve ? Color * 0.52f : FLinearColor(0.032f, 0.028f, 0.024f, 1.0f);
+            })
+            .OnClicked_Lambda([this, Curve]{ return SetVelocityCurve(Curve); })
             [
                 SNew(SVerticalBox)
                 + SVerticalBox::Slot().AutoHeight()
@@ -2536,6 +2647,32 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                                 [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "AuditionKeybed", "试音键床"), NSLOCTEXT("ResonanceForge", "AuditionKeybedDetail", "横向选择音高，越靠下敲击力度越重；拖过锤键可连续演奏。"))]
                                 + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
                                 [SNew(STextBlock).Text_Raw(this, &FResonanceForgeEditorModule::GetKeybedStatusText).ColorAndOpacity(Wood)]
+                            ]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
+                            [
+                                SNew(SBorder)
+                                .BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel")))
+                                .BorderBackgroundColor(FLinearColor(0.030f, 0.024f, 0.019f, 1.0f))
+                                .Padding(FMargin(9, 7))
+                                [
+                                    SNew(SHorizontalBox)
+                                    + SHorizontalBox::Slot().FillWidth(0.72f).VAlign(VAlign_Center).Padding(0, 0, 10, 0)
+                                    [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "VelocityCam", "力度凸轮"), NSLOCTEXT("ResonanceForge", "VelocityCamDetail", "把键速压进一枚可见的机械曲线；同一次敲击，可以换一种手感。"))]
+                                    + SHorizontalBox::Slot().FillWidth(0.58f).Padding(0, 0, 5, 0)
+                                    [VelocityCurveButton(EResonanceVelocityCurve::SoftTouch, NSLOCTEXT("ResonanceForge", "VelocitySoft", "软触"), NSLOCTEXT("ResonanceForge", "VelocitySoftDetail", "抬升弱奏"), Wood)]
+                                    + SHorizontalBox::Slot().FillWidth(0.58f).Padding(0, 0, 5, 0)
+                                    [VelocityCurveButton(EResonanceVelocityCurve::Linear, NSLOCTEXT("ResonanceForge", "VelocityLinear", "线性"), NSLOCTEXT("ResonanceForge", "VelocityLinearDetail", "原样传递"), Steel)]
+                                    + SHorizontalBox::Slot().FillWidth(0.58f).Padding(0, 0, 10, 0)
+                                    [VelocityCurveButton(EResonanceVelocityCurve::HeavyHand, NSLOCTEXT("ResonanceForge", "VelocityHeavy", "重手"), NSLOCTEXT("ResonanceForge", "VelocityHeavyDetail", "压低轻奏"), Glass)]
+                                    + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+                                    [
+                                        SNew(SVerticalBox)
+                                        + SVerticalBox::Slot().AutoHeight()
+                                        [SNew(SResonanceVelocityCam).InputVelocity_Lambda([this]{ return LastKeybedVelocity; }).Curve_Lambda([this]{ return VelocityCurve; })]
+                                        + SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(0, 2, 2, 0)
+                                        [SNew(STextBlock).Text_Raw(this, &FResonanceForgeEditorModule::GetVelocityMappingText).ColorAndOpacity(Wood)]
+                                    ]
+                                ]
                             ]
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
                             [
