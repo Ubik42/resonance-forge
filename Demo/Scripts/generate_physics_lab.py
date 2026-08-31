@@ -5,6 +5,7 @@ import unreal
 
 MAP_PATH = "/Game/ResonanceForge/Demo/Maps/L_RF_PhysicsLab"
 SHARED_PROFILE_PATH = "/Game/ResonanceForge/Profiles/DA_RF_LongTailWoodString"
+WWISE_ROUTE_PATH = "/Game/ResonanceForge/Routing/DA_RF_DemoMaterialRoute"
 REPORT_PATH = os.path.join(unreal.Paths.project_saved_dir(), "ResonanceForge", "physics_lab_generation.json")
 
 
@@ -22,6 +23,7 @@ def asset(path):
 asset_library = unreal.EditorAssetLibrary
 asset_library.make_directory("/Game/ResonanceForge/Demo/Maps")
 asset_library.make_directory("/Game/ResonanceForge/Profiles")
+asset_library.make_directory("/Game/ResonanceForge/Routing")
 level_subsystem = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 actor_subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 
@@ -88,6 +90,43 @@ def make_long_tail_wood_string_profile():
 shared_waveguide_profile = make_long_tail_wood_string_profile()
 
 
+def make_demo_wwise_route():
+    route = unreal.load_asset(WWISE_ROUTE_PATH)
+    if route is None:
+        factory = unreal.DataAssetFactory()
+        factory.set_editor_property("data_asset_class", unreal.ResonanceWwiseRoutingProfile)
+        route = unreal.AssetToolsHelpers.get_asset_tools().create_asset(
+            "DA_RF_DemoMaterialRoute",
+            "/Game/ResonanceForge/Routing",
+            unreal.ResonanceWwiseRoutingProfile,
+            factory,
+        )
+    if route is None:
+        raise RuntimeError("无法创建 Wwise 共享路由配方")
+
+    route_assets = {
+        "steel_impact_event": asset("/Game/WwiseAudio/Events/Default_Work_Unit/ResonanceForge/Play_RF_Impact_Steel.Play_RF_Impact_Steel"),
+        "wood_impact_event": asset("/Game/WwiseAudio/Events/Default_Work_Unit/ResonanceForge/Play_RF_Impact_Wood.Play_RF_Impact_Wood"),
+        "glass_impact_event": asset("/Game/WwiseAudio/Events/Default_Work_Unit/ResonanceForge/Play_RF_Impact_Glass.Play_RF_Impact_Glass"),
+        "impact_energy_rtpc": asset("/Game/WwiseAudio/Game_Parameters/Default_Work_Unit/RF_ImpactEnergy.RF_ImpactEnergy"),
+        "impact_brightness_rtpc": asset("/Game/WwiseAudio/Game_Parameters/Default_Work_Unit/RF_ImpactBrightness.RF_ImpactBrightness"),
+        "object_size_rtpc": asset("/Game/WwiseAudio/Game_Parameters/Default_Work_Unit/RF_ObjectSize.RF_ObjectSize"),
+    }
+    set_prop(route, "display_name", "材质三路出口")
+    for property_name, route_asset in route_assets.items():
+        set_prop(route, property_name, route_asset)
+    set_prop(route, "rtpc_interpolation_ms", 12)
+    set_prop(route, "allow_demo_asset_fallback", True)
+    if not route.is_complete():
+        raise RuntimeError("Wwise 共享路由配方不完整：" + route.get_missing_items_text())
+    if not asset_library.save_loaded_asset(route, False):
+        raise RuntimeError("Wwise 共享路由配方保存失败")
+    return route
+
+
+shared_wwise_route = make_demo_wwise_route()
+
+
 def spawn_mesh(label, location, scale, mesh=cube_mesh, material=None, simulate=False, rotation=None):
     actor = actor_subsystem.spawn_actor_from_class(
         unreal.StaticMeshActor, location, rotation or unreal.Rotator(0.0, 0.0, 0.0)
@@ -136,20 +175,20 @@ instrument_specs = [
     {
         "label": "RF_01_拉丝钢", "preset": "拉丝钢", "key": "Steel", "accent": "SteelAccent",
         "location": unreal.Vector(-675, 10, 126), "size": 0.36, "ball_z": 465,
-        "display": "BRUSHED STEEL", "color": unreal.Color(57, 166, 255, 255),
-        "description": "DENSE HIGHS · LONG DECAY\nIMPULSE > EXCITATION ENERGY",
+        "display": "拉丝钢", "color": unreal.Color(57, 166, 255, 255),
+        "description": "高频密集 · 长衰减\n冲量进入激励能量",
     },
     {
         "label": "RF_02_硬木", "preset": "硬木", "key": "Wood", "accent": "WoodAccent",
         "location": unreal.Vector(-365, 10, 126), "size": 0.58, "ball_z": 555,
-        "display": "HARDWOOD", "color": unreal.Color(255, 112, 39, 255),
-        "description": "WARM LOWS · FAST DAMPING\nVELOCITY > BRIGHTNESS",
+        "display": "硬木", "color": unreal.Color(255, 112, 39, 255),
+        "description": "中低频突出 · 快阻尼\n速度进入音色明亮度",
     },
     {
         "label": "RF_03_薄玻璃", "preset": "薄玻璃", "key": "Glass", "accent": "GlassAccent",
         "location": unreal.Vector(-55, 10, 126), "size": 0.24, "ball_z": 645,
-        "display": "THIN GLASS", "color": unreal.Color(58, 245, 205, 255),
-        "description": "SPARSE HIGHS · BRITTLE TAIL\nSIZE > RESONANCE SCALE",
+        "display": "薄玻璃", "color": unreal.Color(58, 245, 205, 255),
+        "description": "稀疏高频 · 脆尾音\n尺寸进入共振尺度",
     },
 ]
 
@@ -175,6 +214,7 @@ for index, spec in enumerate(instrument_specs):
     instrument.instrument_mesh.set_material(0, materials[spec["key"]])
     instrument.instrument_mesh.set_collision_profile_name("BlockAll")
     instrument.instrument_mesh.set_notify_rigid_body_collision(True)
+    instrument.wwise_bridge.apply_routing_profile(shared_wwise_route)
     instruments.append(instrument)
 
     ball = spawn_mesh(
@@ -223,19 +263,20 @@ set_prop(waveguide, "enable_keyboard_trigger", False)
 waveguide.instrument_mesh.set_static_mesh(cube_mesh)
 waveguide.instrument_mesh.set_material(0, materials["WoodAccent"])
 waveguide.native_synth.apply_material_profile(shared_waveguide_profile)
+waveguide.wwise_bridge.apply_routing_profile(shared_wwise_route)
 
-spawn_text("RF_波导标题", "02  DIGITAL WAVEGUIDE STRING", unreal.Vector(690, -132, 342), 24, unreal.Color(255, 149, 75, 255))
-spawn_text("RF_波导说明", "DELAY-LINE PROPAGATION · DAMPING FEEDBACK · MIDI PITCH + VELOCITY", unreal.Vector(690, -131, 307), 11, unreal.Color(235, 225, 214, 255))
+spawn_text("RF_波导标题", "02  数字波导弦", unreal.Vector(690, -132, 342), 24, unreal.Color(255, 149, 75, 255))
+spawn_text("RF_波导说明", "延迟线传播 · 阻尼反馈 · MIDI 音高与力度", unreal.Vector(690, -131, 307), 11, unreal.Color(235, 225, 214, 255))
 
 # 两类声源在后墙按材质路由到三个 Wwise Event，并共享同一组 RTPC。
 spawn_mesh("RF_Wwise核心", unreal.Vector(285, 545, 318), unreal.Vector(6.15, 0.24, 0.72), material=materials["Wwise"])
-spawn_text("RF_Wwise标题", "03  WWISE OUTPUT", unreal.Vector(280, 504, 375), 24, unreal.Color(86, 226, 255, 255))
-spawn_text("RF_Wwise事件", "Steel / Wood / Glass · 3 Wwise Events", unreal.Vector(280, 503, 335), 13, unreal.Color(235, 248, 255, 255))
-spawn_text("RF_Wwise参数", "ENERGY  RF_ImpactEnergy     BRIGHTNESS  RF_ImpactBrightness     SIZE  RF_ObjectSize", unreal.Vector(280, 503, 300), 9, unreal.Color(126, 218, 238, 255))
+spawn_text("RF_Wwise标题", "03  Wwise 声音出口", unreal.Vector(280, 504, 375), 24, unreal.Color(86, 226, 255, 255))
+spawn_text("RF_Wwise事件", "钢 / 木 / 玻璃 · 三路 Event", unreal.Vector(280, 503, 335), 13, unreal.Color(235, 248, 255, 255))
+spawn_text("RF_Wwise参数", "能量 → RF_ImpactEnergy     明亮度 → RF_ImpactBrightness     尺度 → RF_ObjectSize", unreal.Vector(280, 503, 300), 9, unreal.Color(126, 218, 238, 255))
 
-spawn_text("RF_碰撞区标题", "01  MATERIAL IMPACT BENCH", unreal.Vector(-250, -132, 342), 24, unreal.Color(82, 211, 255, 255))
-spawn_text("RF_标题", "RESONANCE FORGE · ACOUSTIC WORKSHOP", unreal.Vector(650, 587, 552), 32, unreal.Color(235, 247, 255, 255))
-spawn_text("RF_副标题", "SELECT OBJECT > EXCITE > RESONATE > PUBLISH TO WWISE", unreal.Vector(650, 586, 510), 13, unreal.Color(102, 222, 255, 255))
+spawn_text("RF_碰撞区标题", "01  材质撞击台", unreal.Vector(-250, -132, 342), 24, unreal.Color(82, 211, 255, 255))
+spawn_text("RF_标题", "共振铸造台 · 声学工坊", unreal.Vector(650, 587, 552), 32, unreal.Color(235, 247, 255, 255))
+spawn_text("RF_副标题", "选择对象 → 起振 → 共振塑形 → 发布到 Wwise", unreal.Vector(650, 586, 510), 13, unreal.Color(102, 222, 255, 255))
 
 directional = actor_subsystem.spawn_actor_from_class(
     unreal.DirectionalLight,
@@ -282,6 +323,8 @@ report = {
     "wwise_rtpcs": ["RF_ImpactEnergy", "RF_ImpactBrightness", "RF_ObjectSize"],
     "waveguide_actor": waveguide.get_actor_label(),
     "shared_profile": shared_waveguide_profile.get_path_name(),
+    "shared_wwise_route": shared_wwise_route.get_path_name(),
+    "shared_wwise_route_complete": shared_wwise_route.is_complete(),
     "shared_profile_parameters": {
         "string_decay": shared_waveguide_profile.get_editor_property("string_decay"),
         "string_damping": shared_waveguide_profile.get_editor_property("string_damping"),

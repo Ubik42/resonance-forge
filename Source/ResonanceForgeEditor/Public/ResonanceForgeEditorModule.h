@@ -69,6 +69,7 @@ private:
     FReply ConnectSelectedMidiDevice();
     FReply DisconnectMidiDevice();
     FReply ForgeSharedRecipeAsset();
+    FReply ForgeWwiseRoutingProfile();
     FReply ExportCurrentSample();
     FReply ReforgeLatestSampleLabel();
     FReply ReforgeRecentSampleLabel(int32 LabelIndex);
@@ -89,6 +90,10 @@ private:
     FText GetRecipeSlotDetailText(int32 SlotIndex) const;
     FText GetMidiStatusText() const;
     FText GetWwiseStatusText() const;
+    FText GetWwiseRouteSourceText() const;
+    FText GetWwiseEventText(int32 MaterialIndex) const;
+    FText GetWwiseRtpcText(int32 ParameterIndex) const;
+    bool IsWwiseRouteComplete() const;
     FText GetWwiseVolumeText() const;
     FText GetWwiseLowpassText() const;
     FText GetWwisePitchText() const;
@@ -161,6 +166,7 @@ private:
     TSharedPtr<SWidget> FlowModalAnchor;
     TSharedPtr<SWidget> FlowOutputAnchor;
     TSharedPtr<SWidget> FlowSampleAnchor;
+    TSharedPtr<SWidget> WwiseRouteAnchor;
     class IConsoleObject* CaptureConsoleCommand = nullptr;
     FTSTicker::FDelegateHandle LiveImpactTickerHandle;
     TWeakObjectPtr<class AResonanceForgeImpactInstrumentActor> ObservedImpactActor;
@@ -174,6 +180,7 @@ private:
     double LastKeybedPlayedSeconds = -1000.0;
     int32 ActiveFlowStation = 0;
     FString SharedRecipeName = TEXT("新声学配方");
+    FString WwiseRouteName = TEXT("材质三路出口");
     FString SampleExportName = TEXT("RF_Bow_G3");
     float SampleExportDurationSeconds = 3.0f;
     FString LastSampleExportPath;

@@ -6,6 +6,7 @@
 class UAkAudioEvent;
 class UAkRtpc;
 class UResonanceForgeSynthComponent;
+class UResonanceWwiseRoutingProfile;
 
 USTRUCT(BlueprintType)
 struct RESONANCEFORGEWWISE_API FResonanceForgeImpactParameters
@@ -38,6 +39,9 @@ class RESONANCEFORGEWWISE_API UResonanceForgeWwiseBridgeComponent final : public
 
 public:
     UResonanceForgeWwiseBridgeComponent();
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|Wwise|共享路由")
+    TObjectPtr<UResonanceWwiseRoutingProfile> RoutingProfile;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|Wwise")
     TObjectPtr<UAkAudioEvent> SteelImpactEvent;
@@ -75,6 +79,18 @@ public:
     UFUNCTION(BlueprintCallable, Category="共振铸造台|Wwise")
     bool AutoBindDemoAssets();
 
+    UFUNCTION(BlueprintCallable, Category="共振铸造台|Wwise")
+    bool ApplyRoutingProfile(UResonanceWwiseRoutingProfile* NewProfile);
+
+    UFUNCTION(BlueprintPure, Category="共振铸造台|Wwise")
+    UAkAudioEvent* GetRoutedEventForPreset(FName MaterialPreset) const;
+
+    UFUNCTION(BlueprintPure, Category="共振铸造台|Wwise")
+    bool IsRouteComplete() const;
+
+    UFUNCTION(BlueprintPure, Category="共振铸造台|Wwise")
+    FString GetRouteSourceName() const;
+
     UFUNCTION(BlueprintPure, Category="共振铸造台|Wwise")
     FString GetIntegrationStatus() const;
 
@@ -83,4 +99,8 @@ public:
 
 protected:
     virtual void BeginPlay() override;
+
+private:
+    UPROPERTY(Transient)
+    bool bUsingDemoFallback = false;
 };

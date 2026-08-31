@@ -11,7 +11,7 @@
 
 UE 5.8 Demo 使用 Launcher 当前提供的 2025.1 Integration。2026.1 保留用于研究 Authoring、WAAPI 和新声源能力，不向 2025.1 Integration 强行混用 SDK。
 
-## 2026-08-29 至 2026-08-30 完成内容
+## 2026-08-29 至 2026-08-31 完成内容
 
 1. Launcher 已将 Wwise、WwiseSoundEngine、WwiseNiagara 等模块部署到 `Demo/Plugins/Wwise`。
 2. `ResonanceForgeDemoEditor Win64 Development` 完成首次全量编译，共 487 个构建动作，结果成功。
@@ -28,6 +28,9 @@ UE 5.8 Demo 使用 Launcher 当前提供的 2025.1 Integration。2026.1 保留�
 9. 在三个材质 Container 上分别建立三条实际 RTPC 曲线：Energy → Volume、Brightness → Low-pass、ObjectSize → Pitch。
 10. 配置脚本支持重复执行：已有 WAV 不再重复导入，相同曲线不重建 GUID；连续两次运行的 Work Unit SHA-256 保持一致。
 11. UE 工作台加入“锤击标尺”与“Wwise 出口刻度”：三档力度可直接触发试听，并按曲线控制点显示近似的 dB、Low-pass 与 cent。
+12. 新增 `UResonanceWwiseRoutingProfile`，把 3 个材质 Event、3 个 RTPC、插值时间和 Demo 回退策略保存成独立 Content 资产；声学配方与中间件路由不再耦合。
+13. 工作台加入“Wwise 路由织机”，直接显示六条真实绑定及来源，并可把当前完整路由铸成团队共享资产；不完整路由不会生成半成品。
+14. 运行时 Event 选择、工作台名称和铸样铭牌统一调用桥接器的真实路由；自动截图会在开始时检查六项绑定并记录来源。
 
 ## 当前 Wwise 对象
 
@@ -56,11 +59,18 @@ UE 5.8 Demo 使用 Launcher 当前提供的 2025.1 Integration。2026.1 保留�
 
 工作台刻度用于快速判断设计方向，不代替 Wwise 的最终曲线求值或 Profiler。它复用相同控制点做近似插值，因此面板明确使用“约”字样。
 
+## UE 路由资产契约
+
+`UResonanceWwiseRoutingProfile` 是 UE 工程与独立 Wwise 工程之间的轻量引用层。桥接器按“共享路由资产 → 场景手工绑定 → 可选 Demo 路径补位”的顺序解析；工作台始终显示当前来源。演示地图使用可重建的 `/Game/ResonanceForge/Routing/DA_RF_DemoMaterialRoute`，四个可发声对象共享它。复制插件到新项目时，团队只需要创建自己的路由资产并替换引用，不需要修改 C++ 中的 Demo 路径。
+
+声学参数仍由 `UResonanceMaterialProfile` 管理。把两类资产分开，是为了让同一套钢/木/玻璃声音设计可以切换不同 Wwise Work Unit，也让同一个中间件出口可以服务多个声学配方。
+
 ## 可重复构建脚本
 
 - `scripts/generate_test_impacts.ps1`：确定性生成九条 48 kHz / 16-bit / mono 测试 WAV，覆盖三种材质与三档力度。
 - `scripts/provision_wwise_project.ps1`：经 HTTP WAAPI 创建或合并 Wwise 对象、保存工程并验证对象路径。
 - `scripts/sync_demo_plugin.ps1`：把仓库根目录的插件源码同步到 Demo。
+- `scripts/regenerate_physics_lab.ps1`：重建共享声学配方、共享 Wwise 路由和演示地图，并做磁盘重载复检。
 
 不依赖 Wwise 用户偏好时，可以先启动官方无界面 WAAPI 服务：
 

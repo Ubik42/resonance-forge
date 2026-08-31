@@ -10,10 +10,13 @@
 #include "SResonanceBowGauge.h"
 #include "SResonanceBowStroke.h"
 #include "SResonanceRecipeCompare.h"
+#include "SResonanceWwiseRouteLoom.h"
 
 #include "Editor.h"
 #include "Audio.h"
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "AkAudioEvent.h"
+#include "AkRtpc.h"
 #include "Containers/Ticker.h"
 #include "EngineUtils.h"
 #include "Framework/Application/SlateApplication.h"
@@ -40,6 +43,7 @@
 #include "../../ResonanceForgeWwise/Public/ResonanceForgeImpactInstrumentActor.h"
 #include "../../ResonanceForgeWwise/Public/ResonanceForgeWwiseBridgeComponent.h"
 #include "ResonanceForgeSynthComponent.h"
+#include "ResonanceWwiseRoutingProfile.h"
 #include "Styling/AppStyle.h"
 #include "LevelEditorSubsystem.h"
 #include "ToolMenus.h"
@@ -226,6 +230,13 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
         }
     }
     SyncFromSelection();
+    if (!IsWwiseRouteComplete())
+    {
+        UE_LOG(LogTemp, Error, TEXT("Resonance Forge 自动截图中止：当前对象的 Wwise 三路 Event / 三路 RTPC 不完整"));
+        FPlatformMisc::RequestExitWithStatus(false, 3, TEXT("ResonanceForgeWwiseRoute"));
+        return;
+    }
+    UE_LOG(LogTemp, Display, TEXT("Resonance Forge Wwise 路由复检通过：%s"), *GetWwiseRouteSourceText().ToString());
     if (ActiveModel == EResonanceModelType::WaveguideString)
     {
         ApplyPreset(TEXT("拉丝钢"));
@@ -324,42 +335,53 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
                     ExportCurrentSample();
                     ReforgeSampleLabelFromPath(BowLabelPath);
                     SampleExportName = TEXT("RF_Bow_G3");
-                    if (WorkbenchScrollBox.IsValid())
+                    if (WorkbenchScrollBox.IsValid() && WwiseRouteAnchor.IsValid())
                     {
-                        WorkbenchScrollBox->ScrollToEnd();
+                        WorkbenchScrollBox->ScrollDescendantIntoView(
+                            WwiseRouteAnchor,
+                            true,
+                            EDescendantScrollDestination::TopOrLeft,
+                            18.0f);
                     }
                     FTSTicker::GetCoreTicker().AddTicker(
                         FTickerDelegate::CreateLambda([this](float)
                         {
-                            CaptureWorkbenchImage(TEXT("resonance-forge-workbench-details.png"));
-                            ApplyModel(EResonanceModelType::ModalImpact);
-                            ApplyPreset(TEXT("硬木"));
-                            ApplyStrikePosition(0.34f, false);
-                            SelectedModeIndex = FMath::Min(2, ActiveModes.Num() - 1);
-                            if (ActiveModes.IsValidIndex(SelectedModeIndex))
-                            {
-                                ActiveModes[SelectedModeIndex].FrequencyHz *= 1.16f;
-                                ActiveModes[SelectedModeIndex].Gain = 1.18f;
-                                ActiveModes[SelectedModeIndex].DecaySeconds *= 1.42f;
-                                ApplyModalModes(false, FText::GetEmpty());
-                            }
-                            AuditionCurrentSound(NSLOCTEXT("ResonanceForge", "CaptureOffsetStrike", "偏置落点试敲"));
-                            ClearReference();
+                            CaptureWorkbenchImage(TEXT("resonance-forge-wwise-route.png"));
                             if (WorkbenchScrollBox.IsValid())
                             {
-                                NavigateToFlowStation(2);
+                                WorkbenchScrollBox->ScrollToEnd();
                             }
                             FTSTicker::GetCoreTicker().AddTicker(
                                 FTickerDelegate::CreateLambda([this](float)
                                 {
-                                    CaptureWorkbenchImage(TEXT("resonance-forge-mode-rack.png"));
-                                    if (FParse::Param(FCommandLine::Get(), TEXT("ResonanceForgeCaptureAndExit")))
+                                    CaptureWorkbenchImage(TEXT("resonance-forge-workbench-details.png"));
+                                    ApplyModel(EResonanceModelType::ModalImpact);
+                                    ApplyPreset(TEXT("硬木"));
+                                    ApplyStrikePosition(0.34f, false);
+                                    SelectedModeIndex = FMath::Min(2, ActiveModes.Num() - 1);
+                                    if (ActiveModes.IsValidIndex(SelectedModeIndex))
                                     {
-                                        FPlatformMisc::RequestExit(false);
+                                        ActiveModes[SelectedModeIndex].FrequencyHz *= 1.16f;
+                                        ActiveModes[SelectedModeIndex].Gain = 1.18f;
+                                        ActiveModes[SelectedModeIndex].DecaySeconds *= 1.42f;
+                                        ApplyModalModes(false, FText::GetEmpty());
                                     }
+                                    AuditionCurrentSound(NSLOCTEXT("ResonanceForge", "CaptureOffsetStrike", "偏置落点试敲"));
+                                    ClearReference();
+                                    NavigateToFlowStation(2);
+                                    FTSTicker::GetCoreTicker().AddTicker(
+                                        FTickerDelegate::CreateLambda([this](float)
+                                        {
+                                            CaptureWorkbenchImage(TEXT("resonance-forge-mode-rack.png"));
+                                            if (FParse::Param(FCommandLine::Get(), TEXT("ResonanceForgeCaptureAndExit")))
+                                            {
+                                                FPlatformMisc::RequestExit(false);
+                                            }
+                                            return false;
+                                        }),
+                                        1.0f);
                                     return false;
-                                }),
-                                1.0f);
+                                }), 1.0f);
                             return false;
                         }),
                         1.0f);
@@ -903,7 +925,7 @@ void FResonanceForgeEditorModule::AuditionCurrentSound(const FText& ChangeLabel)
 
 FReply FResonanceForgeEditorModule::SyncFromSelection()
 {
-    if (const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
+    if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
     {
         SetFlowStation(0);
         const UResonanceMaterialProfile* SharedProfile = Instrument->NativeSynth ? Instrument->NativeSynth->MaterialProfile : nullptr;
@@ -1493,10 +1515,43 @@ FText FResonanceForgeEditorModule::GetWwiseStatusText() const
         return NSLOCTEXT("ResonanceForge", "WwiseWaitingForObject", "Wwise 等待场景对象");
     }
 
-    const FString Status = Instrument->WwiseBridge->GetIntegrationStatus();
-    return Status == TEXT("Wwise 桥接已就绪")
-        ? NSLOCTEXT("ResonanceForge", "WwiseReady", "Wwise 已就绪 · 3 材质 Event / 3 RTPC")
-        : FText::FromString(Status);
+    return FText::FromString(Instrument->WwiseBridge->GetIntegrationStatus());
+}
+
+FText FResonanceForgeEditorModule::GetWwiseRouteSourceText() const
+{
+    const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+    return Instrument && Instrument->WwiseBridge
+        ? FText::FromString(Instrument->WwiseBridge->GetRouteSourceName())
+        : NSLOCTEXT("ResonanceForge", "WwiseRouteWaiting", "等待场景对象");
+}
+
+FText FResonanceForgeEditorModule::GetWwiseEventText(const int32 MaterialIndex) const
+{
+    const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+    const UResonanceForgeWwiseBridgeComponent* Bridge = Instrument ? Instrument->WwiseBridge : nullptr;
+    const UAkAudioEvent* Event = !Bridge ? nullptr
+        : MaterialIndex == 1 ? Bridge->WoodImpactEvent
+        : MaterialIndex == 2 ? Bridge->GlassImpactEvent
+        : Bridge->SteelImpactEvent;
+    return FText::FromString(Event ? Event->GetName() : TEXT("未绑定 Event"));
+}
+
+FText FResonanceForgeEditorModule::GetWwiseRtpcText(const int32 ParameterIndex) const
+{
+    const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+    const UResonanceForgeWwiseBridgeComponent* Bridge = Instrument ? Instrument->WwiseBridge : nullptr;
+    const UAkRtpc* Rtpc = !Bridge ? nullptr
+        : ParameterIndex == 1 ? Bridge->ImpactBrightnessRtpc
+        : ParameterIndex == 2 ? Bridge->ObjectSizeRtpc
+        : Bridge->ImpactEnergyRtpc;
+    return FText::FromString(Rtpc ? Rtpc->GetName() : TEXT("未绑定 RTPC"));
+}
+
+bool FResonanceForgeEditorModule::IsWwiseRouteComplete() const
+{
+    const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+    return Instrument && Instrument->WwiseBridge && Instrument->WwiseBridge->IsRouteComplete();
 }
 
 FText FResonanceForgeEditorModule::GetWwiseVolumeText() const
@@ -1847,7 +1902,18 @@ FReply FResonanceForgeEditorModule::ExportCurrentSample()
     Root->SetObjectField(TEXT("waveguide"), Waveguide);
 
     const TSharedRef<FJsonObject> Wwise = MakeShared<FJsonObject>();
-    Wwise->SetStringField(TEXT("event"), ResonanceForgeEditor::GetWwiseEventName(ActivePreset));
+    FString RoutedEventName = ResonanceForgeEditor::GetWwiseEventName(ActivePreset);
+    if (Instrument)
+    {
+        if (Instrument->WwiseBridge)
+        {
+            if (const UAkAudioEvent* RoutedEvent = Instrument->WwiseBridge->GetRoutedEventForPreset(ActivePreset))
+            {
+                RoutedEventName = RoutedEvent->GetName();
+            }
+        }
+    }
+    Wwise->SetStringField(TEXT("event"), RoutedEventName);
     Wwise->SetStringField(TEXT("integration"), TEXT("metadata only; import and Wwise processing are not rendered"));
     const TSharedRef<FJsonObject> Rtpc = MakeShared<FJsonObject>();
     Rtpc->SetNumberField(TEXT("RF_ImpactEnergy"), PreviewEnergy * 100.0f);
@@ -2461,6 +2527,90 @@ FReply FResonanceForgeEditorModule::ForgeSharedRecipeAsset()
     }
     LastStatus = FText::Format(
         NSLOCTEXT("ResonanceForge", "SharedRecipeCreated", "共享配方「{0}」已铸印并挂到当前对象 · Content 浏览器已定位"),
+        FText::FromString(DisplayName));
+    return FReply::Handled();
+}
+
+FReply FResonanceForgeEditorModule::ForgeWwiseRoutingProfile()
+{
+    AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+    UResonanceForgeWwiseBridgeComponent* Bridge = Instrument ? Instrument->WwiseBridge : nullptr;
+    if (!Bridge)
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "WwiseRouteNoInstrument", "无法铸印路由 · 请先打开试听场景并选择一个共振体");
+        return FReply::Handled();
+    }
+    if (!Bridge->IsRouteComplete())
+    {
+        LastStatus = FText::Format(
+            NSLOCTEXT("ResonanceForge", "WwiseRouteIncomplete", "无法铸印不完整路由 · {0}"),
+            FText::FromString(Bridge->GetIntegrationStatus()));
+        return FReply::Handled();
+    }
+
+    FString DisplayName = WwiseRouteName.TrimStartAndEnd();
+    if (DisplayName.IsEmpty())
+    {
+        DisplayName = TEXT("材质三路出口");
+    }
+    FString BaseAssetName = ObjectTools::SanitizeObjectName(TEXT("DA_RF_WwiseRoute_") + DisplayName);
+    if (BaseAssetName.IsEmpty())
+    {
+        BaseAssetName = TEXT("DA_RF_WwiseRoute_Shared");
+    }
+
+    const FString RootPath(TEXT("/Game/ResonanceForge/Routing/"));
+    FString AssetName = BaseAssetName;
+    FString PackageName = RootPath + AssetName;
+    for (int32 Suffix = 2; FPackageName::DoesPackageExist(PackageName); ++Suffix)
+    {
+        AssetName = FString::Printf(TEXT("%s_%02d"), *BaseAssetName, Suffix);
+        PackageName = RootPath + AssetName;
+    }
+
+    UPackage* Package = CreatePackage(*PackageName);
+    UResonanceWwiseRoutingProfile* Profile = NewObject<UResonanceWwiseRoutingProfile>(
+        Package, *AssetName, RF_Public | RF_Standalone);
+    if (!Profile)
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "WwiseRouteCreateFailed", "Wwise 路由配方创建失败");
+        return FReply::Handled();
+    }
+
+    Profile->DisplayName = FText::FromString(DisplayName);
+    Profile->SteelImpactEvent = Bridge->SteelImpactEvent;
+    Profile->WoodImpactEvent = Bridge->WoodImpactEvent;
+    Profile->GlassImpactEvent = Bridge->GlassImpactEvent;
+    Profile->ImpactEnergyRtpc = Bridge->ImpactEnergyRtpc;
+    Profile->ImpactBrightnessRtpc = Bridge->ImpactBrightnessRtpc;
+    Profile->ObjectSizeRtpc = Bridge->ObjectSizeRtpc;
+    Profile->RtpcInterpolationMs = Bridge->RtpcInterpolationMs;
+    Profile->bAllowDemoAssetFallback = true;
+
+    FAssetRegistryModule::AssetCreated(Profile);
+    Package->MarkPackageDirty();
+    const FString Filename = FPackageName::LongPackageNameToFilename(
+        PackageName, FPackageName::GetAssetPackageExtension());
+    FSavePackageArgs SaveArgs;
+    SaveArgs.TopLevelFlags = RF_Public | RF_Standalone;
+    SaveArgs.SaveFlags = SAVE_NoError;
+    if (!UPackage::SavePackage(Package, Profile, *Filename, SaveArgs))
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "WwiseRouteSaveFailed", "Wwise 路由已创建，但保存到 Content 失败");
+        return FReply::Handled();
+    }
+
+    Instrument->Modify();
+    Bridge->Modify();
+    Bridge->ApplyRoutingProfile(Profile);
+    Instrument->MarkPackageDirty();
+    if (GEditor)
+    {
+        TArray<UObject*> ObjectsToSync = {Profile};
+        GEditor->SyncBrowserToObjects(ObjectsToSync);
+    }
+    LastStatus = FText::Format(
+        NSLOCTEXT("ResonanceForge", "WwiseRouteCreated", "Wwise 路由「{0}」已铸印并挂到当前对象 · 可在其他地图复用"),
         FText::FromString(DisplayName));
     return FReply::Handled();
 }
@@ -3454,6 +3604,33 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                                 [OutputReading(NSLOCTEXT("ResonanceForge", "WwiseLowpassLabel", "RF_ImpactBrightness → Low-pass"), TAttribute<FText>::CreateRaw(this, &FResonanceForgeEditorModule::GetWwiseLowpassText), Glass)]
                                 + SHorizontalBox::Slot().FillWidth(1.0f).Padding(10, 0, 0, 0)
                                 [OutputReading(NSLOCTEXT("ResonanceForge", "WwisePitchLabel", "RF_ObjectSize → Pitch"), TAttribute<FText>::CreateRaw(this, &FResonanceForgeEditorModule::GetWwisePitchText), Wood)]
+                            ]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 14, 0, 0)
+                            [
+                                SAssignNew(WwiseRouteAnchor, SResonanceWwiseRouteLoom)
+                                .IsComplete_Lambda([this]{ return IsWwiseRouteComplete(); })
+                                .SourceName_Raw(this, &FResonanceForgeEditorModule::GetWwiseRouteSourceText)
+                                .SteelEvent_Lambda([this]{ return GetWwiseEventText(0); })
+                                .WoodEvent_Lambda([this]{ return GetWwiseEventText(1); })
+                                .GlassEvent_Lambda([this]{ return GetWwiseEventText(2); })
+                                .EnergyRtpc_Lambda([this]{ return GetWwiseRtpcText(0); })
+                                .BrightnessRtpc_Lambda([this]{ return GetWwiseRtpcText(1); })
+                                .SizeRtpc_Lambda([this]{ return GetWwiseRtpcText(2); })
+                            ]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
+                            [
+                                SNew(SHorizontalBox)
+                                + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 12, 0).VAlign(VAlign_Center)
+                                [SNew(STextBlock).Text(NSLOCTEXT("ResonanceForge", "WwiseRouteLabel", "共享出口配方")).ColorAndOpacity(Muted)]
+                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(0, 0, 8, 0)
+                                [
+                                    SNew(SEditableTextBox)
+                                    .Text_Lambda([this]{ return FText::FromString(WwiseRouteName); })
+                                    .HintText(NSLOCTEXT("ResonanceForge", "WwiseRouteHint", "例如：战斗材质三路"))
+                                    .OnTextChanged_Lambda([this](const FText& Text){ WwiseRouteName = Text.ToString(); })
+                                ]
+                                + SHorizontalBox::Slot().AutoWidth()
+                                [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "ForgeWwiseRoute", "铸印当前路由")).OnClicked_Raw(this, &FResonanceForgeEditorModule::ForgeWwiseRoutingProfile)]
                             ]
                         ]
                     ]

@@ -4,6 +4,7 @@
 #include "AkGameplayStatics.h"
 #include "AkRtpc.h"
 #include "ResonanceForgeSynthComponent.h"
+#include "ResonanceWwiseRoutingProfile.h"
 
 UResonanceForgeWwiseBridgeComponent::UResonanceForgeWwiseBridgeComponent()
 {
@@ -13,6 +14,10 @@ UResonanceForgeWwiseBridgeComponent::UResonanceForgeWwiseBridgeComponent()
 void UResonanceForgeWwiseBridgeComponent::BeginPlay()
 {
     Super::BeginPlay();
+    if (RoutingProfile)
+    {
+        ApplyRoutingProfile(RoutingProfile);
+    }
     if (bAutoBindGeneratedAssets)
     {
         AutoBindDemoAssets();
@@ -21,32 +26,97 @@ void UResonanceForgeWwiseBridgeComponent::BeginPlay()
 
 bool UResonanceForgeWwiseBridgeComponent::AutoBindDemoAssets()
 {
+    bUsingDemoFallback = false;
+    if (RoutingProfile)
+    {
+        ApplyRoutingProfile(RoutingProfile);
+        if (!RoutingProfile->bAllowDemoAssetFallback)
+        {
+            return IsRouteComplete();
+        }
+    }
     if (!SteelImpactEvent)
     {
         SteelImpactEvent = LoadObject<UAkAudioEvent>(nullptr, TEXT("/Game/WwiseAudio/Events/Default_Work_Unit/ResonanceForge/Play_RF_Impact_Steel.Play_RF_Impact_Steel"));
+        bUsingDemoFallback |= SteelImpactEvent != nullptr;
     }
     if (!WoodImpactEvent)
     {
         WoodImpactEvent = LoadObject<UAkAudioEvent>(nullptr, TEXT("/Game/WwiseAudio/Events/Default_Work_Unit/ResonanceForge/Play_RF_Impact_Wood.Play_RF_Impact_Wood"));
+        bUsingDemoFallback |= WoodImpactEvent != nullptr;
     }
     if (!GlassImpactEvent)
     {
         GlassImpactEvent = LoadObject<UAkAudioEvent>(nullptr, TEXT("/Game/WwiseAudio/Events/Default_Work_Unit/ResonanceForge/Play_RF_Impact_Glass.Play_RF_Impact_Glass"));
+        bUsingDemoFallback |= GlassImpactEvent != nullptr;
     }
     if (!ImpactEnergyRtpc)
     {
         ImpactEnergyRtpc = LoadObject<UAkRtpc>(nullptr, TEXT("/Game/WwiseAudio/Game_Parameters/Default_Work_Unit/RF_ImpactEnergy.RF_ImpactEnergy"));
+        bUsingDemoFallback |= ImpactEnergyRtpc != nullptr;
     }
     if (!ImpactBrightnessRtpc)
     {
         ImpactBrightnessRtpc = LoadObject<UAkRtpc>(nullptr, TEXT("/Game/WwiseAudio/Game_Parameters/Default_Work_Unit/RF_ImpactBrightness.RF_ImpactBrightness"));
+        bUsingDemoFallback |= ImpactBrightnessRtpc != nullptr;
     }
     if (!ObjectSizeRtpc)
     {
         ObjectSizeRtpc = LoadObject<UAkRtpc>(nullptr, TEXT("/Game/WwiseAudio/Game_Parameters/Default_Work_Unit/RF_ObjectSize.RF_ObjectSize"));
+        bUsingDemoFallback |= ObjectSizeRtpc != nullptr;
     }
+    return IsRouteComplete();
+}
+
+bool UResonanceForgeWwiseBridgeComponent::ApplyRoutingProfile(UResonanceWwiseRoutingProfile* NewProfile)
+{
+    RoutingProfile = NewProfile;
+    bUsingDemoFallback = false;
+    if (!RoutingProfile)
+    {
+        return false;
+    }
+    SteelImpactEvent = RoutingProfile->SteelImpactEvent;
+    WoodImpactEvent = RoutingProfile->WoodImpactEvent;
+    GlassImpactEvent = RoutingProfile->GlassImpactEvent;
+    ImpactEnergyRtpc = RoutingProfile->ImpactEnergyRtpc;
+    ImpactBrightnessRtpc = RoutingProfile->ImpactBrightnessRtpc;
+    ObjectSizeRtpc = RoutingProfile->ObjectSizeRtpc;
+    RtpcInterpolationMs = FMath::Clamp(RoutingProfile->RtpcInterpolationMs, 0, 2000);
+    return IsRouteComplete();
+}
+
+bool UResonanceForgeWwiseBridgeComponent::IsRouteComplete() const
+{
     return SteelImpactEvent && WoodImpactEvent && GlassImpactEvent
         && ImpactEnergyRtpc && ImpactBrightnessRtpc && ObjectSizeRtpc;
+}
+
+UAkAudioEvent* UResonanceForgeWwiseBridgeComponent::GetRoutedEventForPreset(const FName MaterialPreset) const
+{
+    if (MaterialPreset == TEXT("硬木"))
+    {
+        return WoodImpactEvent ? WoodImpactEvent : SteelImpactEvent;
+    }
+    if (MaterialPreset == TEXT("薄玻璃"))
+    {
+        return GlassImpactEvent ? GlassImpactEvent : SteelImpactEvent;
+    }
+    return SteelImpactEvent;
+}
+
+FString UResonanceForgeWwiseBridgeComponent::GetRouteSourceName() const
+{
+    if (RoutingProfile)
+    {
+        const FString Name = RoutingProfile->DisplayName.IsEmpty()
+            ? RoutingProfile->GetName()
+            : RoutingProfile->DisplayName.ToString();
+        return bUsingDemoFallback
+            ? FString::Printf(TEXT("共享路由「%s」+ Demo 补位"), *Name)
+            : FString::Printf(TEXT("共享路由「%s」"), *Name);
+    }
+    return bUsingDemoFallback ? TEXT("Demo 自动绑定") : TEXT("场景手工绑定");
 }
 
 float UResonanceForgeWwiseBridgeComponent::ToWwiseRtpc(const float NormalizedValue)
@@ -113,15 +183,7 @@ int32 UResonanceForgeWwiseBridgeComponent::TriggerImpact(
         UAkGameplayStatics::SetRTPCValue(ObjectSizeRtpc, ToWwiseRtpc(ObjectSize), RtpcInterpolationMs, Owner);
     }
 
-    UAkAudioEvent* RoutedEvent = SteelImpactEvent;
-    if (Parameters.MaterialPreset == TEXT("硬木"))
-    {
-        RoutedEvent = WoodImpactEvent ? WoodImpactEvent : SteelImpactEvent;
-    }
-    else if (Parameters.MaterialPreset == TEXT("薄玻璃"))
-    {
-        RoutedEvent = GlassImpactEvent ? GlassImpactEvent : SteelImpactEvent;
-    }
+    UAkAudioEvent* RoutedEvent = GetRoutedEventForPreset(Parameters.MaterialPreset);
 
     if (!RoutedEvent)
     {
@@ -143,7 +205,7 @@ FString UResonanceForgeWwiseBridgeComponent::GetIntegrationStatus() const
 
     if (MissingItems.IsEmpty())
     {
-        return TEXT("Wwise 桥接已就绪");
+        return FString::Printf(TEXT("Wwise 路由已就绪 · %s"), *GetRouteSourceName());
     }
     return FString::Printf(TEXT("等待绑定：%s"), *FString::Join(MissingItems, TEXT("、")));
 }

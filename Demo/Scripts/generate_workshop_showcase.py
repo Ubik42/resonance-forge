@@ -6,6 +6,7 @@ import unreal
 BASE_MAP = "/Game/ResonanceForge/Demo/Maps/L_RF_PhysicsLab"
 OPTIONAL_MAP = "/Game/CarpentersWorkshop/ResonanceForge/L_RF_WorkshopShowcase"
 SHARED_PROFILE_PATH = "/Game/ResonanceForge/Profiles/DA_RF_LongTailWoodString"
+WWISE_ROUTE_PATH = "/Game/ResonanceForge/Routing/DA_RF_DemoMaterialRoute"
 REPORT_PATH = os.path.join(
     unreal.Paths.project_saved_dir(),
     "ResonanceForge",
@@ -18,6 +19,9 @@ actor_subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 shared_waveguide_profile = unreal.load_asset(SHARED_PROFILE_PATH)
 if shared_waveguide_profile is None:
     raise RuntimeError(f"Fab 地图缺少共享配方：{SHARED_PROFILE_PATH}")
+shared_wwise_route = unreal.load_asset(WWISE_ROUTE_PATH)
+if shared_wwise_route is None or not shared_wwise_route.is_complete():
+    raise RuntimeError(f"Fab 地图缺少完整 Wwise 路由：{WWISE_ROUTE_PATH}")
 
 
 def asset(path):
@@ -56,19 +60,20 @@ else:
 
 # 用真实木工台替换基础几何台面，同时保留所有可公开复现的功能 Actor。
 text_overrides = {
-    "RF_标签_拉丝钢": ("BRUSHED STEEL", 20),
-    "RF_说明_拉丝钢": ("DENSE HIGHS · LONG DECAY\nIMPULSE > EXCITATION ENERGY", 10),
-    "RF_标签_硬木": ("HARDWOOD", 20),
-    "RF_说明_硬木": ("WARM LOWS · FAST DAMPING\nVELOCITY > BRIGHTNESS", 10),
-    "RF_标签_薄玻璃": ("THIN GLASS", 20),
-    "RF_说明_薄玻璃": ("SPARSE HIGHS · BRITTLE TAIL\nSIZE > RESONANCE SCALE", 10),
-    "RF_波导标题": ("02  DIGITAL WAVEGUIDE STRING", 24),
-    "RF_波导说明": ("DELAY-LINE PROPAGATION · DAMPING FEEDBACK · MIDI PITCH + VELOCITY", 11),
-    "RF_Wwise标题": ("03  WWISE OUTPUT", 24),
-    "RF_Wwise参数": ("ENERGY  RF_ImpactEnergy     BRIGHTNESS  RF_ImpactBrightness     SIZE  RF_ObjectSize", 9),
-    "RF_碰撞区标题": ("01  MATERIAL IMPACT BENCH", 24),
-    "RF_标题": ("RESONANCE FORGE · ACOUSTIC WORKSHOP", 32),
-    "RF_副标题": ("SELECT OBJECT > EXCITE > RESONATE > PUBLISH TO WWISE", 13),
+    "RF_标签_拉丝钢": ("拉丝钢", 20),
+    "RF_说明_拉丝钢": ("高频密集 · 长衰减\n冲量进入激励能量", 10),
+    "RF_标签_硬木": ("硬木", 20),
+    "RF_说明_硬木": ("中低频突出 · 快阻尼\n速度进入音色明亮度", 10),
+    "RF_标签_薄玻璃": ("薄玻璃", 20),
+    "RF_说明_薄玻璃": ("稀疏高频 · 脆尾音\n尺寸进入共振尺度", 10),
+    "RF_波导标题": ("02  数字波导弦", 24),
+    "RF_波导说明": ("延迟线传播 · 阻尼反馈 · MIDI 音高与力度", 11),
+    "RF_Wwise标题": ("03  Wwise 声音出口", 24),
+    "RF_Wwise事件": ("钢 / 木 / 玻璃 · 三路 Event", 16),
+    "RF_Wwise参数": ("能量 → RF_ImpactEnergy     明亮度 → RF_ImpactBrightness     尺度 → RF_ObjectSize", 9),
+    "RF_碰撞区标题": ("01  材质撞击台", 24),
+    "RF_标题": ("共振铸造台 · 声学工坊", 32),
+    "RF_副标题": ("选择对象 → 起振 → 共振塑形 → 发布到 Wwise", 13),
 }
 text_layout = {
     "RF_编号_1": (unreal.Vector(-530, -132, 255), 18),
@@ -117,6 +122,9 @@ for actor in actor_subsystem.get_all_level_actors():
     elif label == "RF_04_数字波导弦":
         actor.native_synth.apply_material_profile(shared_waveguide_profile)
         waveguide_profile_path = actor.native_synth.get_editor_property("material_profile").get_path_name()
+        actor.wwise_bridge.apply_routing_profile(shared_wwise_route)
+    elif isinstance(actor, unreal.ResonanceForgeImpactInstrumentActor):
+        actor.wwise_bridge.apply_routing_profile(shared_wwise_route)
 
 if not waveguide_profile_path or waveguide_profile_path.split(".")[0] != SHARED_PROFILE_PATH:
     raise RuntimeError(f"Fab 数字弦共享配方挂载失败：{waveguide_profile_path}")
@@ -176,6 +184,7 @@ report = {
     "props": [actor.get_actor_label() for actor in props],
     "public_repository_dependency": False,
     "shared_profile": waveguide_profile_path,
+    "shared_wwise_route": shared_wwise_route.get_path_name(),
     "status": "success",
 }
 os.makedirs(os.path.dirname(REPORT_PATH), exist_ok=True)

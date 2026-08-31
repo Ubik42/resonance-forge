@@ -57,6 +57,7 @@ $imageDirectory = Join-Path $repositoryRoot 'docs\images'
 $expectedImages = @(
     'resonance-forge-workbench.png',
     'resonance-forge-keybed.png',
+    'resonance-forge-wwise-route.png',
     'resonance-forge-workbench-details.png',
     'resonance-forge-mode-rack.png'
 )
@@ -72,4 +73,4 @@ if ($missingOriginalEditors.Count -gt 0) {
     Write-Warning "截图期间有既存的其他版本 UE 自行退出：PID $($missingOriginalEditors -join '、')。脚本未向这些 PID 发送关闭或终止命令。"
 }
 
-Write-Output "工作台截图完成：PID $($captureProcess.Id)，4 张图片已更新。"
+Write-Output "工作台截图完成：PID $($captureProcess.Id)，5 张图片已更新。"

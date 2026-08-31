@@ -8,7 +8,7 @@
 ![Unreal Engine 5.8](https://img.shields.io/badge/Unreal_Engine-5.8.1-0E1128?logo=unrealengine&logoColor=white)
 ![Wwise 2025.1](https://img.shields.io/badge/Wwise-2025.1-00549F)
 ![Platform](https://img.shields.io/badge/Platform-Windows_Editor-0078D4?logo=windows&logoColor=white)
-![Version](https://img.shields.io/badge/Version-0.38.0-D96B2B)
+![Version](https://img.shields.io/badge/Version-0.39.0-D96B2B)
 ![License](https://img.shields.io/badge/License-MIT-2EA44F)
 
 </div>
@@ -23,9 +23,13 @@
 
 ![共振铸造台工作台主视图](docs/images/resonance-forge-workbench.png)
 
-第二张呈现三档锤击标尺、Wwise 出口刻度、可回炉试听的本地配方铭牌，以及能判断尾音、切换最近版本的“铸样台 / 余响拓片 / 铭牌架”。
+第二张呈现可回炉试听的本地配方铭牌，以及能判断尾音、切换最近版本的“铸样台 / 余响拓片 / 铭牌架”。
 
 ![共振铸造台弦床与配方架](docs/images/resonance-forge-workbench-details.png)
+
+Wwise 不再藏在对象详情或固定 Demo 路径后面。“路由织机”把钢、木、玻璃三条 Event 线与能量、明亮度、尺度三条参数线直接铺开，并标明当前来源；完整绑定可铸成独立 Content 路由资产，在不同地图和项目中复用。
+
+![共振铸造台 Wwise 路由织机](docs/images/resonance-forge-wwise-route.png)
 
 模态撞击体不是固定预设黑盒。第三张用“落点划线规”选择物体上的敲击位置，下方短齿即时显示各模态的受激程度；“共振齿列”则把每一个真实模态放在对数频率轴上，允许逐根调整并试听。
 
@@ -40,6 +44,7 @@
 - **两类实时物理声源**：模态撞击体与八复音数字波导弦。
 - **真实场景输入**：碰撞冲量、相对速度和物体尺寸直接影响声音。
 - **UE × Wwise 双路径**：UE 原生合成可独立试听，同时按钢、木、玻璃分流 3 个 Wwise Event，并发布 3 个 RTPC。
+- **Wwise 路由织机**：把 3 个材质 Event 与 3 个 Game Parameter 画成可读的六路线束，显示共享资产、场景手工绑定或 Demo 补位来源；完整路由可一键铸成 `UResonanceWwiseRoutingProfile`。
 - **监听闸门**：原声炉、Wwise 出口、双路叠听三档在统一触发层真实分流；面板按钮、试音键床、MIDI、键盘触发与 PIE 碰撞都会遵守当前选择。
 - **锤击标尺与出口刻度**：轻触、常规、重击三档手势一键试听，并把 RTPC 曲线翻译成近似的 dB、低通与 cent 读数。
 - **可听的直接编辑**：点击材质或模型立即试听；拖动参数时声纹和出口刻度实时变化，松手只触发一次声音，避免连续 Event 互相遮盖。
@@ -62,7 +67,7 @@
 - **可塑形的数字弦**：“弦床”直接控制起振位置、回响长度、弦路阻尼、箱体耦合和拾音位置；力进入弦的位置与声音离开弦的位置可以独立调整。声音、声纹、A/B 参考、配方槽与声源铭牌使用同一组参数。
 - **四种波导激励手势**：指腹、拨片、锤击写入不同的初始弦形；弓擦持续计算弓速与弦速的差值，通过非线性摩擦曲线向同一根延迟线补能。鼠标试听使用有限自动弓程，硬件 MIDI 则按键起弓、松键收弓。
 - **可拖动的弦路尺**：不把物理位置继续做成抽象滑杆；橙色起振锤回答“力从哪里进入”，青色拾音梭回答“声音从哪里离开”，铜色驻波包络则保留琴桥与弦心参照。
-- **团队共享资产**：把当前声音“铸印”为 `UResonanceMaterialProfile`，保存进 Content、挂到当前对象并交给版本控制。
+- **团队共享资产**：声学配方与中间件路由分开管理；当前声音可铸成 `UResonanceMaterialProfile`，当前六路 Wwise 绑定可铸成 `UResonanceWwiseRoutingProfile`，分别参与 Content 版本控制。
 - **可操作的铸造声路**：取件、起振、塑形、监听、铸样五个工位反映最近一次真实操作；点击任一工位会滚动到对应工具，并给出当前最自然的下一步。
 - **可重复验证**：测试音频、PBR 贴图、演示地图和复检报告均可由脚本重建。
 
@@ -166,7 +171,8 @@ flowchart LR
 14. 切换到“数字波导弦”和“弓擦”，在弓行轨按住弓座：先匀速向右推弓，再不松手向左回弓，并向下移动比较弓压；松手确认自然收弓。随后依次试听指腹、拨片与锤击，再分别移动橙色起振锤与青色拾音梭，每次只改变一个空间参数。
 15. 在“铸样台”输入文件名并选择 1.5、3 或 6 秒，点击“铸成 WAV”；观察“余响拓片”是否提示尾音仍活跃，必要时延长一档或降低回响长度。工具会成对写入 WAV 与 `.rfrecipe.json` 声源铭牌，重名时自动追加编号。下方“铭牌架”会刷新最近三版，点击任意铭牌即可回炉；“回炉最近铭牌”仍保留为最快入口。
 16. 为满意版本输入名称，点击“铸印为 Content 资产”；当前共振齿列会写入 `UResonanceMaterialProfile::Modes`，成为团队可复用配方。
-17. 进入 PIE，观察落球碰撞并在 Wwise Profiler 中检查 RTPC。
+17. 在“Wwise 路由织机”确认三条 Event 与三条 RTPC 均已接通；需要跨地图复用时输入名称并点击“铸印当前路由”。
+18. 进入 PIE，观察落球碰撞并在 Wwise Profiler 中检查 RTPC。
 
 配方槽写入 Unreal 的本机工程用户设置，不会生成需要提交的团队资产；适合保存个人试听草案。当前使用第三版槽位契约，保存完整共振齿列、MIDI/弓奏表演状态和推弓/回弓方向；旧槽位继续兼容读取。需要团队共享的正式声学资产仍应使用 `UResonanceMaterialProfile`。
 
@@ -240,6 +246,8 @@ WAV 旁边的 `.rfrecipe.json` 是“声源铭牌”，使用 `resonance-forge/s
 
 碰撞、MIDI 或面板试听会先根据当前材质选择对应的 Wwise 出口；每个出口拥有独立的 Random Container 和软、中、硬三档素材：
 
+运行时优先读取 `UResonanceWwiseRoutingProfile`。它只保存 Wwise 侧的 3 个 Event、3 个 RTPC 与插值时间，不混入模态、弦床或演奏参数；同一份路由可挂到多个声学对象。没有共享路由时仍允许场景对象手工绑定；演示工程最后才按 `/Game/WwiseAudio/...` 补位，且工作台会明确显示来源，不把 Demo 路径当成产品契约。
+
 | 材质预设 | Event | Random Container | 素材 |
 | --- | --- | --- | --- |
 | 拉丝钢 | `Play_RF_Impact_Steel` | `RF_Impact_Steel` | `RF_Steel_Soft / Medium / Hard` |
@@ -257,6 +265,8 @@ WAV 旁边的 `.rfrecipe.json` 是“声源铭牌”，使用 `resonance-forge/s
 曲线由 `scripts/provision_wwise_project.ps1` 通过 WAAPI 写入。脚本会先读取现有声音对象，并逐层核对 RTPC 与 Curve；配置相同时不重复导入 WAV，也不重建曲线 GUID。
 
 工作台中的“Wwise 出口刻度”按这些控制点近似显示当前 dB、Low-pass 与 cent，方便不打开 Authoring 时快速判断调音方向；最终值仍由 Wwise 运行时按实际曲线求值。
+
+“Wwise 路由织机”读取的就是桥接器实际引用。运行时发布 Event、工作台显示和铸样铭牌共用 `GetRoutedEventForPreset`，因此更换共享路由后不会出现界面名称与真实播放出口分叉。演示地图提供 `/Game/ResonanceForge/Routing/DA_RF_DemoMaterialRoute` 作为可重建样例。
 
 ## MIDI 映射
 
@@ -321,6 +331,7 @@ ResonanceForge
 | 铭牌架往返 | 自动铸出同参数的弓擦与锤击两版，再按弓擦铭牌确切路径恢复硬木波导弦、`34%` 弓点、弓擦手势、回弓、6 模态、Note 55、`55%` 弓速、`68%` 弓压与 180 段拓片；最新 JSON 实测写入 `bowDirection: Reverse` |
 | Wwise 生成资源检查 | 通过 |
 | Wwise 材质路由与 RTPC 映射 | 3 个 Event、9 份 WAV、每个 Container 3 条曲线与 Windows SoundBank 通过 |
+| Wwise 共享路由资产 | `DA_RF_DemoMaterialRoute` 的 3 Event + 3 RTPC 通过地图重建；自动截图会再次检查当前对象路由完整性并记录来源 |
 | 基础地图磁盘重载 | 3 个落球 + 1 个波导弦通过 |
 | Carpenter's Workshop UE 5.8 加载 | 通过，本机可选依赖 |
 
