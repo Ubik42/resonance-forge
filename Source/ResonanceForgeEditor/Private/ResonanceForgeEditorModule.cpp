@@ -312,6 +312,26 @@ void FResonanceForgeEditorModule::ApplyWaveguideParameters()
     }
 }
 
+void FResonanceForgeEditorModule::AuditionCurrentSound(const FText& ChangeLabel)
+{
+    if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
+    {
+        Instrument->ObjectSize = PreviewSize;
+        ApplyWaveguideParameters();
+        Instrument->TriggerInstrument(PreviewEnergy, PreviewBrightness, 60);
+        LastStatus = FText::Format(
+            NSLOCTEXT("ResonanceForge", "AuditionedChange", "{0} · 已试听  能量 {1}% / 明亮度 {2}% / 尺度 {3}%"),
+            ChangeLabel,
+            FText::AsNumber(FMath::RoundToInt(PreviewEnergy * 100.0f)),
+            FText::AsNumber(FMath::RoundToInt(PreviewBrightness * 100.0f)),
+            FText::AsNumber(FMath::RoundToInt(PreviewSize * 100.0f)));
+    }
+    else
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "AuditionMissing", "无法试听 · 请先打开试听场景并选择一个共振体");
+    }
+}
+
 FReply FResonanceForgeEditorModule::SyncFromSelection()
 {
     if (const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
@@ -346,22 +366,7 @@ FReply FResonanceForgeEditorModule::SyncFromSelection()
 
 FReply FResonanceForgeEditorModule::TriggerPreview()
 {
-    if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
-    {
-        Instrument->ObjectSize = PreviewSize;
-        ApplyWaveguideParameters();
-        Instrument->TriggerInstrument(PreviewEnergy, PreviewBrightness, 60);
-        LastStatus = FText::Format(
-            NSLOCTEXT("ResonanceForge", "Triggered", "已触发 {0} · Energy {1}% / Brightness {2}% / Size {3}%"),
-            FText::FromName(Instrument->ResonancePreset),
-            FText::AsNumber(FMath::RoundToInt(PreviewEnergy * 100.0f)),
-            FText::AsNumber(FMath::RoundToInt(PreviewBrightness * 100.0f)),
-            FText::AsNumber(FMath::RoundToInt(PreviewSize * 100.0f)));
-    }
-    else
-    {
-        LastStatus = NSLOCTEXT("ResonanceForge", "PreviewMissing", "无法预听 · 场景中没有可用的共振体");
-    }
+    AuditionCurrentSound(NSLOCTEXT("ResonanceForge", "CurrentVoice", "当前声纹"));
     return FReply::Handled();
 }
 
@@ -984,6 +989,9 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
             .OnClicked_Lambda([this, ModelType]
             {
                 ApplyModel(ModelType);
+                AuditionCurrentSound(ModelType == EResonanceModelType::WaveguideString
+                    ? NSLOCTEXT("ResonanceForge", "WaveguideAudition", "数字波导弦")
+                    : NSLOCTEXT("ResonanceForge", "ModalAudition", "模态撞击体"));
                 return FReply::Handled();
             })
             [
@@ -1005,11 +1013,14 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
             .OnClicked_Lambda([this, Preset]
             {
                 ApplyPreset(Preset);
+                AuditionCurrentSound(FText::Format(
+                    NSLOCTEXT("ResonanceForge", "PresetAudition", "材质「{0}」"),
+                    FText::FromName(Preset)));
                 return FReply::Handled();
             });
     };
 
-    auto ParameterRow = [](const FText& Name, const FText& Mapping, float* Value, const FLinearColor& Color)
+    auto ParameterRow = [this](const FText& Name, const FText& Mapping, float* Value, const FLinearColor& Color)
     {
         return SNew(SVerticalBox)
             + SVerticalBox::Slot().AutoHeight()
@@ -1024,8 +1035,17 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
             ]
             + SVerticalBox::Slot().AutoHeight().Padding(0, 7, 0, 0)
             [
-                SNew(SSlider).Value_Lambda([Value]{ return *Value; }).OnValueChanged_Lambda([Value](float NewValue){ *Value = NewValue; })
-                .SliderBarColor(Color).SliderHandleColor(Color)
+                SNew(SSlider)
+                .Value_Lambda([Value]{ return *Value; })
+                .OnValueChanged_Lambda([Value](float NewValue){ *Value = NewValue; })
+                .OnMouseCaptureEnd_Lambda([this, Name]
+                {
+                    AuditionCurrentSound(FText::Format(
+                        NSLOCTEXT("ResonanceForge", "ParameterAudition", "{0}调整完成"),
+                        Name));
+                })
+                .SliderBarColor(Color)
+                .SliderHandleColor(Color)
             ];
     };
 
@@ -1094,6 +1114,12 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                 {
                     *Value = NewValue;
                     ApplyWaveguideParameters();
+                })
+                .OnMouseCaptureEnd_Lambda([this, Name]
+                {
+                    AuditionCurrentSound(FText::Format(
+                        NSLOCTEXT("ResonanceForge", "WaveguideParameterAudition", "{0}调整完成"),
+                        Name));
                 })
                 .SliderBarColor(Color)
                 .SliderHandleColor(Color)
@@ -1210,7 +1236,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                         + SHorizontalBox::Slot().FillWidth(0.95f).Padding(7, 0, 0, 0)
                         [
                             SNew(SVerticalBox)
-                            + SVerticalBox::Slot().AutoHeight()[WorkspaceTitle(NSLOCTEXT("ResonanceForge", "Model", "这次要做哪一种声源？"), NSLOCTEXT("ResonanceForge", "ModelDetail", "撞击体适合道具与环境音；波导弦适合有音高、可演奏的声源。"))]
+                            + SVerticalBox::Slot().AutoHeight()[WorkspaceTitle(NSLOCTEXT("ResonanceForge", "Model", "这次要做哪一种声源？"), NSLOCTEXT("ResonanceForge", "ModelDetail", "点击模型即可换炉并试听；撞击体适合道具，波导弦适合有音高的声源。"))]
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 7)
                             [ModelButton(EResonanceModelType::ModalImpact, NSLOCTEXT("ResonanceForge", "Modal", "模态撞击体"), NSLOCTEXT("ResonanceForge", "ModalHelp", "钢、木、玻璃的离散共振峰"), Cyan)]
                             + SVerticalBox::Slot().AutoHeight()
@@ -1270,7 +1296,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                         [
                             SNew(SVerticalBox)
                             + SVerticalBox::Slot().AutoHeight()
-                            [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "StringBed", "弦床"), NSLOCTEXT("ResonanceForge", "StringBedDetail", "控制能量在数字弦中的往返方式；声纹轮廓会同步回应，而不是只改变一组隐藏数值。"))]
+                            [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "StringBed", "弦床"), NSLOCTEXT("ResonanceForge", "StringBedDetail", "拖动时观察弦路与声纹，松手试听一次；避免连续激励盖住参数差异。"))]
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 12, 0, 0)
                             [
                                 SNew(SHorizontalBox)
@@ -1289,7 +1315,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                         + SHorizontalBox::Slot().FillWidth(1.0f).Padding(0, 0, 10, 0)
                         [
                             SNew(SVerticalBox)
-                            + SVerticalBox::Slot().AutoHeight()[WorkspaceTitle(NSLOCTEXT("ResonanceForge", "Material", "给对象一种听感"), NSLOCTEXT("ResonanceForge", "MaterialDetail", "预设同时改变表面外观、共振峰分布与衰减。"))]
+                            + SVerticalBox::Slot().AutoHeight()[WorkspaceTitle(NSLOCTEXT("ResonanceForge", "Material", "给对象一种听感"), NSLOCTEXT("ResonanceForge", "MaterialDetail", "点击预设会同步表面、共振峰与衰减，并立即试听。"))]
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
                             [
                                 SNew(SHorizontalBox)
@@ -1301,7 +1327,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                         + SHorizontalBox::Slot().FillWidth(1.0f).Padding(10, 0, 0, 0)
                         [
                             SNew(SVerticalBox)
-                            + SVerticalBox::Slot().AutoHeight()[WorkspaceTitle(NSLOCTEXT("ResonanceForge", "Performance", "塑造这一次发声"), NSLOCTEXT("ResonanceForge", "PerformanceDetail", "拖动参数后立即试听；同一数值也会发送给 Wwise。"))]
+                            + SVerticalBox::Slot().AutoHeight()[WorkspaceTitle(NSLOCTEXT("ResonanceForge", "Performance", "塑造这一次发声"), NSLOCTEXT("ResonanceForge", "PerformanceDetail", "拖动时看声纹与出口刻度，松手试听一次；同一数值发送给 Wwise。"))]
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 12, 0, 0)[ParameterRow(NSLOCTEXT("ResonanceForge", "Energy", "激励能量"), FText::FromString(TEXT("RF_ImpactEnergy")), &PreviewEnergy, Steel)]
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 12, 0, 0)[ParameterRow(NSLOCTEXT("ResonanceForge", "Brightness", "明亮度"), FText::FromString(TEXT("RF_ImpactBrightness")), &PreviewBrightness, Glass)]
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 12, 0, 0)[ParameterRow(NSLOCTEXT("ResonanceForge", "Size", "共振尺度"), FText::FromString(TEXT("RF_ObjectSize")), &PreviewSize, Wood)]

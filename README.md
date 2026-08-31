@@ -8,7 +8,7 @@
 ![Unreal Engine 5.8](https://img.shields.io/badge/Unreal_Engine-5.8.1-0E1128?logo=unrealengine&logoColor=white)
 ![Wwise 2025.1](https://img.shields.io/badge/Wwise-2025.1-00549F)
 ![Platform](https://img.shields.io/badge/Platform-Windows_Editor-0078D4?logo=windows&logoColor=white)
-![Version](https://img.shields.io/badge/Version-0.11.0-D96B2B)
+![Version](https://img.shields.io/badge/Version-0.12.0-D96B2B)
 ![License](https://img.shields.io/badge/License-MIT-2EA44F)
 
 </div>
@@ -33,6 +33,7 @@
 - **真实场景输入**：碰撞冲量、相对速度和物体尺寸直接影响声音。
 - **UE × Wwise 双路径**：UE 原生合成可独立试听，同时发布 Wwise Event 与 3 个 RTPC。
 - **锤击标尺与出口刻度**：轻触、常规、重击三档手势一键试听，并把 RTPC 曲线翻译成近似的 dB、低通与 cent 读数。
+- **可听的直接编辑**：点击材质或模型立即试听；拖动参数时声纹和出口刻度实时变化，松手只触发一次声音，避免连续 Event 互相遮盖。
 - **可演奏**：面板可发现并连接 MIDI 输入设备；Note On 控制音高与力度，CC1 控制音色明亮度，并显示实时演奏状态。
 - **声纹炉膛**：用随模型、材质与演奏参数实时变化的声学指纹理解声音，而不是只看抽象滑杆。
 - **A/B 声纹比较**：钉住一次参考声纹，再更换材质或参数；“交换并试听 A/B”可在两个版本间往返切换。
@@ -114,9 +115,9 @@ flowchart LR
 1. 点击“打开试听场景”。
 2. 在场景中选择钢、木、玻璃砧座或数字波导弦。
 3. 点击“读取当前选择”。
-4. 选择共振模型和材质预设。
+4. 选择共振模型和材质预设；每次点击都会立即试听当前结果。
 5. 先点“轻触 / 常规 / 重击”建立力度参照；每一档都会立即试听，并在“Wwise 出口刻度”显示近似的响度、低通和移调结果。
-6. 再细调激励能量、明亮度与共振尺度，观察声纹轮廓和出口刻度同步变化。
+6. 再细调激励能量、明亮度与共振尺度：拖动时观察声纹和出口刻度，松手试听一次。
 7. 点击“钉住当前声纹”，再切换材质或参数，比较紫色参考轮廓与当前声纹。
 8. 点击“交换并试听 A/B”在两版之间往返切换；每次交换都会立即触发当前版本。
 9. 使用“配方架”把满意的版本存入甲、乙或丙槽，需要时一键召回到当前对象。

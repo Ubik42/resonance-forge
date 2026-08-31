@@ -17,6 +17,7 @@ private:
     void ApplyPreset(const FName PresetName);
     void ApplyModel(EResonanceModelType ModelType);
     void ApplyWaveguideParameters();
+    void AuditionCurrentSound(const FText& ChangeLabel);
     FReply SyncFromSelection();
     FReply TriggerPreview();
     FReply TriggerStrikePreset(float Energy, float Brightness, const FText& GestureName);
