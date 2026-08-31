@@ -17,6 +17,7 @@ public:
         SLATE_ATTRIBUTE(bool, HasCollision)
         SLATE_ATTRIBUTE(bool, PassedThreshold)
         SLATE_ATTRIBUTE(FText, CalibrationName)
+        SLATE_ARGUMENT(const TArray<float>*, SampleImpulses)
     SLATE_END_ARGS()
 
     void Construct(const FArguments& InArgs)
@@ -30,6 +31,7 @@ public:
         HasCollision = InArgs._HasCollision;
         PassedThreshold = InArgs._PassedThreshold;
         CalibrationName = InArgs._CalibrationName;
+        SampleImpulses = InArgs._SampleImpulses;
         SetCanTick(false);
     }
 
@@ -79,6 +81,26 @@ public:
         FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 1, Geometry.ToPaintGeometry(), Rail, ESlateDrawEffect::None, Iron, true, 5.0f);
         TArray<FVector2D> HotRail = {FVector2D(ImpulseX(Gate), RailY), FVector2D(RailX1, RailY)};
         FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 2, Geometry.ToPaintGeometry(), HotRail, ESlateDrawEffect::None, Hot.CopyWithNewOpacity(0.62f), true, 5.0f);
+
+        if (SampleImpulses)
+        {
+            for (int32 Index = 0; Index < SampleImpulses->Num(); ++Index)
+            {
+                const float Impulse = (*SampleImpulses)[Index];
+                const float X = ImpulseX(Impulse);
+                const float Top = RailY - 19.0f - static_cast<float>(Index % 3) * 4.0f;
+                TArray<FVector2D> Stamp = {FVector2D(X, Top), FVector2D(X, RailY - 5.0f)};
+                FSlateDrawElement::MakeLines(
+                    OutDrawElements,
+                    LayerId + 3,
+                    Geometry.ToPaintGeometry(),
+                    Stamp,
+                    ESlateDrawEffect::None,
+                    Impulse >= Gate ? Cyan.CopyWithNewOpacity(0.72f) : Hot.CopyWithNewOpacity(0.72f),
+                    true,
+                    2.0f);
+            }
+        }
 
         const float Ticks[] = {0.0f, Gate, HalfImpulse, FullImpulse};
         const FString Labels[] = {
@@ -146,4 +168,5 @@ private:
     TAttribute<bool> HasCollision;
     TAttribute<bool> PassedThreshold;
     TAttribute<FText> CalibrationName;
+    const TArray<float>* SampleImpulses = nullptr;
 };

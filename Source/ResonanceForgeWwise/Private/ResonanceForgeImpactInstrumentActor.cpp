@@ -210,6 +210,7 @@ void AResonanceForgeImpactInstrumentActor::HandleMeshHit(
     const FVector OtherVelocity = OtherComponent ? OtherComponent->GetComponentVelocity() : FVector::ZeroVector;
     LastCollisionRelativeSpeed = (OtherVelocity - InstrumentMesh->GetComponentVelocity()).Size();
     ++CollisionSerial;
+    LastCollisionWorldSeconds = GetWorld()->GetTimeSeconds();
 
     const float Energy = ComputeImpactEnergy(LastCollisionImpulse, MinimumImpulse, ImpulseSensitivity);
     LastCollisionEnergy = Energy;

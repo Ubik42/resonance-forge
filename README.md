@@ -8,7 +8,7 @@
 ![Unreal Engine 5.8](https://img.shields.io/badge/Unreal_Engine-5.8.1-0E1128?logo=unrealengine&logoColor=white)
 ![Wwise 2025.1](https://img.shields.io/badge/Wwise-2025.1-00549F)
 ![Platform](https://img.shields.io/badge/Platform-Windows_Editor-0078D4?logo=windows&logoColor=white)
-![Version](https://img.shields.io/badge/Version-0.40.0-D96B2B)
+![Version](https://img.shields.io/badge/Version-0.41.0-D96B2B)
 ![License](https://img.shields.io/badge/License-MIT-2EA44F)
 
 </div>
@@ -45,6 +45,7 @@ Wwise 不再藏在对象详情或固定 Demo 路径后面。“路由织机”�
 - **真实场景输入**：碰撞冲量、相对速度和物体尺寸直接影响声音。
 - **冲量标定砧尺**：把静默门槛、半响、满响与最近一次 PIE 碰撞画在同一根机械标尺上；被门槛挡掉的碰撞也会留下原始冲量与速度，方便判断“为什么没响”。
 - **三枚对象砝码**：轻件、道具、重构件不是音色预设，而是三套可直接写回 Actor 的碰撞门槛/灵敏度基准；场景团队可以先按物件量级起步，再进入细调。
+- **碰撞拓印与自动回标**：每个对象的砧尺保留最近 12 次 PIE 碰撞，区分未过门槛与成功起声；采满至少三次后可按弱端/强端分位点重算门槛和灵敏度，并按 Actor 标签把结果从 PIE 临时副本带回编辑地图。切换碰撞对象时自动换册，不混算不同物件。
 - **UE × Wwise 双路径**：UE 原生合成可独立试听，同时按钢、木、玻璃分流 3 个 Wwise Event，并发布 3 个 RTPC。
 - **Wwise 路由织机**：把 3 个材质 Event 与 3 个 Game Parameter 画成可读的六路线束，显示共享资产、场景手工绑定或 Demo 补位来源；完整路由可一键铸成 `UResonanceWwiseRoutingProfile`。
 - **监听闸门**：原声炉、Wwise 出口、双路叠听三档在统一触发层真实分流；面板按钮、试音键床、MIDI、键盘触发与 PIE 碰撞都会遵守当前选择。
@@ -314,6 +315,7 @@ ResonanceForge
 | UE 5.8 Editor 编译 | 通过 |
 | 物理碰撞映射测试 | 通过 |
 | 冲量标定砧尺 | 演示对象统一为门槛 `650` / 灵敏度 `0.00012`；半响约 `4817`、满响约 `8983`，原始碰撞在门槛判断前写入遥测 |
+| 碰撞拓印与回标 | 同一对象最近 12 次冲量进入工作台采样缓存；至少 3 次且跨度充分时按 10% / 90% 分位端点回标，切换对象会换册，PIE 内操作同步写回同标签的编辑世界 Actor |
 | 内置声学预设测试 | 通过 |
 | 可编辑模态链路 | `FResonanceMode` 写回、A/B 交换与 Content 配方保存通过 UE 编译 |
 | 配方级 A/B 往返 | 自动截图先钉住拉丝钢 / 拨片 / E3 / 线性力度参考，再构造硬木 / 弓擦回弓 / G3 / 软触力度本炉；连续交换两次后复核材质、模型、手势、力度曲线、Note、输入力度、弓速、弓压与弓向全部回到 B 版，任一字段不一致时截图进程以非零状态退出 |

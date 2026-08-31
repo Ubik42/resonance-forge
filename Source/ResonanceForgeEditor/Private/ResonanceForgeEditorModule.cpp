@@ -500,7 +500,11 @@ bool FResonanceForgeEditorModule::PollLiveImpact(float)
     {
         for (TActorIterator<AResonanceForgeImpactInstrumentActor> It(World); It; ++It)
         {
-            if (!Instrument || It->LastImpactWorldSeconds > Instrument->LastImpactWorldSeconds)
+            const float CandidateTime = FMath::Max(It->LastImpactWorldSeconds, It->LastCollisionWorldSeconds);
+            const float CurrentTime = Instrument
+                ? FMath::Max(Instrument->LastImpactWorldSeconds, Instrument->LastCollisionWorldSeconds)
+                : -TNumericLimits<float>::Max();
+            if (!Instrument || CandidateTime > CurrentTime)
             {
                 Instrument = *It;
             }
@@ -510,12 +514,45 @@ bool FResonanceForgeEditorModule::PollLiveImpact(float)
     {
         ObservedImpactActor.Reset();
         ObservedImpactSerial = INDEX_NONE;
+        ObservedCollisionSerial = INDEX_NONE;
         return true;
     }
     if (ObservedImpactActor.Get() != Instrument)
     {
         ObservedImpactActor = Instrument;
         ObservedImpactSerial = INDEX_NONE;
+        ObservedCollisionSerial = INDEX_NONE;
+    }
+    if (Instrument->CollisionSerial > 0 && Instrument->CollisionSerial != ObservedCollisionSerial)
+    {
+        ObservedCollisionSerial = Instrument->CollisionSerial;
+        const FString CollisionActorLabel = Instrument->GetActorLabel();
+        if (!ImpactCalibrationSampleActorLabel.IsEmpty() && ImpactCalibrationSampleActorLabel != CollisionActorLabel)
+        {
+            ImpactCalibrationSamples.Reset();
+            ImpactCalibrationSampleImpulses.Reset();
+        }
+        ImpactCalibrationSampleActorLabel = CollisionActorLabel;
+        FImpactCalibrationSample& Sample = ImpactCalibrationSamples.AddDefaulted_GetRef();
+        Sample.Impulse = Instrument->LastCollisionImpulse;
+        Sample.RelativeSpeed = Instrument->LastCollisionRelativeSpeed;
+        Sample.Energy = Instrument->LastCollisionEnergy;
+        Sample.Brightness = Instrument->LastCollisionBrightness;
+        Sample.bPassedThreshold = Instrument->bLastCollisionPassedThreshold;
+        ImpactCalibrationSampleImpulses.Add(Sample.Impulse);
+        constexpr int32 MaximumImpactSamples = 12;
+        if (ImpactCalibrationSamples.Num() > MaximumImpactSamples)
+        {
+            ImpactCalibrationSamples.RemoveAt(0, ImpactCalibrationSamples.Num() - MaximumImpactSamples);
+            ImpactCalibrationSampleImpulses.RemoveAt(0, ImpactCalibrationSampleImpulses.Num() - MaximumImpactSamples);
+        }
+        if (!Sample.bPassedThreshold && FPlatformTime::Seconds() - LastSampleReforgedSeconds > 2.0)
+        {
+            LastStatus = FText::Format(
+                NSLOCTEXT("ResonanceForge", "ImpactBelowGate", "碰撞拓印 · 冲量 {0} 未跨过门槛 {1}，没有发声"),
+                FText::AsNumber(FMath::RoundToInt(Sample.Impulse)),
+                FText::AsNumber(FMath::RoundToInt(Instrument->MinimumImpulse)));
+        }
     }
     if (Instrument->ImpactSerial > 0 && Instrument->ImpactSerial != ObservedImpactSerial)
     {
@@ -1547,26 +1584,148 @@ FText FResonanceForgeEditorModule::GetImpactCalibrationNameText() const
 FReply FResonanceForgeEditorModule::SetImpactCalibration(
     const float MinimumImpulse,
     const float Sensitivity,
-    const FText& CalibrationName)
+    const FText& CalibrationName,
+    const FString& TargetActorLabel)
 {
-    AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+    AResonanceForgeImpactInstrumentActor* Instrument = nullptr;
+    auto FindByLabel = [&TargetActorLabel](UWorld* World) -> AResonanceForgeImpactInstrumentActor*
+    {
+        if (!World || TargetActorLabel.IsEmpty())
+        {
+            return nullptr;
+        }
+        for (TActorIterator<AResonanceForgeImpactInstrumentActor> It(World); It; ++It)
+        {
+            if (It->GetActorLabel() == TargetActorLabel)
+            {
+                return *It;
+            }
+        }
+        return nullptr;
+    };
+    if (GEditor && GEditor->PlayWorld)
+    {
+        Instrument = FindByLabel(GEditor->PlayWorld.Get());
+    }
+    if (!Instrument && GEditor)
+    {
+        Instrument = FindByLabel(GEditor->GetEditorWorldContext().World());
+    }
+    if (!Instrument)
+    {
+        Instrument = GEditor && GEditor->PlayWorld && ObservedImpactActor.IsValid()
+            ? ObservedImpactActor.Get()
+            : ResolveInstrument();
+    }
     if (!Instrument)
     {
         LastStatus = NSLOCTEXT("ResonanceForge", "ImpactCalibrationNoObject", "无法标定 · 请先选择一个共振对象");
         return FReply::Handled();
     }
-    Instrument->Modify();
-    Instrument->MinimumImpulse = FMath::Max(0.0f, MinimumImpulse);
-    Instrument->ImpulseSensitivity = FMath::Max(0.000001f, Sensitivity);
-    Instrument->MarkPackageDirty();
+    const float SafeMinimumImpulse = FMath::Max(0.0f, MinimumImpulse);
+    const float SafeSensitivity = FMath::Max(0.000001f, Sensitivity);
+    auto ApplyToActor = [SafeMinimumImpulse, SafeSensitivity](AResonanceForgeImpactInstrumentActor* Target)
+    {
+        if (!Target)
+        {
+            return;
+        }
+        Target->Modify();
+        Target->MinimumImpulse = SafeMinimumImpulse;
+        Target->ImpulseSensitivity = SafeSensitivity;
+        Target->MarkPackageDirty();
+    };
+    ApplyToActor(Instrument);
+
+    bool bWrittenBackToEditorWorld = false;
+    if (GEditor && GEditor->PlayWorld)
+    {
+        UWorld* EditorWorld = GEditor->GetEditorWorldContext().World();
+        const FString SourceLabel = Instrument->GetActorLabel();
+        if (EditorWorld && EditorWorld != Instrument->GetWorld())
+        {
+            for (TActorIterator<AResonanceForgeImpactInstrumentActor> It(EditorWorld); It; ++It)
+            {
+                if (It->GetActorLabel() == SourceLabel)
+                {
+                    ApplyToActor(*It);
+                    bWrittenBackToEditorWorld = true;
+                    break;
+                }
+            }
+        }
+    }
     SetFlowStation(0);
     LastStatus = FText::Format(
-        NSLOCTEXT("ResonanceForge", "ImpactCalibrationApplied", "已换上「{0}」砝码 · 门槛 {1} / 半响约 {2} / 满响约 {3}"),
+        bWrittenBackToEditorWorld
+            ? NSLOCTEXT("ResonanceForge", "ImpactCalibrationWrittenBack", "已换上「{0}」砝码并带回编辑地图 · 门槛 {1} / 半响约 {2} / 满响约 {3}")
+            : NSLOCTEXT("ResonanceForge", "ImpactCalibrationApplied", "已换上「{0}」砝码 · 门槛 {1} / 半响约 {2} / 满响约 {3}"),
         CalibrationName,
-        FText::AsNumber(FMath::RoundToInt(Instrument->MinimumImpulse)),
-        FText::AsNumber(FMath::RoundToInt(Instrument->MinimumImpulse + 0.5f / Instrument->ImpulseSensitivity)),
-        FText::AsNumber(FMath::RoundToInt(Instrument->MinimumImpulse + 1.0f / Instrument->ImpulseSensitivity)));
+        FText::AsNumber(FMath::RoundToInt(SafeMinimumImpulse)),
+        FText::AsNumber(FMath::RoundToInt(SafeMinimumImpulse + 0.5f / SafeSensitivity)),
+        FText::AsNumber(FMath::RoundToInt(SafeMinimumImpulse + 1.0f / SafeSensitivity)));
     return FReply::Handled();
+}
+
+FReply FResonanceForgeEditorModule::ClearImpactCalibrationSamples()
+{
+    ImpactCalibrationSamples.Reset();
+    ImpactCalibrationSampleImpulses.Reset();
+    ImpactCalibrationSampleActorLabel.Reset();
+    LastStatus = NSLOCTEXT("ResonanceForge", "ImpactSamplesCleared", "碰撞拓印已清空 · 可以在 PIE 重新采一轮");
+    return FReply::Handled();
+}
+
+FReply FResonanceForgeEditorModule::FitImpactCalibrationFromSamples()
+{
+    if (ImpactCalibrationSamples.Num() < 3)
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "ImpactSamplesTooFew", "自动回标至少需要 3 次碰撞 · 建议包含一次轻撞和一次重撞");
+        return FReply::Handled();
+    }
+    TArray<float> SortedImpulses = ImpactCalibrationSampleImpulses;
+    SortedImpulses.Sort();
+    const int32 LastIndex = SortedImpulses.Num() - 1;
+    const float WeakImpact = SortedImpulses[FMath::RoundToInt(LastIndex * 0.10f)];
+    const float StrongImpact = SortedImpulses[FMath::RoundToInt(LastIndex * 0.90f)];
+    if (StrongImpact - WeakImpact < 50.0f)
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "ImpactSamplesRangeTooSmall", "本轮碰撞跨度太小 · 请补一次明显更轻或更重的碰撞");
+        return FReply::Handled();
+    }
+    const float FittedGate = FMath::Max(0.0f, WeakImpact * 0.85f);
+    const float FittedFullScale = FMath::Max(StrongImpact * 1.10f, FittedGate + 100.0f);
+    const float FittedSensitivity = 1.0f / (FittedFullScale - FittedGate);
+    return SetImpactCalibration(
+        FittedGate,
+        FittedSensitivity,
+        NSLOCTEXT("ResonanceForge", "ImpactCalibrationFitted", "本轮碰撞回标"),
+        ImpactCalibrationSampleActorLabel);
+}
+
+FText FResonanceForgeEditorModule::GetImpactCalibrationSampleText() const
+{
+    if (ImpactCalibrationSamples.IsEmpty())
+    {
+        return NSLOCTEXT("ResonanceForge", "ImpactSamplesEmpty", "尚无碰撞拓印 · 进入 PIE 后轻撞、常规撞、重撞各试一次");
+    }
+    float Minimum = TNumericLimits<float>::Max();
+    float Maximum = 0.0f;
+    int32 PassedCount = 0;
+    for (const FImpactCalibrationSample& Sample : ImpactCalibrationSamples)
+    {
+        Minimum = FMath::Min(Minimum, Sample.Impulse);
+        Maximum = FMath::Max(Maximum, Sample.Impulse);
+        PassedCount += Sample.bPassedThreshold ? 1 : 0;
+    }
+    return FText::Format(
+        ImpactCalibrationSamples.Num() < 3
+            ? NSLOCTEXT("ResonanceForge", "ImpactSamplesCollecting", "本轮 {0} 次 · 冲量 {1}–{2} · 再采 {3} 次即可回标")
+            : NSLOCTEXT("ResonanceForge", "ImpactSamplesReady", "本轮 {0} 次 · 冲量 {1}–{2} · {3} 次跨过门槛 · 可自动回标"),
+        FText::AsNumber(ImpactCalibrationSamples.Num()),
+        FText::AsNumber(FMath::RoundToInt(Minimum)),
+        FText::AsNumber(FMath::RoundToInt(Maximum)),
+        FText::AsNumber(ImpactCalibrationSamples.Num() < 3 ? 3 - ImpactCalibrationSamples.Num() : PassedCount));
 }
 
 FText FResonanceForgeEditorModule::GetWwiseRouteSourceText() const
@@ -3231,6 +3390,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                                     return Instrument && Instrument->bLastCollisionPassedThreshold;
                                 })
                                 .CalibrationName_Raw(this, &FResonanceForgeEditorModule::GetImpactCalibrationNameText)
+                                .SampleImpulses(&ImpactCalibrationSampleImpulses)
                             ]
                             + SVerticalBox::Slot().AutoHeight().Padding(4, 8, 4, 0)
                             [
@@ -3241,6 +3401,16 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                                 [ImpactCalibrationButton(650.0f, 0.00012f, NSLOCTEXT("ResonanceForge", "CalibrateProp", "道具"), NSLOCTEXT("ResonanceForge", "CalibratePropDetail", "落球、箱体与机关"), Wood)]
                                 + SHorizontalBox::Slot().FillWidth(1.0f).Padding(5, 0, 0, 0)
                                 [ImpactCalibrationButton(1800.0f, 0.000045f, NSLOCTEXT("ResonanceForge", "CalibrateHeavy", "重构件"), NSLOCTEXT("ResonanceForge", "CalibrateHeavyDetail", "门板、梁柱与机械"), Steel)]
+                            ]
+                            + SVerticalBox::Slot().AutoHeight().Padding(4, 8, 4, 0)
+                            [
+                                SNew(SHorizontalBox)
+                                + SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+                                [SNew(STextBlock).Text_Raw(this, &FResonanceForgeEditorModule::GetImpactCalibrationSampleText).ColorAndOpacity(Muted)]
+                                + SHorizontalBox::Slot().AutoWidth().Padding(8, 0, 6, 0)
+                                [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "ClearImpactStamps", "清空拓印")).OnClicked_Raw(this, &FResonanceForgeEditorModule::ClearImpactCalibrationSamples)]
+                                + SHorizontalBox::Slot().AutoWidth()
+                                [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "FitImpactCalibration", "按本轮碰撞回标")).IsEnabled_Lambda([this]{ return ImpactCalibrationSamples.Num() >= 3; }).OnClicked_Raw(this, &FResonanceForgeEditorModule::FitImpactCalibrationFromSamples)]
                             ]
                         ]
                     ]

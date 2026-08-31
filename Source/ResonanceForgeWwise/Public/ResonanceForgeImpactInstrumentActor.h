@@ -104,6 +104,9 @@ public:
     int32 CollisionSerial = 0;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="共振铸造台|撞击|标定")
+    float LastCollisionWorldSeconds = -1000.0f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="共振铸造台|撞击|标定")
     bool bLastCollisionPassedThreshold = false;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|撞击", meta=(ClampMin="0.0"))

@@ -35,6 +35,15 @@ private:
         TArray<FResonanceMode> Modes;
     };
 
+    struct FImpactCalibrationSample
+    {
+        float Impulse = 0.0f;
+        float RelativeSpeed = 0.0f;
+        float Energy = 0.0f;
+        float Brightness = 0.0f;
+        bool bPassedThreshold = false;
+    };
+
     void RegisterMenus();
     TSharedRef<class SDockTab> SpawnWorkbench(const class FSpawnTabArgs& Args);
     class AResonanceForgeImpactInstrumentActor* ResolveInstrument() const;
@@ -68,7 +77,9 @@ private:
     FReply RefreshMidiDevices();
     FReply ConnectSelectedMidiDevice();
     FReply DisconnectMidiDevice();
-    FReply SetImpactCalibration(float MinimumImpulse, float Sensitivity, const FText& CalibrationName);
+    FReply SetImpactCalibration(float MinimumImpulse, float Sensitivity, const FText& CalibrationName, const FString& TargetActorLabel = FString());
+    FReply ClearImpactCalibrationSamples();
+    FReply FitImpactCalibrationFromSamples();
     FReply ForgeSharedRecipeAsset();
     FReply ForgeWwiseRoutingProfile();
     FReply ExportCurrentSample();
@@ -92,6 +103,7 @@ private:
     FText GetMidiStatusText() const;
     FText GetWwiseStatusText() const;
     FText GetImpactCalibrationNameText() const;
+    FText GetImpactCalibrationSampleText() const;
     FText GetWwiseRouteSourceText() const;
     FText GetWwiseEventText(int32 MaterialIndex) const;
     FText GetWwiseRtpcText(int32 ParameterIndex) const;
@@ -173,6 +185,10 @@ private:
     FTSTicker::FDelegateHandle LiveImpactTickerHandle;
     TWeakObjectPtr<class AResonanceForgeImpactInstrumentActor> ObservedImpactActor;
     int32 ObservedImpactSerial = INDEX_NONE;
+    int32 ObservedCollisionSerial = INDEX_NONE;
+    TArray<FImpactCalibrationSample> ImpactCalibrationSamples;
+    TArray<float> ImpactCalibrationSampleImpulses;
+    FString ImpactCalibrationSampleActorLabel;
     float LiveImpactPosition = 0.5f;
     float LiveImpactEnergy = 0.0f;
     float LiveImpactBrightness = 0.0f;
