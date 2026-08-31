@@ -8,7 +8,7 @@
 ![Unreal Engine 5.8](https://img.shields.io/badge/Unreal_Engine-5.8.1-0E1128?logo=unrealengine&logoColor=white)
 ![Wwise 2025.1](https://img.shields.io/badge/Wwise-2025.1-00549F)
 ![Platform](https://img.shields.io/badge/Platform-Windows_Editor-0078D4?logo=windows&logoColor=white)
-![Version](https://img.shields.io/badge/Version-0.8.0-D96B2B)
+![Version](https://img.shields.io/badge/Version-0.8.1-D96B2B)
 ![License](https://img.shields.io/badge/License-MIT-2EA44F)
 
 </div>
@@ -124,6 +124,14 @@ flowchart LR
 
 切换回拉丝钢、硬木、薄玻璃或另一种模型时，工作台会解除当前共享资产，明确回到内置预设，避免两套参数暗中叠加。
 
+仓库自带一份由场景脚本生成的正式示例：
+
+```text
+/Game/ResonanceForge/Profiles/DA_RF_LongTailWoodString
+```
+
+“长尾木弦”使用硬木六模态、`0.9987` 反馈、`0.22` 阻尼和 `0.44` 箱体耦合。基础地图与可选 Fab 地图中的数字波导弦默认引用该资产；磁盘重载复检会同时检查资产路径和三项参数。
+
 ## 演示场景
 
 ### 仓库自带：基础声学工坊
@@ -132,7 +140,7 @@ flowchart LR
 /Game/ResonanceForge/Demo/Maps/L_RF_PhysicsLab
 ```
 
-左侧为钢、木、玻璃三组物理碰撞砧座，右侧为数字波导弦，后墙集中显示 Wwise Event 与 RTPC 输出。点击 PIE 后，三颗 `18 kg` 落球会从不同高度下落。
+左侧为钢、木、玻璃三组物理碰撞砧座，右侧为使用“长尾木弦”共享配方的数字波导弦，后墙集中显示 Wwise Event 与 RTPC 输出。点击 PIE 后，三颗 `18 kg` 落球会从不同高度下落。
 
 ### 本机可选：Fab 增强声学工坊
 

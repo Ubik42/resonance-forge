@@ -4,6 +4,7 @@ import unreal
 
 
 MAP_PATH = "/Game/ResonanceForge/Demo/Maps/L_RF_PhysicsLab"
+SHARED_PROFILE_PATH = "/Game/ResonanceForge/Profiles/DA_RF_LongTailWoodString"
 REPORT_PATH = os.path.join(unreal.Paths.project_saved_dir(), "ResonanceForge", "physics_lab_generation.json")
 
 
@@ -20,6 +21,7 @@ def asset(path):
 
 asset_library = unreal.EditorAssetLibrary
 asset_library.make_directory("/Game/ResonanceForge/Demo/Maps")
+asset_library.make_directory("/Game/ResonanceForge/Profiles")
 level_subsystem = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 actor_subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 
@@ -44,6 +46,44 @@ materials = {
     "GlassAccent": asset("/Game/ResonanceForge/Demo/Materials/M_RF_AccentGlass.M_RF_AccentGlass"),
     "Wwise": asset("/Game/ResonanceForge/Demo/Materials/M_RF_WwiseCore.M_RF_WwiseCore"),
 }
+
+
+def make_long_tail_wood_string_profile():
+    profile = unreal.load_asset(SHARED_PROFILE_PATH)
+    if profile is None:
+        factory = unreal.DataAssetFactory()
+        factory.set_editor_property("data_asset_class", unreal.ResonanceMaterialProfile)
+        profile = unreal.AssetToolsHelpers.get_asset_tools().create_asset(
+            "DA_RF_LongTailWoodString",
+            "/Game/ResonanceForge/Profiles",
+            unreal.ResonanceMaterialProfile,
+            factory,
+        )
+    if profile is None:
+        raise RuntimeError("无法创建长尾木弦共享配方")
+
+    frequencies = [172.0, 286.0, 451.0, 708.0, 1098.0, 1710.0]
+    modes = []
+    for index, frequency in enumerate(frequencies):
+        mode = unreal.ResonanceMode()
+        mode.set_editor_property("frequency_hz", frequency)
+        mode.set_editor_property("gain", 1.0 / ((index + 1) ** 0.5))
+        mode.set_editor_property("decay_seconds", 1.25 / (1.0 + 0.11 * index))
+        modes.append(mode)
+
+    set_prop(profile, "display_name", "长尾木弦")
+    set_prop(profile, "source_preset", unreal.Name("硬木"))
+    set_prop(profile, "model_type", unreal.ResonanceModelType.WAVEGUIDE_STRING)
+    set_prop(profile, "modes", modes)
+    set_prop(profile, "string_decay", 0.9987)
+    set_prop(profile, "string_damping", 0.22)
+    set_prop(profile, "body_coupling", 0.44)
+    if not asset_library.save_loaded_asset(profile, False):
+        raise RuntimeError("长尾木弦共享配方保存失败")
+    return profile
+
+
+shared_waveguide_profile = make_long_tail_wood_string_profile()
 
 
 def spawn_mesh(label, location, scale, mesh=cube_mesh, material=None, simulate=False, rotation=None):
@@ -180,6 +220,7 @@ set_prop(waveguide, "object_size", 0.46)
 set_prop(waveguide, "enable_keyboard_trigger", False)
 waveguide.instrument_mesh.set_static_mesh(cube_mesh)
 waveguide.instrument_mesh.set_material(0, materials["WoodAccent"])
+waveguide.native_synth.apply_material_profile(shared_waveguide_profile)
 
 spawn_text("RF_波导标题", "02  DIGITAL WAVEGUIDE STRING", unreal.Vector(690, -132, 342), 24, unreal.Color(255, 149, 75, 255))
 spawn_text("RF_波导说明", "DELAY-LINE PROPAGATION · DAMPING FEEDBACK · MIDI PITCH + VELOCITY", unreal.Vector(690, -131, 307), 11, unreal.Color(235, 225, 214, 255))
@@ -238,6 +279,12 @@ report = {
     "wwise_event": "Play_RF_Impact_Metal",
     "wwise_rtpcs": ["RF_ImpactEnergy", "RF_ImpactBrightness", "RF_ObjectSize"],
     "waveguide_actor": waveguide.get_actor_label(),
+    "shared_profile": shared_waveguide_profile.get_path_name(),
+    "shared_profile_parameters": {
+        "string_decay": shared_waveguide_profile.get_editor_property("string_decay"),
+        "string_damping": shared_waveguide_profile.get_editor_property("string_damping"),
+        "body_coupling": shared_waveguide_profile.get_editor_property("body_coupling"),
+    },
     "visual_story": "材质碰撞台与数字波导弦在后墙汇入 Wwise Event / RTPC 输出",
     "physics_balls": [
         {
