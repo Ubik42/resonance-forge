@@ -44,6 +44,15 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 Faust `physmodels.lib`、FigBug/Piano、OpenPiano 与 Resonarium 只作为技术调研资料，没有复制到本仓库。后面若引入其代码，必须重新评估 LGPL、GPL 或 AGPL 对发布方式的影响。
 
+## REAPER（可选外部 DAW）
+
+- 产品与厂商：REAPER / Cockos Incorporated
+- 官网：https://www.reaper.fm/
+- 集成方式：插件只生成 UTF-8 文本 `.rpp`，引用同目录的自生成 WAV；不包含、修改或重新分发 REAPER 可执行文件、SDK、脚本、主题或素材。
+- 依赖状态：可选。未安装 REAPER 时仍可生成对照带工程，用户可在有授权的工作站继续打开。
+
+REAPER 是独立商业软件，继续遵循 Cockos 的许可条款；本仓库的 MIT License 不覆盖 REAPER。
+
 ## Carpenter's Workshop Environment（本机可选布景）
 
 - 来源：Epic Fab 用户资产库。

@@ -12,6 +12,8 @@
 #include "SResonanceRecipeCompare.h"
 #include "SResonanceWwiseRouteLoom.h"
 #include "SResonanceImpactAnvil.h"
+#include "SResonanceReaperTape.h"
+#include "ResonanceForgeReaperProject.h"
 
 #include "Editor.h"
 #include "Audio.h"
@@ -335,6 +337,7 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
                     SampleExportName = TEXT("RF_Hammer_G3");
                     ExportCurrentSample();
                     ReforgeSampleLabelFromPath(BowLabelPath);
+                    ExportReaperAuditionProject();
                     SampleExportName = TEXT("RF_Bow_G3");
                     if (WorkbenchScrollBox.IsValid() && WwiseRouteAnchor.IsValid())
                     {
@@ -2147,12 +2150,181 @@ FReply FResonanceForgeEditorModule::ExportCurrentSample()
     }
 
     LastSampleExportPath = FPaths::ConvertRelativePathToFull(ExportPath);
+    LastReaperProjectPath.Reset();
+    LastReaperItemCount = 0;
     SetFlowStation(4);
     RefreshRecentSampleLabels();
     LastStatus = FText::Format(
         NSLOCTEXT("ResonanceForge", "SampleExported", "铸样完成 · WAV + 声源铭牌 / {0} 秒 / 48 kHz / 16-bit stereo"),
         FText::AsNumber(SampleExportDurationSeconds));
     return FReply::Handled();
+}
+
+FReply FResonanceForgeEditorModule::ExportReaperAuditionProject()
+{
+    RefreshRecentSampleLabels();
+    if (RecentSampleLabels.IsEmpty())
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "ReaperNoSamples", "REAPER 排带失败 · 请先铸出至少一份 WAV 与声源铭牌");
+        return FReply::Handled();
+    }
+
+    const FString ExportDirectory = FPaths::ConvertRelativePathToFull(
+        FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("ResonanceForge"), TEXT("Exports")));
+    TArray<ResonanceForgeEditor::FReaperAuditionItem> AuditionItems;
+    int32 SkippedLabels = 0;
+    for (int32 LabelIndex = FMath::Min(RecentSampleLabels.Num(), 3) - 1; LabelIndex >= 0; --LabelIndex)
+    {
+        FString LabelJson;
+        TSharedPtr<FJsonObject> Root;
+        if (!FFileHelper::LoadFileToString(LabelJson, *RecentSampleLabels[LabelIndex].Path)
+            || !FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(LabelJson), Root)
+            || !Root.IsValid()
+            || !Root->HasTypedField<EJson::Object>(TEXT("audio"))
+            || !Root->HasTypedField<EJson::Object>(TEXT("source")))
+        {
+            ++SkippedLabels;
+            continue;
+        }
+
+        const TSharedPtr<FJsonObject> Audio = Root->GetObjectField(TEXT("audio"));
+        const TSharedPtr<FJsonObject> Source = Root->GetObjectField(TEXT("source"));
+        FString AudioFile;
+        double DurationSeconds = 0.0;
+        if (!Audio->TryGetStringField(TEXT("file"), AudioFile)
+            || !Audio->TryGetNumberField(TEXT("durationSeconds"), DurationSeconds)
+            || !FMath::IsFinite(DurationSeconds)
+            || DurationSeconds < 0.05
+            || DurationSeconds > 600.0
+            || !AudioFile.Equals(FPaths::GetCleanFilename(AudioFile), ESearchCase::CaseSensitive)
+            || FPaths::GetExtension(AudioFile).ToLower() != TEXT("wav"))
+        {
+            ++SkippedLabels;
+            continue;
+        }
+
+        const FString AudioPath = FPaths::ConvertRelativePathToFull(FPaths::Combine(ExportDirectory, AudioFile));
+        if (!AudioPath.StartsWith(ExportDirectory + TEXT("/"), ESearchCase::IgnoreCase)
+            && !AudioPath.StartsWith(ExportDirectory + TEXT("\\"), ESearchCase::IgnoreCase))
+        {
+            ++SkippedLabels;
+            continue;
+        }
+
+        TArray<uint8> WaveBytes;
+        uint16 Channels = 0;
+        uint32 SampleRate = 0;
+        uint16 BitDepth = 0;
+        uint32 DataBytes = 0;
+        if (!FFileHelper::LoadFileToArray(WaveBytes, *AudioPath)
+            || WaveBytes.Num() < 44
+            || FMemory::Memcmp(WaveBytes.GetData(), "RIFF", 4) != 0
+            || FMemory::Memcmp(WaveBytes.GetData() + 8, "WAVE", 4) != 0
+            || FMemory::Memcmp(WaveBytes.GetData() + 12, "fmt ", 4) != 0
+            || FMemory::Memcmp(WaveBytes.GetData() + 36, "data", 4) != 0)
+        {
+            ++SkippedLabels;
+            continue;
+        }
+        FMemory::Memcpy(&Channels, WaveBytes.GetData() + 22, sizeof(Channels));
+        FMemory::Memcpy(&SampleRate, WaveBytes.GetData() + 24, sizeof(SampleRate));
+        FMemory::Memcpy(&BitDepth, WaveBytes.GetData() + 34, sizeof(BitDepth));
+        FMemory::Memcpy(&DataBytes, WaveBytes.GetData() + 40, sizeof(DataBytes));
+        const double ActualDuration = static_cast<double>(DataBytes) / (48000.0 * 2.0 * 2.0);
+        if (Channels != 2 || SampleRate != 48000 || BitDepth != 16
+            || DataBytes + 44u > static_cast<uint32>(WaveBytes.Num())
+            || !FMath::IsNearlyEqual(ActualDuration, DurationSeconds, 0.01))
+        {
+            ++SkippedLabels;
+            continue;
+        }
+
+        FString Preset(TEXT("未命名材质"));
+        FString Model(TEXT("ModalImpact"));
+        Source->TryGetStringField(TEXT("preset"), Preset);
+        Source->TryGetStringField(TEXT("model"), Model);
+        ResonanceForgeEditor::FReaperAuditionItem& Item = AuditionItems.AddDefaulted_GetRef();
+        Item.AudioPath = AudioPath;
+        Item.DurationSeconds = static_cast<float>(ActualDuration);
+        Item.DisplayName = FString::Printf(
+            TEXT("%s · %s · %s"),
+            *FPaths::GetBaseFilename(AudioFile),
+            *Preset,
+            Model == TEXT("WaveguideString") ? TEXT("波导弦") : TEXT("模态体"));
+    }
+
+    if (AuditionItems.IsEmpty())
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "ReaperNoValidSamples", "REAPER 排带失败 · 最近铭牌没有可读取的 48 kHz 双声道铸样");
+        return FReply::Handled();
+    }
+
+    FString ReaperProject;
+    FString BuildError;
+    if (!ResonanceForgeEditor::FReaperProjectWriter::BuildAuditionProject(AuditionItems, ReaperProject, BuildError))
+    {
+        LastStatus = FText::Format(
+            NSLOCTEXT("ResonanceForge", "ReaperBuildFailed", "REAPER 排带失败 · {0}"),
+            FText::FromString(BuildError));
+        return FReply::Handled();
+    }
+
+    const FString ProjectPath = FPaths::Combine(ExportDirectory, TEXT("ResonanceForge_Audition.rpp"));
+    const FString TemporaryPath = ProjectPath + TEXT(".tmp");
+    IFileManager::Get().Delete(*TemporaryPath, false, true);
+    if (!FFileHelper::SaveStringToFile(
+            ReaperProject,
+            *TemporaryPath,
+            FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)
+        || !IFileManager::Get().Move(*ProjectPath, *TemporaryPath, true, true, false, true))
+    {
+        IFileManager::Get().Delete(*TemporaryPath, false, true);
+        LastStatus = NSLOCTEXT("ResonanceForge", "ReaperWriteFailed", "REAPER 排带失败 · .rpp 无法写入，原有工程未改变");
+        return FReply::Handled();
+    }
+
+    LastReaperProjectPath = FPaths::ConvertRelativePathToFull(ProjectPath);
+    LastReaperItemCount = AuditionItems.Num();
+    LastStatus = FText::Format(
+        SkippedLabels > 0
+            ? NSLOCTEXT("ResonanceForge", "ReaperExportedWithSkip", "REAPER 对照带已更新 · {0} 段 / 跳过 {1} 份失效铭牌")
+            : NSLOCTEXT("ResonanceForge", "ReaperExported", "REAPER 对照带已更新 · {0} 段 / 每段间隔 0.5 秒 / 相对引用同目录 WAV"),
+        FText::AsNumber(LastReaperItemCount),
+        FText::AsNumber(SkippedLabels));
+    return FReply::Handled();
+}
+
+FReply FResonanceForgeEditorModule::OpenReaperAuditionProject()
+{
+    if (LastReaperProjectPath.IsEmpty() || !FPaths::FileExists(LastReaperProjectPath))
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "ReaperProjectMissing", "打开 REAPER 失败 · 请先把最近铸样排成 .rpp 工程");
+        return FReply::Handled();
+    }
+    const bool bLaunched = FPlatformProcess::LaunchFileInDefaultExternalApplication(*LastReaperProjectPath);
+    LastStatus = bLaunched
+        ? NSLOCTEXT("ResonanceForge", "ReaperProjectOpened", "已交给 REAPER 打开 · 对照带不会复制或修改同目录 WAV")
+        : NSLOCTEXT("ResonanceForge", "ReaperAssociationMissing", "未找到 .rpp 关联程序 · 可从 REAPER 内打开铸样目录中的工程");
+    return FReply::Handled();
+}
+
+FText FResonanceForgeEditorModule::GetReaperProjectStatusText() const
+{
+    if (LastReaperProjectPath.IsEmpty())
+    {
+        return RecentSampleLabels.IsEmpty()
+            ? NSLOCTEXT("ResonanceForge", "ReaperWaitingForSample", "等待铸样 · 对照带需要至少一份有效铭牌")
+            : FText::Format(
+                NSLOCTEXT("ResonanceForge", "ReaperReadyToArrange", "可排带 · 最近 {0} 份铸样将按时间顺序进入同一轨道"),
+                FText::AsNumber(RecentSampleLabels.Num()));
+    }
+    if (!FPaths::FileExists(LastReaperProjectPath))
+    {
+        return NSLOCTEXT("ResonanceForge", "ReaperFileGone", "对照带文件已移走 · 重新排带即可恢复");
+    }
+    return FText::Format(
+        NSLOCTEXT("ResonanceForge", "ReaperProjectReady", "已排带 · {0} 段 / 48 kHz / 0.5 秒间隔 / 相对引用同目录 WAV"),
+        FText::AsNumber(LastReaperItemCount));
 }
 
 void FResonanceForgeEditorModule::RefreshRecentSampleLabels()
@@ -2946,6 +3118,20 @@ FText FResonanceForgeEditorModule::GetComparisonText() const
 TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTabArgs& Args)
 {
     RefreshRecentSampleLabels();
+    const FString ExistingReaperProject = FPaths::ConvertRelativePathToFull(
+        FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("ResonanceForge"), TEXT("Exports"), TEXT("ResonanceForge_Audition.rpp")));
+    if (!RecentSampleLabels.IsEmpty()
+        && FPaths::FileExists(ExistingReaperProject)
+        && IFileManager::Get().GetTimeStamp(*ExistingReaperProject) >= RecentSampleLabels[0].Timestamp)
+    {
+        LastReaperProjectPath = ExistingReaperProject;
+        LastReaperItemCount = FMath::Min(RecentSampleLabels.Num(), 3);
+    }
+    else
+    {
+        LastReaperProjectPath.Reset();
+        LastReaperItemCount = 0;
+    }
     using namespace ResonanceForgeEditor;
 
     if (const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
@@ -4037,6 +4223,35 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                                 [SNew(STextBlock).Text_Raw(this, &FResonanceForgeEditorModule::GetSampleExportStatusText).ColorAndOpacity(Glass)]
                                 + SHorizontalBox::Slot().AutoWidth()
                                 [SNew(STextBlock).Text(FText::FromString(TEXT("48 kHz · 16-bit · stereo · Saved/ResonanceForge/Exports"))).ColorAndOpacity(Muted)]
+                            ]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 14, 0, 0)
+                            [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "ReaperTape", "REAPER 对照带"), NSLOCTEXT("ResonanceForge", "ReaperTapeDetail", "把铭牌架最近三份铸样按更早 → 当前排进同一轨道；段间留 0.5 秒，相对引用同目录 WAV。"))]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
+                            [
+                                SNew(SResonanceReaperTape)
+                                .SampleCount_Lambda([this]{ return RecentSampleLabels.Num(); })
+                                .ProjectReady_Lambda([this]{ return !LastReaperProjectPath.IsEmpty() && FPaths::FileExists(LastReaperProjectPath); })
+                            ]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 7, 0, 0)
+                            [
+                                SNew(SHorizontalBox)
+                                + SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+                                [SNew(STextBlock).Text_Raw(this, &FResonanceForgeEditorModule::GetReaperProjectStatusText).ColorAndOpacity(Muted).AutoWrapText(true)]
+                                + SHorizontalBox::Slot().AutoWidth().Padding(8, 0, 6, 0)
+                                [
+                                    SNew(SButton)
+                                    .Text(NSLOCTEXT("ResonanceForge", "ArrangeReaperTape", "排成 .rpp"))
+                                    .IsEnabled_Lambda([this]{ return !RecentSampleLabels.IsEmpty(); })
+                                    .ButtonColorAndOpacity(ResonanceForgeEditor::Wood * 0.50f)
+                                    .OnClicked_Raw(this, &FResonanceForgeEditorModule::ExportReaperAuditionProject)
+                                ]
+                                + SHorizontalBox::Slot().AutoWidth()
+                                [
+                                    SNew(SButton)
+                                    .Text(NSLOCTEXT("ResonanceForge", "OpenReaperTape", "打开 REAPER 工程"))
+                                    .IsEnabled_Lambda([this]{ return !LastReaperProjectPath.IsEmpty() && FPaths::FileExists(LastReaperProjectPath); })
+                                    .OnClicked_Raw(this, &FResonanceForgeEditorModule::OpenReaperAuditionProject)
+                                ]
                             ]
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 14, 0, 0)
                             [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "LabelRack", "铭牌架"), NSLOCTEXT("ResonanceForge", "LabelRackDetail", "最近三份铸样自动上架；铭牌写着声音身份，点击即可把那一版送回炉膛。"))]

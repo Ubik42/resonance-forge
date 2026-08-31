@@ -18,5 +18,6 @@ Demo/Content/CarpentersWorkshop/
 __pycache__/
 artifacts/build/
 artifacts/automation*/
+artifacts/automation-*.log
 artifacts/ubt-*.log
 artifacts/ubt-*.json

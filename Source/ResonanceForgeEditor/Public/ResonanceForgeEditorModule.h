@@ -83,6 +83,8 @@ private:
     FReply ForgeSharedRecipeAsset();
     FReply ForgeWwiseRoutingProfile();
     FReply ExportCurrentSample();
+    FReply ExportReaperAuditionProject();
+    FReply OpenReaperAuditionProject();
     FReply ReforgeLatestSampleLabel();
     FReply ReforgeRecentSampleLabel(int32 LabelIndex);
     FReply ReforgeSampleLabelFromPath(const FString& LabelPath);
@@ -125,6 +127,7 @@ private:
     FText GetKeybedStatusText() const;
     FText GetSampleExportStatusText() const;
     FText GetSampleTailStatusText() const;
+    FText GetReaperProjectStatusText() const;
     FText GetRecentSampleLabelText(int32 LabelIndex) const;
     bool HasRecentSampleLabel(int32 LabelIndex) const;
     void RefreshRecentSampleLabels();
@@ -202,6 +205,8 @@ private:
     FString SampleExportName = TEXT("RF_Bow_G3");
     float SampleExportDurationSeconds = 3.0f;
     FString LastSampleExportPath;
+    FString LastReaperProjectPath;
+    int32 LastReaperItemCount = 0;
     TArray<float> LastSampleEnvelope;
     float LastSampleTailDb = -96.0f;
     float LastSampleDurationSeconds = 0.0f;

@@ -8,7 +8,7 @@
 ![Unreal Engine 5.8](https://img.shields.io/badge/Unreal_Engine-5.8.1-0E1128?logo=unrealengine&logoColor=white)
 ![Wwise 2025.1](https://img.shields.io/badge/Wwise-2025.1-00549F)
 ![Platform](https://img.shields.io/badge/Platform-Windows_Editor-0078D4?logo=windows&logoColor=white)
-![Version](https://img.shields.io/badge/Version-0.41.0-D96B2B)
+![Version](https://img.shields.io/badge/Version-0.42.0-D96B2B)
 ![License](https://img.shields.io/badge/License-MIT-2EA44F)
 
 </div>
@@ -19,7 +19,7 @@
 
 | 01 取件 | 02 起振 | 03 塑形 | 04 交付 |
 | --- | --- | --- | --- |
-| 读取场景共振体与材质 | 碰撞、键床、弓行轨或 MIDI | 模态齿列、弦床、力度与 A/B | UE Synth / Wwise / WAV + 铭牌 |
+| 读取场景共振体与材质 | 碰撞、键床、弓行轨或 MIDI | 模态齿列、弦床、力度与 A/B | UE Synth / Wwise / WAV + 铭牌 / REAPER |
 
 > **最快体验**：打开 `Demo/ResonanceForgeDemo.uproject`，进入“窗口 → 音频工具 → 共振铸造台”，点击“打开试听场景”，选择任一砧座后按工作台上的青色声路依次操作。
 
@@ -65,6 +65,7 @@ Wwise 路由区把钢、木、玻璃三条 Event 线与能量、明亮度、尺�
 - **无需硬件的试音键床**：十三根可点击、可拖奏的锤键把鼠标位置映射为 Note 与 Velocity，方便快速验证波导弦和 Wwise 发布。
 - **可见的力度凸轮**：软触、线性、重手三枚曲线把原始 Velocity 映射为激励能量；曲线、输入引线和输出落点实时可见，键床与外接 MIDI 共用同一映射函数。
 - **可交付的物理声源铸样**：复用实时 Synth 的同一套模态与波导 DSP，把当前齿列、落点、弦床和演奏参数离线渲染成标准 WAV，可直接交给 Wwise、DAW 或版本库。
+- **REAPER 对照带**：把铭牌架最近三份有效铸样按“更早 → 当前”排入同一条 48 kHz 轨道，段间保留 0.5 秒；生成的 `.rpp` 使用同目录相对引用，整个 Exports 文件夹可以一起移动。
 - **余响拓片**：铸样后绘制真实振幅包络，并测量最后 100 ms 相对峰值电平；尾音高于 −48 dB 时主动建议延长时长或降低回响，避免交付被生硬截断的样本。
 - **声源铭牌**：每份 WAV 同步生成版本化 `.rfrecipe.json`，记录模型、材质、模态、落点、弦床、演奏参数及 Wwise Event / RTPC 输入，让样本离开 UE 后仍带着来源。
 - **铭牌回炉**：一键读取铸样目录中最近的 v1 铭牌，校验配套 WAV 和字段边界，再恢复材质、模型、共振齿列、落点、弦床及 Note / Velocity 到当前对象并试听。
@@ -140,6 +141,7 @@ flowchart LR
 - Windows Editor / Win64
 - Wwise Authoring 与 SDK `2025.1.10`
 - Wwise Unreal Integration `2025.1.10.9233.4458`
+- 可选：REAPER；`.rpp` 生成不依赖安装，当前打开验证使用 `7.78 x64`
 
 ### 安装
 
@@ -180,7 +182,7 @@ flowchart LR
 12. 使用“配方铭牌架”把满意的版本压入甲、乙或丙槽。切换材质、共振齿或弓行轨方向后点击“回炉试听”，确认对象、DSP、Note、弓速、弓压与弓向一起恢复。
 13. 先用“试音键床”点击同一位置，再依次切换软触、线性、重手三枚“力度凸轮”；观察输入力度不变而输出能量和曲线落点改变。有 MIDI 键盘时，在“演奏入口”连接设备；选择弓擦并按住一个音符，先推动 CC1 比较弓速与明亮度，再用 Channel 或 Note Aftertouch 单独施加弓压。没有压力感应的设备会明确显示“CC1 同推弓速与弓压”。
 14. 切换到“数字波导弦”和“弓擦”，在弓行轨按住弓座：先匀速向右推弓，再不松手向左回弓，并向下移动比较弓压；松手确认自然收弓。随后依次试听指腹、拨片与锤击，再分别移动橙色起振锤与青色拾音梭，每次只改变一个空间参数。
-15. 在“铸样台”输入文件名并选择 1.5、3 或 6 秒，点击“铸成 WAV”；观察“余响拓片”是否提示尾音仍活跃，必要时延长一档或降低回响长度。工具会成对写入 WAV 与 `.rfrecipe.json` 声源铭牌，重名时自动追加编号。下方“铭牌架”会刷新最近三版，点击任意铭牌即可回炉；“回炉最近铭牌”仍保留为最快入口。
+15. 在“铸样台”输入文件名并选择 1.5、3 或 6 秒，点击“铸成 WAV”；观察“余响拓片”是否提示尾音仍活跃，必要时延长一档或降低回响长度。工具会成对写入 WAV 与 `.rfrecipe.json` 声源铭牌，重名时自动追加编号。下方“铭牌架”会刷新最近三版，点击任意铭牌即可回炉；点击“排成 .rpp”则把三版按时间顺序排入 REAPER 对照带。
 16. 为满意版本输入名称，点击“铸印为 Content 资产”；当前共振齿列会写入 `UResonanceMaterialProfile::Modes`，成为团队可复用配方。
 17. 在“Wwise 路由织机”确认三条 Event 与三条 RTPC 均已接通；需要跨地图复用时输入名称并点击“铸印当前路由”。
 18. 进入 PIE，观察落球碰撞并在 Wwise Profiler 中检查 RTPC。
@@ -209,6 +211,8 @@ WAV 旁边的 `.rfrecipe.json` 是“声源铭牌”，使用 `resonance-forge/s
 “回炉最近铭牌”会在 `Demo/Saved/ResonanceForge/Exports` 中选择铭牌 UTC 时间最新的 `.rfrecipe.json`。载入前会检查模式版本、配套文件名与实际 RIFF/WAVE 头、48 kHz / 16-bit / stereo 规格、受支持材质与模型，以及全部数值范围；校验通过后才一次性写回当前对象并试听。Wwise Event 不从 JSON 强制写入，而是按恢复后的材质重新推导，避免被过时或手改的路由覆盖。0.20 早期生成的 v1 铭牌还没有 `envelopePeaks`，仍可恢复声源参数，只会明确提示缺少余响拓片。当前版本不会自动修改 Wwise 工程。
 
 “铭牌架”读取铭牌中的 `generatedAtUtc` 排序，避免连续铸样落在相同文件时间片时顺序不稳定。每格只展示做判断真正需要的身份信息；当前回炉版本带 `◆` 标记。列表只保留三个入口，不会把工作台变成通用文件管理器，完整历史仍可通过“打开目录”查看。
+
+“REAPER 对照带”重新读取最近三张铭牌并复检对应 WAV 的 RIFF 头、48 kHz / 16-bit / stereo 规格和真实时长。有效版本按“更早 → 当前”写入 `ResonanceForge_Audition.rpp` 的同一轨道，每段之间留 0.5 秒，Item 名包含文件、材质与声源模型。RPP 与 WAV 位于同一目录并使用相对文件名；它不复制音频，也不预设插件、混音、Render Queue 或母带链。未安装 REAPER 时仍可先生成工程，只有点击“打开 REAPER 工程”才请求系统启动关联程序。
 
 ### 从个人草案到团队资产
 
@@ -333,6 +337,7 @@ ResonanceForge
 | 无硬件演奏 | 试音键床 Note / Velocity 进入与外接 MIDI 相同的声源与 Wwise 触发链 |
 | 力度响应映射 | 输入 `76%` 在软触凸轮下实际输出约 `84%`；线性为 `76%`，重手约 `62%`；曲线写入本地配方和声源铭牌 |
 | 离线物理声源铸样 | 实际生成 3.000 秒、48 kHz、16-bit、双声道 RIFF/WAVE；复用实时 Synth DSP |
+| REAPER 对照带 | 最近三份有效铭牌按 `0.0 / 3.5 / 7.0` 秒排入单轨 RPP；引用均为同目录相对 WAV，REAPER 7.78 x64 独立进程可接收工程 |
 | 弦上起振位置隔离比较 | 固定软触凸轮、锤击手势、Note、原始力度、明亮度、回响、阻尼、耦合与拾音位置，仅将起振位置从 `8%` 移至 `82%`；两份 0.29 WAV 的差分 RMS 为 `0.01080`、相关系数为 `0.84956` |
 | 弓擦持续补能隔离比较 | 固定 Note 55、输入力度 76%、明亮度 58%、起振点 34% 和整套弦床，只把手势从锤击换成弓擦；两份 0.30 WAV 的差分 RMS 为 `0.02521`、相关系数为 `0.87710`；1.5–2.0 秒相对 0.25–0.5 秒的 RMS 比例分别为 `85.6%` 与 `28.5%` |
 | MIDI 持弓与独立弓压 | Note On 持弓 3 秒后仍保留持续能量，Note Off 后进入 140 ms 收弓；同一持音保持弓速不变，把弓压从 `18%` 推至 `92%` 后，稳定段 RMS 从 `0.018793` 变为 `0.031395`，无需重新触发音符 |
@@ -359,6 +364,7 @@ ResonanceForge
 - Wwise 参考 Event 当前仍是一次性触发，Note Off 不会伪造停止逻辑；只有在 Wwise Authoring 中建立并绑定独立 Stop Event 后才会扩展该路径。
 - 数字弦的 Wwise 监听支路当前仍使用木材 Event 作为参考层，尚未在 Authoring 工程中建立独立 String Event；界面与铭牌会显示实际 Event 名，不把它描述成 Source Plug-in。
 - “铸样台”输出 UE 原始物理声源，不渲染 Wwise Bus、Effect、空间化或响度母带链。
+- REAPER 对照带只负责顺序试听原始铸样；不创建 FX、Bus、Render Queue，也不会把 JSON 铭牌转换成 DAW 自动化。
 - 铭牌架当前展示本工程铸样目录中的最近三份 v1 文件；尚未提供任意路径选择、搜索或批量导入，也不会自动修改 Wwise 工程。
 - Wwise SDK、Unreal Integration 与 Fab 商业素材必须由使用者自行安装。
 
