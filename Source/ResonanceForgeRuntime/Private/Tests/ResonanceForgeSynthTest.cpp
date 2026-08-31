@@ -44,10 +44,12 @@ bool FResonanceForgePresetTest::RunTest(const FString& Parameters)
     SharedProfile->StringDecay = 0.991f;
     SharedProfile->StringDamping = 0.48f;
     SharedProfile->BodyCoupling = 0.31f;
+    SharedProfile->PickupPosition = 0.74f;
     Synth->ApplyMaterialProfile(SharedProfile);
     TestEqual(TEXT("共享资产能够切换合成模型"), Synth->SynthesisModel, EResonanceModelType::WaveguideString);
     TestTrue(TEXT("共享资产能够写入弦路阻尼"), FMath::IsNearlyEqual(Synth->StringDamping, 0.48f));
     TestTrue(TEXT("共享资产能够写入箱体耦合"), FMath::IsNearlyEqual(Synth->BodyCoupling, 0.31f));
+    TestTrue(TEXT("共享资产能够写入拾音位置"), FMath::IsNearlyEqual(Synth->PickupPosition, 0.74f));
     TArray<float> RenderedSamples;
     TestTrue(TEXT("数字波导弦能够离线生成测试缓冲"), Synth->RenderWaveguideForTest(60, 4096, RenderedSamples));
     float Peak = 0.0f;

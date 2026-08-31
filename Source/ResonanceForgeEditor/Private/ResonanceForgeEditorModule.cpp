@@ -164,6 +164,8 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
         WaveguideSustain = 0.72f;
         WaveguideDamping = 0.52f;
         WaveguideCoupling = 0.26f;
+        WaveguidePickup = 0.82f;
+        SampleExportName = TEXT("RF_StringCenter_G3");
         ApplyWaveguideParameters();
         TriggerKeybedNote(55, 0.76f);
     }
@@ -182,19 +184,13 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
                 {
                     CaptureWorkbenchImage(TEXT("resonance-forge-keybed.png"));
                     ExportCurrentSample();
-                    const FString LongTailLabelPath = FPaths::ChangeExtension(LastSampleExportPath, TEXT("rfrecipe.json"));
-                    SampleExportName = TEXT("RF_DryWood_G3");
-                    PreviewEnergy = 0.55f;
-                    PreviewBrightness = 0.42f;
-                    PreviewSize = 0.38f;
-                    LastKeybedVelocity = 0.55f;
-                    WaveguideSustain = 0.28f;
-                    WaveguideDamping = 0.74f;
-                    WaveguideCoupling = 0.12f;
+                    const FString CenterLabelPath = FPaths::ChangeExtension(LastSampleExportPath, TEXT("rfrecipe.json"));
+                    SampleExportName = TEXT("RF_StringBridge_G3");
+                    WaveguidePickup = 0.08f;
                     ApplyWaveguideParameters();
                     ExportCurrentSample();
-                    ReforgeSampleLabelFromPath(LongTailLabelPath);
-                    SampleExportName = TEXT("RF_LongTailWood_G3");
+                    ReforgeSampleLabelFromPath(CenterLabelPath);
+                    SampleExportName = TEXT("RF_StringCenter_G3");
                     if (WorkbenchScrollBox.IsValid())
                     {
                         WorkbenchScrollBox->ScrollToEnd();
@@ -445,12 +441,19 @@ void FResonanceForgeEditorModule::ApplyWaveguideParameters()
 {
     if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
     {
+        if (Instrument->NativeSynth->MaterialProfile)
+        {
+            Instrument->NativeSynth->ApplyMaterialProfile(nullptr);
+            Instrument->NativeSynth->SetSynthesisModel(ActiveModel);
+            Instrument->NativeSynth->SetCustomModes(ActiveModes);
+        }
         Instrument->NativeSynth->StringDecay = FMath::Lerp(
             ResonanceForgeEditor::WaveguideDecayMin,
             ResonanceForgeEditor::WaveguideDecayMax,
             FMath::Clamp(WaveguideSustain, 0.0f, 1.0f));
         Instrument->NativeSynth->StringDamping = FMath::Clamp(WaveguideDamping, 0.0f, 1.0f);
         Instrument->NativeSynth->BodyCoupling = FMath::Clamp(WaveguideCoupling, 0.0f, 1.0f);
+        Instrument->NativeSynth->PickupPosition = FMath::Clamp(WaveguidePickup, 0.0f, 1.0f);
     }
 }
 
@@ -563,6 +566,7 @@ FReply FResonanceForgeEditorModule::SyncFromSelection()
                 Instrument->NativeSynth->StringDecay);
             WaveguideDamping = Instrument->NativeSynth->StringDamping;
             WaveguideCoupling = Instrument->NativeSynth->BodyCoupling;
+            WaveguidePickup = Instrument->NativeSynth->PickupPosition;
             ActiveModes = Instrument->NativeSynth->GetEffectiveModes();
             SelectedModeIndex = FMath::Clamp(SelectedModeIndex, 0, FMath::Max(0, ActiveModes.Num() - 1));
         }
@@ -626,6 +630,7 @@ FReply FResonanceForgeEditorModule::PinReference()
     ReferenceSustain = WaveguideSustain;
     ReferenceDamping = WaveguideDamping;
     ReferenceCoupling = WaveguideCoupling;
+    ReferencePickup = WaveguidePickup;
     ReferenceModes = ActiveModes;
     LastStatus = NSLOCTEXT("ResonanceForge", "ReferencePinned", "参考声纹已钉住 · 继续换材质或调整参数，紫色轮廓会保留用于比较");
     return FReply::Handled();
@@ -648,6 +653,7 @@ FReply FResonanceForgeEditorModule::SwapAndPreviewReference()
     const float PreviousSustain = WaveguideSustain;
     const float PreviousDamping = WaveguideDamping;
     const float PreviousCoupling = WaveguideCoupling;
+    const float PreviousPickup = WaveguidePickup;
     const TArray<FResonanceMode> PreviousModes = ActiveModes;
 
     ActivePreset = ReferencePreset;
@@ -659,6 +665,7 @@ FReply FResonanceForgeEditorModule::SwapAndPreviewReference()
     WaveguideSustain = ReferenceSustain;
     WaveguideDamping = ReferenceDamping;
     WaveguideCoupling = ReferenceCoupling;
+    WaveguidePickup = ReferencePickup;
     ActiveModes = ReferenceModes;
 
     ReferencePreset = PreviousPreset;
@@ -670,6 +677,7 @@ FReply FResonanceForgeEditorModule::SwapAndPreviewReference()
     ReferenceSustain = PreviousSustain;
     ReferenceDamping = PreviousDamping;
     ReferenceCoupling = PreviousCoupling;
+    ReferencePickup = PreviousPickup;
     ReferenceModes = PreviousModes;
 
     const TArray<FResonanceMode> DesiredModes = ActiveModes;
@@ -701,7 +709,8 @@ bool FResonanceForgeEditorModule::ReadRecipeSlot(
     float& OutSize,
     float& OutSustain,
     float& OutDamping,
-    float& OutCoupling) const
+    float& OutCoupling,
+    float& OutPickup) const
 {
     if (!GConfig || SlotIndex < 0 || SlotIndex > 2)
     {
@@ -726,9 +735,11 @@ bool FResonanceForgeEditorModule::ReadRecipeSlot(
     OutSustain = 0.90f;
     OutDamping = 0.36f;
     OutCoupling = 0.22f;
+    OutPickup = 0.35f;
     GConfig->GetFloat(*Section, *(Prefix + TEXT(".Sustain")), OutSustain, GEditorPerProjectIni);
     GConfig->GetFloat(*Section, *(Prefix + TEXT(".Damping")), OutDamping, GEditorPerProjectIni);
     GConfig->GetFloat(*Section, *(Prefix + TEXT(".Coupling")), OutCoupling, GEditorPerProjectIni);
+    GConfig->GetFloat(*Section, *(Prefix + TEXT(".Pickup")), OutPickup, GEditorPerProjectIni);
     OutPreset = PresetString.IsEmpty() ? FName(TEXT("拉丝钢")) : FName(*PresetString);
     OutModel = ModelValue == static_cast<int32>(EResonanceModelType::WaveguideString)
         ? EResonanceModelType::WaveguideString
@@ -739,6 +750,7 @@ bool FResonanceForgeEditorModule::ReadRecipeSlot(
     OutSustain = FMath::Clamp(OutSustain, 0.0f, 1.0f);
     OutDamping = FMath::Clamp(OutDamping, 0.0f, 1.0f);
     OutCoupling = FMath::Clamp(OutCoupling, 0.0f, 1.0f);
+    OutPickup = FMath::Clamp(OutPickup, 0.0f, 1.0f);
     return true;
 }
 
@@ -752,7 +764,8 @@ bool FResonanceForgeEditorModule::HasRecipeSlot(const int32 SlotIndex) const
     float Sustain = 0.0f;
     float Damping = 0.0f;
     float Coupling = 0.0f;
-    return ReadRecipeSlot(SlotIndex, Preset, Model, Energy, Brightness, Size, Sustain, Damping, Coupling);
+    float Pickup = 0.0f;
+    return ReadRecipeSlot(SlotIndex, Preset, Model, Energy, Brightness, Size, Sustain, Damping, Coupling, Pickup);
 }
 
 FText FResonanceForgeEditorModule::GetRecipeSlotText(const int32 SlotIndex) const
@@ -766,7 +779,8 @@ FText FResonanceForgeEditorModule::GetRecipeSlotText(const int32 SlotIndex) cons
     float Sustain = 0.0f;
     float Damping = 0.0f;
     float Coupling = 0.0f;
-    if (!ReadRecipeSlot(SlotIndex, Preset, Model, Energy, Brightness, Size, Sustain, Damping, Coupling))
+    float Pickup = 0.0f;
+    if (!ReadRecipeSlot(SlotIndex, Preset, Model, Energy, Brightness, Size, Sustain, Damping, Coupling, Pickup))
     {
         return FText::Format(NSLOCTEXT("ResonanceForge", "EmptyRecipeSlot", "{0} · 空"), FText::FromString(SlotNames[SlotIndex]));
     }
@@ -798,6 +812,7 @@ FReply FResonanceForgeEditorModule::SaveRecipeSlot(const int32 SlotIndex)
     GConfig->SetFloat(*Section, *(Prefix + TEXT(".Sustain")), WaveguideSustain, GEditorPerProjectIni);
     GConfig->SetFloat(*Section, *(Prefix + TEXT(".Damping")), WaveguideDamping, GEditorPerProjectIni);
     GConfig->SetFloat(*Section, *(Prefix + TEXT(".Coupling")), WaveguideCoupling, GEditorPerProjectIni);
+    GConfig->SetFloat(*Section, *(Prefix + TEXT(".Pickup")), WaveguidePickup, GEditorPerProjectIni);
     GConfig->Flush(false, GEditorPerProjectIni);
     LastStatus = FText::Format(
         NSLOCTEXT("ResonanceForge", "RecipeSaved", "已把当前声音存入{0} · 仅保存在本机工程设置中"),
@@ -815,7 +830,8 @@ FReply FResonanceForgeEditorModule::RecallRecipeSlot(const int32 SlotIndex)
     float Sustain = 0.0f;
     float Damping = 0.0f;
     float Coupling = 0.0f;
-    if (!ReadRecipeSlot(SlotIndex, Preset, Model, Energy, Brightness, Size, Sustain, Damping, Coupling))
+    float Pickup = 0.0f;
+    if (!ReadRecipeSlot(SlotIndex, Preset, Model, Energy, Brightness, Size, Sustain, Damping, Coupling, Pickup))
     {
         LastStatus = NSLOCTEXT("ResonanceForge", "RecipeSlotEmpty", "这个配方槽还是空的 · 先把当前声音存进去");
         return FReply::Handled();
@@ -829,6 +845,7 @@ FReply FResonanceForgeEditorModule::RecallRecipeSlot(const int32 SlotIndex)
     WaveguideSustain = Sustain;
     WaveguideDamping = Damping;
     WaveguideCoupling = Coupling;
+    WaveguidePickup = Pickup;
     const FString RecipeSection(TEXT("ResonanceForge.UserRecipes"));
     const FString RecipePrefix = FString::Printf(TEXT("Slot%d"), SlotIndex + 1);
     PreviewStrikePosition = 0.5f;
@@ -1114,6 +1131,7 @@ FReply FResonanceForgeEditorModule::ExportCurrentSample()
         StringDecay,
         WaveguideDamping,
         WaveguideCoupling,
+        WaveguidePickup,
         SampleExportDurationSeconds,
         48000,
         Samples);
@@ -1238,6 +1256,7 @@ FReply FResonanceForgeEditorModule::ExportCurrentSample()
     Waveguide->SetNumberField(TEXT("feedback"), StringDecay);
     Waveguide->SetNumberField(TEXT("damping"), WaveguideDamping);
     Waveguide->SetNumberField(TEXT("bodyCoupling"), WaveguideCoupling);
+    Waveguide->SetNumberField(TEXT("pickupPosition"), WaveguidePickup);
     Root->SetObjectField(TEXT("waveguide"), Waveguide);
 
     const TSharedRef<FJsonObject> Wwise = MakeShared<FJsonObject>();
@@ -1563,12 +1582,18 @@ FReply FResonanceForgeEditorModule::ReforgeSampleLabelFromPath(const FString& La
     double Sustain = 0.0;
     double Damping = 0.0;
     double Coupling = 0.0;
+    double Pickup = 0.35;
     if (!ReadFinite(WaveguideObject, TEXT("sustainNormalized"), Sustain)
         || !ReadFinite(WaveguideObject, TEXT("damping"), Damping)
         || !ReadFinite(WaveguideObject, TEXT("bodyCoupling"), Coupling)
         || !InRange(Sustain, 0.0, 1.0) || !InRange(Damping, 0.0, 1.0) || !InRange(Coupling, 0.0, 1.0))
     {
         return Fail(NSLOCTEXT("ResonanceForge", "ReforgeInvalidWaveguide", "铭牌回炉失败 · 弦床参数缺失或越界"));
+    }
+    if (WaveguideObject->HasField(TEXT("pickupPosition"))
+        && (!ReadFinite(WaveguideObject, TEXT("pickupPosition"), Pickup) || !InRange(Pickup, 0.0, 1.0)))
+    {
+        return Fail(NSLOCTEXT("ResonanceForge", "ReforgeInvalidPickup", "铭牌回炉失败 · 拾音位置越界"));
     }
 
     const TArray<TSharedPtr<FJsonValue>>* ModeValues = nullptr;
@@ -1612,6 +1637,7 @@ FReply FResonanceForgeEditorModule::ReforgeSampleLabelFromPath(const FString& La
     WaveguideSustain = static_cast<float>(Sustain);
     WaveguideDamping = static_cast<float>(Damping);
     WaveguideCoupling = static_cast<float>(Coupling);
+    WaveguidePickup = static_cast<float>(Pickup);
     LastSampleEnvelope = MoveTemp(ImportedEnvelope);
     LastSampleTailDb = static_cast<float>(TailDb);
     LastSampleDurationSeconds = static_cast<float>(Duration);
@@ -1736,6 +1762,7 @@ FReply FResonanceForgeEditorModule::ForgeSharedRecipeAsset()
         FMath::Clamp(WaveguideSustain, 0.0f, 1.0f));
     Profile->StringDamping = FMath::Clamp(WaveguideDamping, 0.0f, 1.0f);
     Profile->BodyCoupling = FMath::Clamp(WaveguideCoupling, 0.0f, 1.0f);
+    Profile->PickupPosition = FMath::Clamp(WaveguidePickup, 0.0f, 1.0f);
 
     FAssetRegistryModule::AssetCreated(Profile);
     Package->MarkPackageDirty();
@@ -1850,6 +1877,7 @@ FText FResonanceForgeEditorModule::GetComparisonText() const
     const int32 SustainDelta = FMath::RoundToInt((WaveguideSustain - ReferenceSustain) * 100.0f);
     const int32 DampingDelta = FMath::RoundToInt((WaveguideDamping - ReferenceDamping) * 100.0f);
     const int32 CouplingDelta = FMath::RoundToInt((WaveguideCoupling - ReferenceCoupling) * 100.0f);
+    const int32 PickupDelta = FMath::RoundToInt((WaveguidePickup - ReferencePickup) * 100.0f);
     int32 ChangedModeCount = FMath::Abs(ActiveModes.Num() - ReferenceModes.Num());
     for (int32 Index = 0; Index < FMath::Min(ActiveModes.Num(), ReferenceModes.Num()); ++Index)
     {
@@ -1869,8 +1897,8 @@ FText FResonanceForgeEditorModule::GetComparisonText() const
     if (ActiveModel == EResonanceModelType::WaveguideString || ReferenceModel == EResonanceModelType::WaveguideString)
     {
         return FText::Format(
-            NSLOCTEXT("ResonanceForge", "WaveguideReferenceDifference", "参考「{0}」 · 延音 {1}%  阻尼 {2}%  耦合 {3}%"),
-            FText::FromName(ReferencePreset), SignedPercent(SustainDelta), SignedPercent(DampingDelta), SignedPercent(CouplingDelta));
+            NSLOCTEXT("ResonanceForge", "WaveguideReferenceDifference", "参考「{0}」 · 延音 {1}%  阻尼 {2}%  耦合 {3}%  拾音 {4}%"),
+            FText::FromName(ReferencePreset), SignedPercent(SustainDelta), SignedPercent(DampingDelta), SignedPercent(CouplingDelta), SignedPercent(PickupDelta));
     }
     return FText::Format(
         NSLOCTEXT("ResonanceForge", "ReferenceDifference", "参考「{0}」 · 能量 {1}%  明亮 {2}%  尺度 {3}%  落点 {4}%  ·  变化 {5} 根共振齿"),
@@ -1902,6 +1930,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                 Instrument->NativeSynth->StringDecay);
             WaveguideDamping = Instrument->NativeSynth->StringDamping;
             WaveguideCoupling = Instrument->NativeSynth->BodyCoupling;
+            WaveguidePickup = Instrument->NativeSynth->PickupPosition;
             ActiveModes = Instrument->NativeSynth->GetEffectiveModes();
             SelectedModeIndex = FMath::Clamp(SelectedModeIndex, 0, FMath::Max(0, ActiveModes.Num() - 1));
         }
@@ -2210,6 +2239,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                                     .Sustain_Lambda([this]{ return WaveguideSustain; })
                                     .Damping_Lambda([this]{ return WaveguideDamping; })
                                     .Coupling_Lambda([this]{ return WaveguideCoupling; })
+                                    .Pickup_Lambda([this]{ return WaveguidePickup; })
                                     .HasReference_Lambda([this]{ return bHasReference; })
                                     .ReferenceModelType_Lambda([this]{ return ReferenceModel; })
                                     .ReferencePresetName_Lambda([this]{ return ReferencePreset; })
@@ -2219,6 +2249,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                                     .ReferenceSustain_Lambda([this]{ return ReferenceSustain; })
                                     .ReferenceDamping_Lambda([this]{ return ReferenceDamping; })
                                     .ReferenceCoupling_Lambda([this]{ return ReferenceCoupling; })
+                                    .ReferencePickup_Lambda([this]{ return ReferencePickup; })
                                 ]
                             ]
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
@@ -2333,12 +2364,14 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 12, 0, 0)
                             [
                                 SNew(SHorizontalBox)
-                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(0, 0, 10, 0)
+                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(0, 0, 8, 0)
                                 [WaveguideParameterRow(NSLOCTEXT("ResonanceForge", "Sustain", "回响长度"), NSLOCTEXT("ResonanceForge", "SustainDetail", "反馈保留"), &WaveguideSustain, Wood)]
-                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(10, 0)
+                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(8, 0)
                                 [WaveguideParameterRow(NSLOCTEXT("ResonanceForge", "Damping", "弦路阻尼"), NSLOCTEXT("ResonanceForge", "DampingDetail", "高频耗散"), &WaveguideDamping, Steel)]
-                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(10, 0, 0, 0)
+                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(8, 0)
                                 [WaveguideParameterRow(NSLOCTEXT("ResonanceForge", "Coupling", "箱体耦合"), NSLOCTEXT("ResonanceForge", "CouplingDetail", "弦体传能"), &WaveguideCoupling, Glass)]
+                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(8, 0, 0, 0)
+                                [WaveguideParameterRow(NSLOCTEXT("ResonanceForge", "Pickup", "拾音位置"), NSLOCTEXT("ResonanceForge", "PickupDetail", "琴桥 ↔ 弦心"), &WaveguidePickup, Cyan)]
                             ]
                         ]
                     ]

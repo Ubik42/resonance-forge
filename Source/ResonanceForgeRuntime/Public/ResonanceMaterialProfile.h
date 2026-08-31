@@ -58,4 +58,7 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="数字波导弦", meta=(ClampMin="0.0", ClampMax="1.0", EditCondition="ModelType == EResonanceModelType::WaveguideString", EditConditionHides))
     float BodyCoupling = 0.22f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="数字波导弦", meta=(ClampMin="0.0", ClampMax="1.0", EditCondition="ModelType == EResonanceModelType::WaveguideString", EditConditionHides))
+    float PickupPosition = 0.35f;
 };

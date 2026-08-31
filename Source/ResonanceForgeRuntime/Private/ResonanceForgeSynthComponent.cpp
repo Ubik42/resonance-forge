@@ -54,6 +54,7 @@ void UResonanceForgeSynthComponent::Strike(
         Profile ? Profile->StringDecay : StringDecay,
         Profile ? Profile->StringDamping : StringDamping,
         Profile ? Profile->BodyCoupling : BodyCoupling,
+        Profile ? Profile->PickupPosition : PickupPosition,
         PitchScale,
         FMath::Clamp(StrikePosition, 0.0f, 1.0f)
     });
@@ -107,6 +108,7 @@ bool UResonanceForgeSynthComponent::RenderOfflinePreview(
     const float InStringDecay,
     const float InStringDamping,
     const float InBodyCoupling,
+    const float InPickupPosition,
     const float DurationSeconds,
     const int32 SampleRate,
     TArray<float>& OutInterleavedStereo)
@@ -124,6 +126,7 @@ bool UResonanceForgeSynthComponent::RenderOfflinePreview(
     OfflineSynth->StringDecay = FMath::Clamp(InStringDecay, 0.90f, 0.99999f);
     OfflineSynth->StringDamping = FMath::Clamp(InStringDamping, 0.0f, 1.0f);
     OfflineSynth->BodyCoupling = FMath::Clamp(InBodyCoupling, 0.0f, 1.0f);
+    OfflineSynth->PickupPosition = FMath::Clamp(InPickupPosition, 0.0f, 1.0f);
     OfflineSynth->PitchScale = FMath::Lerp(1.35f, 0.72f, FMath::Clamp(ObjectSize, 0.0f, 1.0f));
     OfflineSynth->CustomModes = Modes;
     OfflineSynth->RebuildModesFrom(Modes.IsEmpty() ? GetBuiltInModes(TEXT("拉丝钢")) : Modes);
@@ -164,6 +167,7 @@ void UResonanceForgeSynthComponent::ApplyMaterialProfile(UResonanceMaterialProfi
         StringDecay = MaterialProfile->StringDecay;
         StringDamping = MaterialProfile->StringDamping;
         BodyCoupling = MaterialProfile->BodyCoupling;
+        PickupPosition = MaterialProfile->PickupPosition;
     }
     RequestModeRebuild();
 }
@@ -311,6 +315,8 @@ void UResonanceForgeSynthComponent::StartWaveguideVoice(const FStrikeEvent& Even
     Target->LoopState = 0.0f;
     Target->LoopGain = FMath::Clamp(Event.Decay, 0.90f, 0.99999f);
     Target->Damping = FMath::Clamp(Event.Damping + (1.0f - Event.Brightness) * 0.42f, 0.02f, 0.98f);
+    const float PhysicalPickupPosition = FMath::Lerp(0.04f, 0.50f, FMath::Clamp(Event.Pickup, 0.0f, 1.0f));
+    Target->PickupOffset = FMath::Clamp(FMath::RoundToInt(Target->DelaySamples * PhysicalPickupPosition), 1, Target->DelaySamples - 1);
     Target->Gain = FMath::Clamp(Event.Energy, 0.0f, 1.5f);
     Target->EnergyEstimate = Target->Gain;
     Target->bActive = true;
@@ -337,12 +343,14 @@ float UResonanceForgeSynthComponent::RenderWaveguideVoices()
 
         const int32 NextIndex = (Voice.Cursor + 1) % Voice.DelaySamples;
         const float Current = Voice.DelayBuffer[Voice.Cursor];
+        const int32 PickupIndex = (Voice.Cursor + Voice.PickupOffset) % Voice.DelaySamples;
+        const float PickupSample = Current - Voice.DelayBuffer[PickupIndex] * 0.72f;
         const float Average = 0.5f * (Current + Voice.DelayBuffer[NextIndex]);
         Voice.LoopState = FMath::Lerp(Average, Voice.LoopState, Voice.Damping);
         Voice.DelayBuffer[Voice.Cursor] = Voice.LoopState * Voice.LoopGain;
         Voice.Cursor = NextIndex;
         Voice.EnergyEstimate = FMath::Lerp(Voice.EnergyEstimate, FMath::Abs(Current), 0.0025f) * 0.99996f;
-        Output += Current;
+        Output += PickupSample * 1.25f;
 
         if (Voice.EnergyEstimate < 0.00008f)
         {

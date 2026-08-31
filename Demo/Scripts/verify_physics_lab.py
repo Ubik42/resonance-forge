@@ -68,6 +68,7 @@ report = {
         "string_decay": waveguide_profile.get_editor_property("string_decay"),
         "string_damping": waveguide_profile.get_editor_property("string_damping"),
         "body_coupling": waveguide_profile.get_editor_property("body_coupling"),
+        "pickup_position": waveguide_profile.get_editor_property("pickup_position"),
     } if waveguide_profile else None,
     "balls": balls,
     "failures": failures,

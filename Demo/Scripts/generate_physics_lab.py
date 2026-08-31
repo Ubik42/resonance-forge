@@ -78,6 +78,7 @@ def make_long_tail_wood_string_profile():
     set_prop(profile, "string_decay", 0.9987)
     set_prop(profile, "string_damping", 0.22)
     set_prop(profile, "body_coupling", 0.44)
+    set_prop(profile, "pickup_position", 0.82)
     if not asset_library.save_loaded_asset(profile, False):
         raise RuntimeError("长尾木弦共享配方保存失败")
     return profile

@@ -37,6 +37,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|数字波导弦", meta=(ClampMin="0.0", ClampMax="1.0"))
     float BodyCoupling = 0.22f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|数字波导弦", meta=(ClampMin="0.0", ClampMax="1.0", DisplayName="拾音位置"))
+    float PickupPosition = 0.35f;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="共振铸造台|数字波导弦", meta=(ClampMin="1", ClampMax="16"))
     int32 MaxStringVoices = 8;
 
@@ -86,6 +89,7 @@ public:
         float StringDecay,
         float StringDamping,
         float BodyCoupling,
+        float PickupPosition,
         float DurationSeconds,
         int32 SampleRate,
         TArray<float>& OutInterleavedStereo);
@@ -108,6 +112,7 @@ private:
         float Decay;
         float Damping;
         float Coupling;
+        float Pickup;
         float PitchScale;
         float StrikePosition;
     };
@@ -131,6 +136,7 @@ private:
         float LoopState = 0.0f;
         float LoopGain = 0.9965f;
         float Damping = 0.36f;
+        int32 PickupOffset = 1;
         float Gain = 0.0f;
         float EnergyEstimate = 0.0f;
         bool bActive = false;

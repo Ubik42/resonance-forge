@@ -72,7 +72,7 @@ private:
     bool HasRecentSampleLabel(int32 LabelIndex) const;
     void RefreshRecentSampleLabels();
     bool HasRecipeSlot(int32 SlotIndex) const;
-    bool ReadRecipeSlot(int32 SlotIndex, FName& OutPreset, EResonanceModelType& OutModel, float& OutEnergy, float& OutBrightness, float& OutSize, float& OutSustain, float& OutDamping, float& OutCoupling) const;
+    bool ReadRecipeSlot(int32 SlotIndex, FName& OutPreset, EResonanceModelType& OutModel, float& OutEnergy, float& OutBrightness, float& OutSize, float& OutSustain, float& OutDamping, float& OutCoupling, float& OutPickup) const;
 
     FName ActivePreset = TEXT("拉丝钢");
     EResonanceModelType ActiveModel = EResonanceModelType::ModalImpact;
@@ -83,6 +83,7 @@ private:
     float WaveguideSustain = 0.90f;
     float WaveguideDamping = 0.36f;
     float WaveguideCoupling = 0.22f;
+    float WaveguidePickup = 0.35f;
     TArray<FResonanceMode> ActiveModes;
     int32 SelectedModeIndex = 0;
     bool bHasReference = false;
@@ -95,6 +96,7 @@ private:
     float ReferenceSustain = 0.90f;
     float ReferenceDamping = 0.36f;
     float ReferenceCoupling = 0.22f;
+    float ReferencePickup = 0.35f;
     TArray<FResonanceMode> ReferenceModes;
     TArray<TSharedPtr<FString>> MidiDeviceOptions;
     TArray<int32> MidiDeviceIds;
@@ -114,7 +116,7 @@ private:
     float LastKeybedVelocity = 0.0f;
     double LastKeybedPlayedSeconds = -1000.0;
     FString SharedRecipeName = TEXT("新声学配方");
-    FString SampleExportName = TEXT("RF_LongTailWood_G3");
+    FString SampleExportName = TEXT("RF_StringCenter_G3");
     float SampleExportDurationSeconds = 3.0f;
     FString LastSampleExportPath;
     TArray<float> LastSampleEnvelope;

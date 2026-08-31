@@ -1,7 +1,7 @@
 {
   "FileVersion": 3,
-  "Version": 24,
-  "VersionName": "0.22.0",
+  "Version": 25,
+  "VersionName": "0.23.0",
   "FriendlyName": "共振铸造台 Resonance Forge",
   "Description": "用模态共振与数字波导构造可被物理碰撞和 MIDI 演奏的声学物体，并同步驱动 Wwise Event 与 RTPC。",
   "Category": "音频",
