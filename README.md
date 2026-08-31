@@ -8,7 +8,7 @@
 ![Unreal Engine 5.8](https://img.shields.io/badge/Unreal_Engine-5.8.1-0E1128?logo=unrealengine&logoColor=white)
 ![Wwise 2025.1](https://img.shields.io/badge/Wwise-2025.1-00549F)
 ![Platform](https://img.shields.io/badge/Platform-Windows_Editor-0078D4?logo=windows&logoColor=white)
-![Version](https://img.shields.io/badge/Version-0.4.1-D96B2B)
+![Version](https://img.shields.io/badge/Version-0.5.0-D96B2B)
 ![License](https://img.shields.io/badge/License-MIT-2EA44F)
 
 </div>
@@ -25,6 +25,7 @@
 - **可演奏**：MIDI Note On 控制音高与力度，CC1 控制音色明亮度。
 - **声纹炉膛**：用随模型、材质与演奏参数实时变化的声学指纹理解声音，而不是只看抽象滑杆。
 - **A/B 声纹比较**：钉住一次参考声纹，再更换材质或参数；“交换并试听 A/B”可在两个版本间往返切换。
+- **本地配方架**：甲、乙、丙三个槽位保存模型、材质和演奏参数，重开编辑器后仍可召回。
 - **编辑器工作流**：中文 Slate 面板按“对象 → 激励 → 共振 → 出口”组织一件声音的配方。
 - **可重复验证**：测试音频、PBR 贴图、演示地图和复检报告均可由脚本重建。
 
@@ -102,7 +103,10 @@ flowchart LR
 5. 调整激励能量、明亮度与共振尺度，观察“声纹炉膛”的轮廓变化。
 6. 点击“钉住当前声纹”，再切换材质或参数，比较橙色参考轮廓与当前声纹。
 7. 点击“交换并试听 A/B”在两版之间往返切换；每次交换都会立即触发当前版本。
-8. 进入 PIE，观察落球碰撞并在 Wwise Profiler 中检查 RTPC。
+8. 使用“配方架”把满意的版本存入甲、乙或丙槽，需要时一键召回到当前对象。
+9. 进入 PIE，观察落球碰撞并在 Wwise Profiler 中检查 RTPC。
+
+配方槽写入 Unreal 的本机工程用户设置，不会生成需要提交的团队资产；适合保存个人试听草案。需要团队共享的正式声学资产仍应使用 `UResonanceMaterialProfile`。
 
 ## 演示场景
 

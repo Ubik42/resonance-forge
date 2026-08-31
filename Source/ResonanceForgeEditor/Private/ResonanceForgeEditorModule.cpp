@@ -6,6 +6,7 @@
 #include "EngineUtils.h"
 #include "Framework/Docking/TabManager.h"
 #include "Materials/MaterialInterface.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Misc/PackageName.h"
 #include "../../ResonanceForgeWwise/Public/ResonanceForgeImpactInstrumentActor.h"
 #include "ResonanceForgeSynthComponent.h"
@@ -259,6 +260,128 @@ FReply FResonanceForgeEditorModule::ClearReference()
     return FReply::Handled();
 }
 
+bool FResonanceForgeEditorModule::ReadRecipeSlot(
+    const int32 SlotIndex,
+    FName& OutPreset,
+    EResonanceModelType& OutModel,
+    float& OutEnergy,
+    float& OutBrightness,
+    float& OutSize) const
+{
+    if (!GConfig || SlotIndex < 0 || SlotIndex > 2)
+    {
+        return false;
+    }
+
+    const FString Section(TEXT("ResonanceForge.UserRecipes"));
+    const FString Prefix = FString::Printf(TEXT("Slot%d"), SlotIndex + 1);
+    bool bValid = false;
+    if (!GConfig->GetBool(*Section, *(Prefix + TEXT(".Valid")), bValid, GEditorPerProjectIni) || !bValid)
+    {
+        return false;
+    }
+
+    FString PresetString;
+    int32 ModelValue = 0;
+    GConfig->GetString(*Section, *(Prefix + TEXT(".Preset")), PresetString, GEditorPerProjectIni);
+    GConfig->GetInt(*Section, *(Prefix + TEXT(".Model")), ModelValue, GEditorPerProjectIni);
+    GConfig->GetFloat(*Section, *(Prefix + TEXT(".Energy")), OutEnergy, GEditorPerProjectIni);
+    GConfig->GetFloat(*Section, *(Prefix + TEXT(".Brightness")), OutBrightness, GEditorPerProjectIni);
+    GConfig->GetFloat(*Section, *(Prefix + TEXT(".Size")), OutSize, GEditorPerProjectIni);
+    OutPreset = PresetString.IsEmpty() ? FName(TEXT("拉丝钢")) : FName(*PresetString);
+    OutModel = ModelValue == static_cast<int32>(EResonanceModelType::WaveguideString)
+        ? EResonanceModelType::WaveguideString
+        : EResonanceModelType::ModalImpact;
+    OutEnergy = FMath::Clamp(OutEnergy, 0.0f, 1.0f);
+    OutBrightness = FMath::Clamp(OutBrightness, 0.0f, 1.0f);
+    OutSize = FMath::Clamp(OutSize, 0.0f, 1.0f);
+    return true;
+}
+
+bool FResonanceForgeEditorModule::HasRecipeSlot(const int32 SlotIndex) const
+{
+    FName Preset;
+    EResonanceModelType Model = EResonanceModelType::ModalImpact;
+    float Energy = 0.0f;
+    float Brightness = 0.0f;
+    float Size = 0.0f;
+    return ReadRecipeSlot(SlotIndex, Preset, Model, Energy, Brightness, Size);
+}
+
+FText FResonanceForgeEditorModule::GetRecipeSlotText(const int32 SlotIndex) const
+{
+    static const TCHAR* SlotNames[] = {TEXT("甲槽"), TEXT("乙槽"), TEXT("丙槽")};
+    FName Preset;
+    EResonanceModelType Model = EResonanceModelType::ModalImpact;
+    float Energy = 0.0f;
+    float Brightness = 0.0f;
+    float Size = 0.0f;
+    if (!ReadRecipeSlot(SlotIndex, Preset, Model, Energy, Brightness, Size))
+    {
+        return FText::Format(NSLOCTEXT("ResonanceForge", "EmptyRecipeSlot", "{0} · 空"), FText::FromString(SlotNames[SlotIndex]));
+    }
+
+    const FText ModelText = Model == EResonanceModelType::WaveguideString
+        ? NSLOCTEXT("ResonanceForge", "RecipeWaveguide", "波导弦")
+        : NSLOCTEXT("ResonanceForge", "RecipeModal", "撞击体");
+    return FText::Format(
+        NSLOCTEXT("ResonanceForge", "FilledRecipeSlot", "{0} · {1} / {2}"),
+        FText::FromString(SlotNames[SlotIndex]), FText::FromName(Preset), ModelText);
+}
+
+FReply FResonanceForgeEditorModule::SaveRecipeSlot(const int32 SlotIndex)
+{
+    if (!GConfig || SlotIndex < 0 || SlotIndex > 2)
+    {
+        return FReply::Handled();
+    }
+
+    const FString Section(TEXT("ResonanceForge.UserRecipes"));
+    const FString Prefix = FString::Printf(TEXT("Slot%d"), SlotIndex + 1);
+    GConfig->SetBool(*Section, *(Prefix + TEXT(".Valid")), true, GEditorPerProjectIni);
+    GConfig->SetString(*Section, *(Prefix + TEXT(".Preset")), *ActivePreset.ToString(), GEditorPerProjectIni);
+    GConfig->SetInt(*Section, *(Prefix + TEXT(".Model")), static_cast<int32>(ActiveModel), GEditorPerProjectIni);
+    GConfig->SetFloat(*Section, *(Prefix + TEXT(".Energy")), PreviewEnergy, GEditorPerProjectIni);
+    GConfig->SetFloat(*Section, *(Prefix + TEXT(".Brightness")), PreviewBrightness, GEditorPerProjectIni);
+    GConfig->SetFloat(*Section, *(Prefix + TEXT(".Size")), PreviewSize, GEditorPerProjectIni);
+    GConfig->Flush(false, GEditorPerProjectIni);
+    LastStatus = FText::Format(
+        NSLOCTEXT("ResonanceForge", "RecipeSaved", "已把当前声音存入{0} · 仅保存在本机工程设置中"),
+        FText::FromString(SlotIndex == 0 ? TEXT("甲槽") : (SlotIndex == 1 ? TEXT("乙槽") : TEXT("丙槽"))));
+    return FReply::Handled();
+}
+
+FReply FResonanceForgeEditorModule::RecallRecipeSlot(const int32 SlotIndex)
+{
+    FName Preset;
+    EResonanceModelType Model = EResonanceModelType::ModalImpact;
+    float Energy = 0.0f;
+    float Brightness = 0.0f;
+    float Size = 0.0f;
+    if (!ReadRecipeSlot(SlotIndex, Preset, Model, Energy, Brightness, Size))
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "RecipeSlotEmpty", "这个配方槽还是空的 · 先把当前声音存进去");
+        return FReply::Handled();
+    }
+
+    ActiveModel = Model;
+    ActivePreset = Preset;
+    PreviewEnergy = Energy;
+    PreviewBrightness = Brightness;
+    PreviewSize = Size;
+    ApplyModel(ActiveModel);
+    ApplyPreset(ActivePreset);
+    if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
+    {
+        Instrument->ObjectSize = PreviewSize;
+        Instrument->MarkPackageDirty();
+    }
+    LastStatus = FText::Format(
+        NSLOCTEXT("ResonanceForge", "RecipeRecalled", "已召回{0} · 模型、材质与演奏参数已同步到当前对象"),
+        FText::FromString(SlotIndex == 0 ? TEXT("甲槽") : (SlotIndex == 1 ? TEXT("乙槽") : TEXT("丙槽"))));
+    return FReply::Handled();
+}
+
 FReply FResonanceForgeEditorModule::OpenDemoMap()
 {
     if (GEditor)
@@ -406,6 +529,27 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
             ];
     };
 
+    auto RecipeSlot = [this](const int32 SlotIndex, const FLinearColor& Color)
+    {
+        return SNew(SBorder)
+            .BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel")))
+            .BorderBackgroundColor(FLinearColor(0.028f, 0.032f, 0.030f, 1.0f))
+            .Padding(FMargin(12, 10))
+            [
+                SNew(SVerticalBox)
+                + SVerticalBox::Slot().AutoHeight()
+                [SNew(STextBlock).Text_Lambda([this, SlotIndex]{ return GetRecipeSlotText(SlotIndex); }).ColorAndOpacity(Color).Font(FAppStyle::GetFontStyle(TEXT("BoldFont")))]
+                + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
+                [
+                    SNew(SHorizontalBox)
+                    + SHorizontalBox::Slot().FillWidth(1.0f).Padding(0, 0, 4, 0)
+                    [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "StoreRecipe", "存入当前")).OnClicked_Lambda([this, SlotIndex]{ return SaveRecipeSlot(SlotIndex); })]
+                    + SHorizontalBox::Slot().FillWidth(1.0f).Padding(4, 0, 0, 0)
+                    [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "RecallRecipe", "召回")).IsEnabled_Lambda([this, SlotIndex]{ return HasRecipeSlot(SlotIndex); }).OnClicked_Lambda([this, SlotIndex]{ return RecallRecipeSlot(SlotIndex); })]
+                ]
+            ];
+    };
+
     return SNew(SDockTab)
         .TabRole(ETabRole::NomadTab)
         [
@@ -533,6 +677,19 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 12, 0, 0)[ParameterRow(NSLOCTEXT("ResonanceForge", "Energy", "激励能量"), FText::FromString(TEXT("RF_ImpactEnergy")), &PreviewEnergy, Steel)]
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 12, 0, 0)[ParameterRow(NSLOCTEXT("ResonanceForge", "Brightness", "明亮度"), FText::FromString(TEXT("RF_ImpactBrightness")), &PreviewBrightness, Glass)]
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 12, 0, 0)[ParameterRow(NSLOCTEXT("ResonanceForge", "Size", "共振尺度"), FText::FromString(TEXT("RF_ObjectSize")), &PreviewSize, Wood)]
+                        ]
+                    ]
+                    + SVerticalBox::Slot().AutoHeight().Padding(22, 4, 22, 12)
+                    [
+                        SNew(SVerticalBox)
+                        + SVerticalBox::Slot().AutoHeight()
+                        [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "RecipeShelf", "配方架"), NSLOCTEXT("ResonanceForge", "RecipeShelfDetail", "把顺手的声纹存进三个本地槽位；关闭编辑器后仍可召回，不会污染团队资产。"))]
+                        + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
+                        [
+                            SNew(SHorizontalBox)
+                            + SHorizontalBox::Slot().FillWidth(1.0f).Padding(0, 0, 6, 0)[RecipeSlot(0, Steel)]
+                            + SHorizontalBox::Slot().FillWidth(1.0f).Padding(6, 0)[RecipeSlot(1, Wood)]
+                            + SHorizontalBox::Slot().FillWidth(1.0f).Padding(6, 0, 0, 0)[RecipeSlot(2, Glass)]
                         ]
                     ]
                     + SVerticalBox::Slot().AutoHeight().Padding(22, 4, 22, 12)

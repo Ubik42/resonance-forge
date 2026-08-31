@@ -20,6 +20,8 @@ private:
     FReply PinReference();
     FReply SwapAndPreviewReference();
     FReply ClearReference();
+    FReply SaveRecipeSlot(int32 SlotIndex);
+    FReply RecallRecipeSlot(int32 SlotIndex);
     FReply OpenDemoMap();
     FText GetSelectionText() const;
     FText GetExcitationText() const;
@@ -27,6 +29,9 @@ private:
     FText GetPrimaryActionText() const;
     FText GetStatusText() const;
     FText GetComparisonText() const;
+    FText GetRecipeSlotText(int32 SlotIndex) const;
+    bool HasRecipeSlot(int32 SlotIndex) const;
+    bool ReadRecipeSlot(int32 SlotIndex, FName& OutPreset, EResonanceModelType& OutModel, float& OutEnergy, float& OutBrightness, float& OutSize) const;
 
     FName ActivePreset = TEXT("拉丝钢");
     EResonanceModelType ActiveModel = EResonanceModelType::ModalImpact;
