@@ -8,12 +8,14 @@ class SResonanceReaperTape final : public SLeafWidget
 public:
     SLATE_BEGIN_ARGS(SResonanceReaperTape) {}
         SLATE_ATTRIBUTE(int32, SampleCount)
+        SLATE_ATTRIBUTE(int32, SelectionMask)
         SLATE_ATTRIBUTE(bool, ProjectReady)
     SLATE_END_ARGS()
 
     void Construct(const FArguments& InArgs)
     {
         SampleCount = InArgs._SampleCount;
+        SelectionMask = InArgs._SelectionMask;
         ProjectReady = InArgs._ProjectReady;
         SetCanTick(false);
     }
@@ -42,6 +44,7 @@ public:
         const FLinearColor Steel(0.35f, 0.66f, 0.88f, 1.0f);
         const FLinearColor Muted(0.56f, 0.61f, 0.59f, 1.0f);
         const int32 Count = FMath::Clamp(SampleCount.Get(0), 0, 3);
+        const int32 Mask = SelectionMask.Get(0) & 0x7;
 
         FSlateDrawElement::MakeBox(
             OutDrawElements, LayerId, Geometry.ToPaintGeometry(), WhiteBrush,
@@ -62,7 +65,7 @@ public:
         for (int32 Index = 0; Index < 3; ++Index)
         {
             const float X = Left + Index * (SegmentWidth + Gap);
-            const bool bFilled = Index >= 3 - Count;
+            const bool bFilled = (Mask & (1 << Index)) != 0;
             FSlateDrawElement::MakeBox(
                 OutDrawElements, LayerId + 2,
                 Geometry.ToPaintGeometry(
@@ -70,18 +73,21 @@ public:
                     FSlateLayoutTransform(FVector2f(X, RailY - 11.0f))),
                 WhiteBrush, ESlateDrawEffect::None,
                 bFilled ? Colors[Index].CopyWithNewOpacity(0.62f) : Cold);
+            const FString SegmentLabel = bFilled
+                ? FString(Labels[Index])
+                : FString::Printf(TEXT("%s · 未收入"), Labels[Index]);
             FSlateDrawElement::MakeText(
                 OutDrawElements, LayerId + 3,
                 Geometry.ToPaintGeometry(
                     FVector2f(SegmentWidth, 16.0f),
                     FSlateLayoutTransform(FVector2f(X + 8.0f, RailY - 8.0f))),
-                Labels[Index], FAppStyle::GetFontStyle(TEXT("SmallFont")),
+                SegmentLabel, FAppStyle::GetFontStyle(TEXT("SmallFont")),
                 ESlateDrawEffect::None, bFilled ? FLinearColor::White : Muted);
         }
 
         const FString Status = ProjectReady.Get(false)
             ? TEXT("RPP 已排带 · 48 kHz")
-            : (Count > 0 ? FString::Printf(TEXT("%d 份铸样待排带"), Count) : TEXT("铸样后自动进入对照带"));
+            : (Count > 0 ? FString::Printf(TEXT("已收入 %d 份铸样 · 等待排带"), Count) : TEXT("从铭牌架收入要比较的铸样"));
         FSlateDrawElement::MakeText(
             OutDrawElements, LayerId + 4,
             Geometry.ToPaintGeometry(
@@ -94,5 +100,6 @@ public:
 
 private:
     TAttribute<int32> SampleCount;
+    TAttribute<int32> SelectionMask;
     TAttribute<bool> ProjectReady;
 };

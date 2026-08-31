@@ -85,6 +85,7 @@ private:
     FReply ExportCurrentSample();
     FReply ExportReaperAuditionProject();
     FReply OpenReaperAuditionProject();
+    FReply ToggleReaperSampleSelection(int32 LabelIndex);
     FReply ReforgeLatestSampleLabel();
     FReply ReforgeRecentSampleLabel(int32 LabelIndex);
     FReply ReforgeSampleLabelFromPath(const FString& LabelPath);
@@ -129,7 +130,11 @@ private:
     FText GetSampleTailStatusText() const;
     FText GetReaperProjectStatusText() const;
     FText GetRecentSampleLabelText(int32 LabelIndex) const;
+    FText GetReaperSampleSelectionText(int32 LabelIndex) const;
     bool HasRecentSampleLabel(int32 LabelIndex) const;
+    bool IsRecentSampleSelectedForReaper(int32 LabelIndex) const;
+    int32 GetReaperSelectedSampleCount() const;
+    int32 GetReaperSelectionMask() const;
     void RefreshRecentSampleLabels();
     bool HasRecipeSlot(int32 SlotIndex) const;
     bool ReadRecipeSlot(int32 SlotIndex, FLocalRecipeSnapshot& OutRecipe) const;
@@ -218,5 +223,8 @@ private:
         FDateTime Timestamp;
     };
     TArray<FRecentSampleLabel> RecentSampleLabels;
+    TSet<FString> ReaperSelectedLabelPaths;
+    TSet<FString> KnownReaperLabelPaths;
+    bool bReaperSelectionInitialized = false;
     FText LastStatus;
 };

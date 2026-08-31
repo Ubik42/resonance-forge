@@ -337,6 +337,11 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
                     SampleExportName = TEXT("RF_Hammer_G3");
                     ExportCurrentSample();
                     ReforgeSampleLabelFromPath(BowLabelPath);
+                    RefreshRecentSampleLabels();
+                    if (RecentSampleLabels.Num() >= 3 && IsRecentSampleSelectedForReaper(1))
+                    {
+                        ToggleReaperSampleSelection(1);
+                    }
                     ExportReaperAuditionProject();
                     SampleExportName = TEXT("RF_Bow_G3");
                     if (WorkbenchScrollBox.IsValid() && WwiseRouteAnchor.IsValid())
@@ -2168,6 +2173,11 @@ FReply FResonanceForgeEditorModule::ExportReaperAuditionProject()
         LastStatus = NSLOCTEXT("ResonanceForge", "ReaperNoSamples", "REAPER 排带失败 · 请先铸出至少一份 WAV 与声源铭牌");
         return FReply::Handled();
     }
+    if (GetReaperSelectedSampleCount() == 0)
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "ReaperNoSelectedSamples", "REAPER 排带失败 · 请先从铭牌架收入至少一份铸样");
+        return FReply::Handled();
+    }
 
     const FString ExportDirectory = FPaths::ConvertRelativePathToFull(
         FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("ResonanceForge"), TEXT("Exports")));
@@ -2175,6 +2185,11 @@ FReply FResonanceForgeEditorModule::ExportReaperAuditionProject()
     int32 SkippedLabels = 0;
     for (int32 LabelIndex = FMath::Min(RecentSampleLabels.Num(), 3) - 1; LabelIndex >= 0; --LabelIndex)
     {
+        if (!IsRecentSampleSelectedForReaper(LabelIndex))
+        {
+            continue;
+        }
+
         FString LabelJson;
         TSharedPtr<FJsonObject> Root;
         if (!FFileHelper::LoadFileToString(LabelJson, *RecentSampleLabels[LabelIndex].Path)
@@ -2310,13 +2325,16 @@ FReply FResonanceForgeEditorModule::OpenReaperAuditionProject()
 
 FText FResonanceForgeEditorModule::GetReaperProjectStatusText() const
 {
+    const int32 SelectedCount = GetReaperSelectedSampleCount();
     if (LastReaperProjectPath.IsEmpty())
     {
         return RecentSampleLabels.IsEmpty()
             ? NSLOCTEXT("ResonanceForge", "ReaperWaitingForSample", "等待铸样 · 对照带需要至少一份有效铭牌")
-            : FText::Format(
-                NSLOCTEXT("ResonanceForge", "ReaperReadyToArrange", "可排带 · 最近 {0} 份铸样将按时间顺序进入同一轨道"),
-                FText::AsNumber(RecentSampleLabels.Num()));
+            : SelectedCount == 0
+                ? NSLOCTEXT("ResonanceForge", "ReaperWaitingForSelection", "尚未收入铸样 · 在下方铭牌勾选要比较的版本")
+                : FText::Format(
+                    NSLOCTEXT("ResonanceForge", "ReaperReadyToArrange", "待排带 · 已收入 {0} 份铸样，将按时间顺序进入同一轨道"),
+                    FText::AsNumber(SelectedCount));
     }
     if (!FPaths::FileExists(LastReaperProjectPath))
     {
@@ -2384,7 +2402,7 @@ void FResonanceForgeEditorModule::RefreshRecentSampleLabels()
             {
                     const FText ModelSummary = Model == TEXT("WaveguideString")
                     ? FText::Format(
-                        NSLOCTEXT("ResonanceForge", "RecentWaveguideGesture", "波导弦/{0} · 起振 {1}%"),
+                        NSLOCTEXT("ResonanceForge", "RecentWaveguideGesture", "弦/{0} {1}%"),
                         ExcitationName == TEXT("Finger")
                             ? NSLOCTEXT("ResonanceForge", "RecentFinger", "指腹")
                             : ExcitationName == TEXT("Hammer")
@@ -2395,13 +2413,13 @@ void FResonanceForgeEditorModule::RefreshRecentSampleLabels()
                                         : NSLOCTEXT("ResonanceForge", "RecentForwardBow", "弓擦/推弓"))
                                     : NSLOCTEXT("ResonanceForge", "RecentPick", "拨片"),
                         FText::AsNumber(FMath::RoundToInt(FMath::Clamp(StrikePosition, 0.0, 1.0) * 100.0)))
-                    : NSLOCTEXT("ResonanceForge", "RecentModal", "模态体");
+                    : NSLOCTEXT("ResonanceForge", "RecentModal", "模态");
                 Label.Summary = FText::Format(
-                    NSLOCTEXT("ResonanceForge", "RecentLabelSummary", "{0}\n{1} · {2} · Note {3} · {4} 秒 · 尾音 {5} dB"),
+                    NSLOCTEXT("ResonanceForge", "RecentLabelSummary", "{0}\n{1} · {2} · {3} · {4} 秒 · 尾 {5} dB"),
                     FText::FromString(DisplayName),
                     FText::FromString(Preset),
                     ModelSummary,
-                    FText::AsNumber(FMath::RoundToInt(Note)),
+                    FText::FromString(ResonanceForgeEditor::GetMidiNoteName(FMath::RoundToInt(Note))),
                     FText::AsNumber(Duration),
                     FText::AsNumber(FMath::RoundToInt(TailDb)));
             }
@@ -2419,11 +2437,111 @@ void FResonanceForgeEditorModule::RefreshRecentSampleLabels()
     {
         RecentSampleLabels.SetNum(3);
     }
+
+    TSet<FString> CurrentLabelPaths;
+    for (const FRecentSampleLabel& Label : RecentSampleLabels)
+    {
+        CurrentLabelPaths.Add(FPaths::ConvertRelativePathToFull(Label.Path));
+    }
+
+    if (!bReaperSelectionInitialized)
+    {
+        ReaperSelectedLabelPaths = CurrentLabelPaths;
+        bReaperSelectionInitialized = true;
+    }
+    else
+    {
+        for (const FString& LabelPath : CurrentLabelPaths)
+        {
+            if (!KnownReaperLabelPaths.Contains(LabelPath))
+            {
+                ReaperSelectedLabelPaths.Add(LabelPath);
+            }
+        }
+        for (auto It = ReaperSelectedLabelPaths.CreateIterator(); It; ++It)
+        {
+            if (!CurrentLabelPaths.Contains(*It))
+            {
+                It.RemoveCurrent();
+            }
+        }
+    }
+    KnownReaperLabelPaths = MoveTemp(CurrentLabelPaths);
 }
 
 bool FResonanceForgeEditorModule::HasRecentSampleLabel(const int32 LabelIndex) const
 {
     return RecentSampleLabels.IsValidIndex(LabelIndex);
+}
+
+bool FResonanceForgeEditorModule::IsRecentSampleSelectedForReaper(const int32 LabelIndex) const
+{
+    return RecentSampleLabels.IsValidIndex(LabelIndex)
+        && ReaperSelectedLabelPaths.Contains(FPaths::ConvertRelativePathToFull(RecentSampleLabels[LabelIndex].Path));
+}
+
+int32 FResonanceForgeEditorModule::GetReaperSelectedSampleCount() const
+{
+    int32 Count = 0;
+    for (int32 LabelIndex = 0; LabelIndex < RecentSampleLabels.Num(); ++LabelIndex)
+    {
+        Count += IsRecentSampleSelectedForReaper(LabelIndex) ? 1 : 0;
+    }
+    return Count;
+}
+
+int32 FResonanceForgeEditorModule::GetReaperSelectionMask() const
+{
+    int32 Mask = 0;
+    for (int32 LabelIndex = 0; LabelIndex < FMath::Min(RecentSampleLabels.Num(), 3); ++LabelIndex)
+    {
+        if (IsRecentSampleSelectedForReaper(LabelIndex))
+        {
+            Mask |= 1 << (2 - LabelIndex);
+        }
+    }
+    return Mask;
+}
+
+FText FResonanceForgeEditorModule::GetReaperSampleSelectionText(const int32 LabelIndex) const
+{
+    if (!RecentSampleLabels.IsValidIndex(LabelIndex))
+    {
+        return NSLOCTEXT("ResonanceForge", "ReaperSelectionEmpty", "尚无铸样");
+    }
+    return IsRecentSampleSelectedForReaper(LabelIndex)
+        ? NSLOCTEXT("ResonanceForge", "ReaperSelectionIncluded", "已收入对照带")
+        : NSLOCTEXT("ResonanceForge", "ReaperSelectionExcluded", "收入对照带");
+}
+
+FReply FResonanceForgeEditorModule::ToggleReaperSampleSelection(const int32 LabelIndex)
+{
+    RefreshRecentSampleLabels();
+    if (!RecentSampleLabels.IsValidIndex(LabelIndex))
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "ReaperSelectionMissing", "对照带选择失败 · 这个架位还没有铸样");
+        return FReply::Handled();
+    }
+
+    const FString LabelPath = FPaths::ConvertRelativePathToFull(RecentSampleLabels[LabelIndex].Path);
+    const bool bWasSelected = ReaperSelectedLabelPaths.Contains(LabelPath);
+    if (bWasSelected)
+    {
+        ReaperSelectedLabelPaths.Remove(LabelPath);
+    }
+    else
+    {
+        ReaperSelectedLabelPaths.Add(LabelPath);
+    }
+
+    LastReaperProjectPath.Reset();
+    LastReaperItemCount = 0;
+    LastStatus = FText::Format(
+        bWasSelected
+            ? NSLOCTEXT("ResonanceForge", "ReaperSelectionRemoved", "已从对照带移出 · 当前收入 {0} 份，重新排带后生效")
+            : NSLOCTEXT("ResonanceForge", "ReaperSelectionAdded", "已收入对照带 · 当前共 {0} 份，重新排带后生效"),
+        FText::AsNumber(GetReaperSelectedSampleCount()));
+    return FReply::Handled();
 }
 
 FText FResonanceForgeEditorModule::GetRecentSampleLabelText(const int32 LabelIndex) const
@@ -4225,11 +4343,12 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                                 [SNew(STextBlock).Text(FText::FromString(TEXT("48 kHz · 16-bit · stereo · Saved/ResonanceForge/Exports"))).ColorAndOpacity(Muted)]
                             ]
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 14, 0, 0)
-                            [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "ReaperTape", "REAPER 对照带"), NSLOCTEXT("ResonanceForge", "ReaperTapeDetail", "把铭牌架最近三份铸样按更早 → 当前排进同一轨道；段间留 0.5 秒，相对引用同目录 WAV。"))]
+                            [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "ReaperTape", "REAPER 对照带"), NSLOCTEXT("ResonanceForge", "ReaperTapeDetail", "从下方铭牌架收入 1–3 份铸样，再按更早 → 当前排进同一轨道；段间留 0.5 秒。"))]
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
                             [
                                 SNew(SResonanceReaperTape)
-                                .SampleCount_Lambda([this]{ return RecentSampleLabels.Num(); })
+                                .SampleCount_Lambda([this]{ return GetReaperSelectedSampleCount(); })
+                                .SelectionMask_Lambda([this]{ return GetReaperSelectionMask(); })
                                 .ProjectReady_Lambda([this]{ return !LastReaperProjectPath.IsEmpty() && FPaths::FileExists(LastReaperProjectPath); })
                             ]
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 7, 0, 0)
@@ -4241,7 +4360,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                                 [
                                     SNew(SButton)
                                     .Text(NSLOCTEXT("ResonanceForge", "ArrangeReaperTape", "排成 .rpp"))
-                                    .IsEnabled_Lambda([this]{ return !RecentSampleLabels.IsEmpty(); })
+                                    .IsEnabled_Lambda([this]{ return GetReaperSelectedSampleCount() > 0; })
                                     .ButtonColorAndOpacity(ResonanceForgeEditor::Wood * 0.50f)
                                     .OnClicked_Raw(this, &FResonanceForgeEditorModule::ExportReaperAuditionProject)
                                 ]
@@ -4254,36 +4373,90 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                                 ]
                             ]
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 14, 0, 0)
-                            [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "LabelRack", "铭牌架"), NSLOCTEXT("ResonanceForge", "LabelRackDetail", "最近三份铸样自动上架；铭牌写着声音身份，点击即可把那一版送回炉膛。"))]
+                            [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "LabelRack", "铭牌架"), NSLOCTEXT("ResonanceForge", "LabelRackDetail", "点击铭牌把那一版送回炉膛；下方拨片决定它是否进入下一条 REAPER 对照带。"))]
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
                             [
                                 SNew(SHorizontalBox)
                                 + SHorizontalBox::Slot().FillWidth(1.0f).Padding(0, 0, 5, 0)
                                 [
-                                    SNew(SButton)
-                                    .Text_Lambda([this]{ return GetRecentSampleLabelText(0); })
-                                    .IsEnabled_Lambda([this]{ return HasRecentSampleLabel(0); })
-                                    .ContentPadding(FMargin(10, 8))
-                                    .ButtonColorAndOpacity(ResonanceForgeEditor::Steel * 0.44f)
-                                    .OnClicked_Lambda([this]{ return ReforgeRecentSampleLabel(0); })
+                                    SNew(SVerticalBox)
+                                    + SVerticalBox::Slot().AutoHeight()
+                                    [
+                                        SNew(SButton)
+                                        .IsEnabled_Lambda([this]{ return HasRecentSampleLabel(0); })
+                                        .ContentPadding(FMargin(10, 8))
+                                        .ButtonColorAndOpacity(ResonanceForgeEditor::Steel * 0.44f)
+                                        .OnClicked_Lambda([this]{ return ReforgeRecentSampleLabel(0); })
+                                        [
+                                            SNew(STextBlock)
+                                            .Text_Lambda([this]{ return GetRecentSampleLabelText(0); })
+                                            .WrapTextAt(310.0f)
+                                            .WrappingPolicy(ETextWrappingPolicy::AllowPerCharacterWrapping)
+                                        ]
+                                    ]
+                                    + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)
+                                    [
+                                        SNew(SButton)
+                                        .Text_Lambda([this]{ return GetReaperSampleSelectionText(0); })
+                                        .IsEnabled_Lambda([this]{ return HasRecentSampleLabel(0); })
+                                        .ContentPadding(FMargin(8, 4))
+                                        .ButtonColorAndOpacity_Lambda([this]{ return IsRecentSampleSelectedForReaper(0) ? ResonanceForgeEditor::Steel * 0.62f : FLinearColor::White; })
+                                        .OnClicked_Lambda([this]{ return ToggleReaperSampleSelection(0); })
+                                    ]
                                 ]
                                 + SHorizontalBox::Slot().FillWidth(1.0f).Padding(5, 0)
                                 [
-                                    SNew(SButton)
-                                    .Text_Lambda([this]{ return GetRecentSampleLabelText(1); })
-                                    .IsEnabled_Lambda([this]{ return HasRecentSampleLabel(1); })
-                                    .ContentPadding(FMargin(10, 8))
-                                    .ButtonColorAndOpacity(ResonanceForgeEditor::Wood * 0.44f)
-                                    .OnClicked_Lambda([this]{ return ReforgeRecentSampleLabel(1); })
+                                    SNew(SVerticalBox)
+                                    + SVerticalBox::Slot().AutoHeight()
+                                    [
+                                        SNew(SButton)
+                                        .IsEnabled_Lambda([this]{ return HasRecentSampleLabel(1); })
+                                        .ContentPadding(FMargin(10, 8))
+                                        .ButtonColorAndOpacity(ResonanceForgeEditor::Wood * 0.44f)
+                                        .OnClicked_Lambda([this]{ return ReforgeRecentSampleLabel(1); })
+                                        [
+                                            SNew(STextBlock)
+                                            .Text_Lambda([this]{ return GetRecentSampleLabelText(1); })
+                                            .WrapTextAt(310.0f)
+                                            .WrappingPolicy(ETextWrappingPolicy::AllowPerCharacterWrapping)
+                                        ]
+                                    ]
+                                    + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)
+                                    [
+                                        SNew(SButton)
+                                        .Text_Lambda([this]{ return GetReaperSampleSelectionText(1); })
+                                        .IsEnabled_Lambda([this]{ return HasRecentSampleLabel(1); })
+                                        .ContentPadding(FMargin(8, 4))
+                                        .ButtonColorAndOpacity_Lambda([this]{ return IsRecentSampleSelectedForReaper(1) ? ResonanceForgeEditor::Wood * 0.62f : FLinearColor::White; })
+                                        .OnClicked_Lambda([this]{ return ToggleReaperSampleSelection(1); })
+                                    ]
                                 ]
                                 + SHorizontalBox::Slot().FillWidth(1.0f).Padding(5, 0, 0, 0)
                                 [
-                                    SNew(SButton)
-                                    .Text_Lambda([this]{ return GetRecentSampleLabelText(2); })
-                                    .IsEnabled_Lambda([this]{ return HasRecentSampleLabel(2); })
-                                    .ContentPadding(FMargin(10, 8))
-                                    .ButtonColorAndOpacity(ResonanceForgeEditor::Glass * 0.44f)
-                                    .OnClicked_Lambda([this]{ return ReforgeRecentSampleLabel(2); })
+                                    SNew(SVerticalBox)
+                                    + SVerticalBox::Slot().AutoHeight()
+                                    [
+                                        SNew(SButton)
+                                        .IsEnabled_Lambda([this]{ return HasRecentSampleLabel(2); })
+                                        .ContentPadding(FMargin(10, 8))
+                                        .ButtonColorAndOpacity(ResonanceForgeEditor::Glass * 0.44f)
+                                        .OnClicked_Lambda([this]{ return ReforgeRecentSampleLabel(2); })
+                                        [
+                                            SNew(STextBlock)
+                                            .Text_Lambda([this]{ return GetRecentSampleLabelText(2); })
+                                            .WrapTextAt(310.0f)
+                                            .WrappingPolicy(ETextWrappingPolicy::AllowPerCharacterWrapping)
+                                        ]
+                                    ]
+                                    + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)
+                                    [
+                                        SNew(SButton)
+                                        .Text_Lambda([this]{ return GetReaperSampleSelectionText(2); })
+                                        .IsEnabled_Lambda([this]{ return HasRecentSampleLabel(2); })
+                                        .ContentPadding(FMargin(8, 4))
+                                        .ButtonColorAndOpacity_Lambda([this]{ return IsRecentSampleSelectedForReaper(2) ? ResonanceForgeEditor::Glass * 0.62f : FLinearColor::White; })
+                                        .OnClicked_Lambda([this]{ return ToggleReaperSampleSelection(2); })
+                                    ]
                                 ]
                             ]
                         ]
