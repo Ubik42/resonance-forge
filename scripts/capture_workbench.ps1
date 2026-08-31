@@ -16,9 +16,16 @@ if (-not (Test-Path -LiteralPath $projectPath -PathType Leaf)) {
 }
 
 $existingEditors = @(Get-Process UnrealEditor, UnrealEditor-Cmd -ErrorAction SilentlyContinue)
-if ($existingEditors.Count -gt 0) {
-    $processSummary = ($existingEditors | ForEach-Object { "$($_.ProcessName) PID $($_.Id)" }) -join '、'
-    throw "检测到正在运行的 UE（$processSummary）。为避免同工程会话冲突，本次未启动截图；关闭对应编辑器后重试。"
+$existingEditorIds = @($existingEditors | Select-Object -ExpandProperty Id)
+$conflictingEditors = @($existingEditors | Where-Object {
+    $processInfo = Get-CimInstance Win32_Process -Filter "ProcessId = $($_.Id)" -ErrorAction SilentlyContinue
+    $sameEngine = $_.Path -and ([System.IO.Path]::GetFullPath($_.Path) -eq [System.IO.Path]::GetFullPath($editorPath))
+    $sameProject = $processInfo.CommandLine -and $processInfo.CommandLine.Contains($projectPath, [System.StringComparison]::OrdinalIgnoreCase)
+    $sameEngine -or $sameProject
+})
+if ($conflictingEditors.Count -gt 0) {
+    $processSummary = ($conflictingEditors | ForEach-Object { "$($_.ProcessName) PID $($_.Id)" }) -join '、'
+    throw "检测到同一 UE 5.8 引擎或同一演示工程正在运行（$processSummary）。本次未启动截图；关闭冲突会话后重试。"
 }
 
 $arguments = @(
@@ -58,6 +65,11 @@ foreach ($imageName in $expectedImages) {
     if (-not (Test-Path -LiteralPath $imagePath -PathType Leaf)) {
         throw "截图进程已退出，但缺少预期图片：$imagePath"
     }
+}
+
+$missingOriginalEditors = @($existingEditorIds | Where-Object { -not (Get-Process -Id $_ -ErrorAction SilentlyContinue) })
+if ($missingOriginalEditors.Count -gt 0) {
+    Write-Warning "截图期间有既存的其他版本 UE 自行退出：PID $($missingOriginalEditors -join '、')。脚本未向这些 PID 发送关闭或终止命令。"
 }
 
 Write-Output "工作台截图完成：PID $($captureProcess.Id)，4 张图片已更新。"

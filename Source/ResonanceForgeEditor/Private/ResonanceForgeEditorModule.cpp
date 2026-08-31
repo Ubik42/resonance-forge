@@ -7,6 +7,7 @@
 #include "SResonanceVelocityCam.h"
 #include "SResonanceDecayPrint.h"
 #include "SResonanceForgeFlowRail.h"
+#include "SResonanceBowGauge.h"
 
 #include "Editor.h"
 #include "Audio.h"
@@ -2681,8 +2682,36 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                             [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "DisconnectMidi", "断开")).OnClicked_Raw(this, &FResonanceForgeEditorModule::DisconnectMidiDevice)]
                         ]
                     ]
-                    + SVerticalBox::Slot().AutoHeight().Padding(36, 0, 36, 12)
-                    [SNew(STextBlock).Text_Raw(this, &FResonanceForgeEditorModule::GetMidiStatusText).ColorAndOpacity(Glass)]
+                    + SVerticalBox::Slot().AutoHeight().Padding(22, 0, 22, 12)
+                    [
+                        SNew(SHorizontalBox)
+                        + SHorizontalBox::Slot().FillWidth(0.88f)
+                        [
+                            SNew(SResonanceBowGauge)
+                            .BowSpeed_Lambda([this]
+                            {
+                                const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+                                return Instrument ? Instrument->MidiBrightness : PreviewBrightness;
+                            })
+                            .BowPressure_Lambda([this]
+                            {
+                                const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+                                return Instrument ? Instrument->MidiBowPressure : PreviewBrightness;
+                            })
+                            .IndependentPressure_Lambda([this]
+                            {
+                                const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+                                return Instrument && Instrument->bHasMidiAftertouch;
+                            })
+                            .Connected_Lambda([this]
+                            {
+                                const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+                                return Instrument && Instrument->IsMidiConnected();
+                            })
+                        ]
+                        + SHorizontalBox::Slot().FillWidth(1.0f).Padding(16, 0, 0, 0).VAlign(VAlign_Center)
+                        [SNew(STextBlock).Text_Raw(this, &FResonanceForgeEditorModule::GetMidiStatusText).ColorAndOpacity(Glass).AutoWrapText(true)]
+                    ]
                     + SVerticalBox::Slot().AutoHeight().Padding(22, 0, 22, 12)
                     [
                         SNew(SBorder)

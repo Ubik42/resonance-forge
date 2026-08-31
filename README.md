@@ -8,7 +8,7 @@
 ![Unreal Engine 5.8](https://img.shields.io/badge/Unreal_Engine-5.8.1-0E1128?logo=unrealengine&logoColor=white)
 ![Wwise 2025.1](https://img.shields.io/badge/Wwise-2025.1-00549F)
 ![Platform](https://img.shields.io/badge/Platform-Windows_Editor-0078D4?logo=windows&logoColor=white)
-![Version](https://img.shields.io/badge/Version-0.33.0-D96B2B)
+![Version](https://img.shields.io/badge/Version-0.34.0-D96B2B)
 ![License](https://img.shields.io/badge/License-MIT-2EA44F)
 
 </div>
@@ -31,7 +31,7 @@
 
 ![共振铸造台可编辑共振齿列](docs/images/resonance-forge-mode-rack.png)
 
-没有 MIDI 硬件时也可以演奏。试音键床提供 C3–C4 的十三根锤键，横向决定音高，纵向决定原始力度；“力度凸轮”再用软触、线性或重手曲线把输入映射成实际激励能量。点击或拖奏会走和外接 MIDI 相同的 UE/Wwise 触发链。键床下方可以继续选择起振手势，并分别拖动橙色起振锤和青色拾音梭。
+没有 MIDI 硬件时也可以演奏。演奏入口先用“弓感双轮”把弓速、弓压及其回退关系画成可读的机械标尺；未连接时明确标为试听标尺，不伪造硬件输入。试音键床提供 C3–C4 的十三根锤键，横向决定音高，纵向决定原始力度；“力度凸轮”再用软触、线性或重手曲线把输入映射成实际激励能量。点击或拖奏会走和外接 MIDI 相同的 UE/Wwise 触发链。键床下方可以继续选择起振手势，并分别拖动橙色起振锤和青色拾音梭。
 
 ![共振铸造台试音键床](docs/images/resonance-forge-keybed.png)
 
@@ -44,6 +44,7 @@
 - **锤击标尺与出口刻度**：轻触、常规、重击三档手势一键试听，并把 RTPC 曲线翻译成近似的 dB、低通与 cent 读数。
 - **可听的直接编辑**：点击材质或模型立即试听；拖动参数时声纹和出口刻度实时变化，松手只触发一次声音，避免连续 Event 互相遮盖。
 - **可演奏**：面板可发现并连接 MIDI 输入设备；Note On 控制音高与力度，原生弓擦按住持续、Note Off 进入 140 ms 收弓。CC1 实时控制弓速与明亮度，Channel / Note Aftertouch 独立控制弓压；普通键盘没有压力感应时，弓压自动跟随 CC1。
+- **弓感双轮**：演奏入口用两枚机械表盘分别显示弓速与弓压，中间弓毛束随速度偏移、随压力收紧；现场输入、Aftertouch 双路分控与 CC1 回退不再只藏在状态文字里。
 - **无需硬件的试音键床**：十三根可点击、可拖奏的锤键把鼠标位置映射为 Note 与 Velocity，方便快速验证波导弦和 Wwise 发布。
 - **可见的力度凸轮**：软触、线性、重手三枚曲线把原始 Velocity 映射为激励能量；曲线、输入引线和输出落点实时可见，键床与外接 MIDI 共用同一映射函数。
 - **可交付的物理声源铸样**：复用实时 Synth 的同一套模态与波导 DSP，把当前齿列、落点、弦床和演奏参数离线渲染成标准 WAV，可直接交给 Wwise、DAW 或版本库。
