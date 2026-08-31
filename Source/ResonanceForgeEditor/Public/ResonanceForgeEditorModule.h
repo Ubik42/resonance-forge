@@ -142,6 +142,12 @@ private:
     float ReferenceCoupling = 0.22f;
     float ReferencePickup = 0.35f;
     EResonanceExcitationType ReferenceExcitation = EResonanceExcitationType::Pick;
+    EResonanceVelocityCurve ReferenceVelocityCurve = EResonanceVelocityCurve::Linear;
+    int32 ReferenceMidiNote = 55;
+    float ReferenceInputVelocity = 0.76f;
+    float ReferenceBowSpeed = 0.58f;
+    float ReferenceBowPressure = 0.55f;
+    float ReferenceBowDirection = 1.0f;
     TArray<FResonanceMode> ReferenceModes;
     TArray<TSharedPtr<FString>> MidiDeviceOptions;
     TArray<int32> MidiDeviceIds;

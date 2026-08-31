@@ -9,6 +9,7 @@
 #include "SResonanceForgeFlowRail.h"
 #include "SResonanceBowGauge.h"
 #include "SResonanceBowStroke.h"
+#include "SResonanceRecipeCompare.h"
 
 #include "Editor.h"
 #include "Audio.h"
@@ -227,7 +228,28 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
     SyncFromSelection();
     if (ActiveModel == EResonanceModelType::WaveguideString)
     {
+        ApplyPreset(TEXT("拉丝钢"));
+        WaveguideSustain = 0.56f;
+        WaveguideDamping = 0.34f;
+        WaveguideCoupling = 0.18f;
+        WaveguidePickup = 0.35f;
+        WaveguideExcitation = EResonanceExcitationType::Pick;
+        VelocityCurve = EResonanceVelocityCurve::Linear;
+        LastKeybedNote = 52;
+        LastKeybedVelocity = 0.52f;
+        PreviewBrightness = 0.42f;
+        BowDirection = 1.0f;
+        ApplyStrikePosition(0.18f, false);
+        ApplyWaveguideParameters();
+        if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
+        {
+            Instrument->VelocityCurve = VelocityCurve;
+            Instrument->MidiBrightness = 0.42f;
+            Instrument->MidiBowPressure = 0.35f;
+            Instrument->BowDirection = BowDirection;
+        }
         PinReference();
+        ApplyPreset(TEXT("硬木"));
         WaveguideSustain = 0.72f;
         WaveguideDamping = 0.52f;
         WaveguideCoupling = 0.26f;
@@ -249,6 +271,36 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
         SaveRecipeSlot(0);
         ApplyBowGaugePressure(0.24f, false);
         RecallRecipeSlot(0);
+        const FName ExpectedPreset = ActivePreset;
+        const EResonanceModelType ExpectedModel = ActiveModel;
+        const EResonanceExcitationType ExpectedExcitation = WaveguideExcitation;
+        const EResonanceVelocityCurve ExpectedCurve = VelocityCurve;
+        const int32 ExpectedNote = LastKeybedNote;
+        const float ExpectedVelocity = LastKeybedVelocity;
+        const float ExpectedDirection = BowDirection;
+        const AResonanceForgeImpactInstrumentActor* ExpectedInstrument = ResolveInstrument();
+        const float ExpectedSpeed = ExpectedInstrument ? ExpectedInstrument->MidiBrightness : PreviewBrightness;
+        const float ExpectedPressure = ExpectedInstrument ? ExpectedInstrument->MidiBowPressure : PreviewBrightness;
+        SwapAndPreviewReference();
+        SwapAndPreviewReference();
+        const AResonanceForgeImpactInstrumentActor* RoundTripInstrument = ResolveInstrument();
+        const bool bRoundTripRestored = ActivePreset == ExpectedPreset
+            && ActiveModel == ExpectedModel
+            && WaveguideExcitation == ExpectedExcitation
+            && VelocityCurve == ExpectedCurve
+            && LastKeybedNote == ExpectedNote
+            && FMath::IsNearlyEqual(LastKeybedVelocity, ExpectedVelocity, 0.001f)
+            && FMath::Sign(BowDirection) == FMath::Sign(ExpectedDirection)
+            && RoundTripInstrument
+            && FMath::IsNearlyEqual(RoundTripInstrument->MidiBrightness, ExpectedSpeed, 0.001f)
+            && FMath::IsNearlyEqual(RoundTripInstrument->MidiBowPressure, ExpectedPressure, 0.001f);
+        if (!bRoundTripRestored)
+        {
+            UE_LOG(LogTemp, Error, TEXT("Resonance Forge A/B 配方双交换没有完整回到原演奏状态"));
+            FPlatformMisc::RequestExitWithStatus(false, 2, TEXT("ResonanceForgeABRoundTrip"));
+            return;
+        }
+        UE_LOG(LogTemp, Display, TEXT("Resonance Forge A/B 配方双交换已恢复完整演奏状态"));
     }
     FGlobalTabmanager::Get()->TryInvokeTab(ResonanceForgeEditor::TabName);
 
@@ -258,7 +310,7 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
             CaptureWorkbenchScreenshot();
             if (WorkbenchScrollBox.IsValid())
             {
-                WorkbenchScrollBox->SetScrollOffset(790.0f);
+                WorkbenchScrollBox->SetScrollOffset(750.0f);
             }
             FTSTicker::GetCoreTicker().AddTicker(
                 FTickerDelegate::CreateLambda([this](float)
@@ -295,7 +347,7 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
                             ClearReference();
                             if (WorkbenchScrollBox.IsValid())
                             {
-                                WorkbenchScrollBox->SetScrollOffset(920.0f);
+                                NavigateToFlowStation(2);
                             }
                             FTSTicker::GetCoreTicker().AddTicker(
                                 FTickerDelegate::CreateLambda([this](float)
@@ -947,11 +999,16 @@ FReply FResonanceForgeEditorModule::TriggerStrikePreset(
 
 FReply FResonanceForgeEditorModule::PinReference()
 {
+    const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+    const float CurrentBowSpeed = Instrument ? Instrument->MidiBrightness : PreviewBrightness;
+    const float CurrentBowPressure = Instrument ? Instrument->MidiBowPressure : PreviewBrightness;
     bHasReference = true;
     ReferencePreset = ActivePreset;
     ReferenceModel = ActiveModel;
     ReferenceEnergy = PreviewEnergy;
-    ReferenceBrightness = PreviewBrightness;
+    ReferenceBrightness = ActiveModel == EResonanceModelType::WaveguideString && WaveguideExcitation == EResonanceExcitationType::Bow
+        ? CurrentBowSpeed
+        : PreviewBrightness;
     ReferenceSize = PreviewSize;
     ReferenceStrikePosition = PreviewStrikePosition;
     ReferenceSustain = WaveguideSustain;
@@ -959,8 +1016,14 @@ FReply FResonanceForgeEditorModule::PinReference()
     ReferenceCoupling = WaveguideCoupling;
     ReferencePickup = WaveguidePickup;
     ReferenceExcitation = WaveguideExcitation;
+    ReferenceVelocityCurve = VelocityCurve;
+    ReferenceMidiNote = LastKeybedNote;
+    ReferenceInputVelocity = LastKeybedVelocity;
+    ReferenceBowSpeed = CurrentBowSpeed;
+    ReferenceBowPressure = CurrentBowPressure;
+    ReferenceBowDirection = BowDirection;
     ReferenceModes = ActiveModes;
-    LastStatus = NSLOCTEXT("ResonanceForge", "ReferencePinned", "参考声纹已钉住 · 继续换材质或调整参数，紫色轮廓会保留用于比较");
+    LastStatus = NSLOCTEXT("ResonanceForge", "ReferencePinned", "参考配方已钉住 · 声材、手势、演奏与弦床会沿对照尺保留");
     return FReply::Handled();
 }
 
@@ -968,14 +1031,13 @@ FReply FResonanceForgeEditorModule::SwapAndPreviewReference()
 {
     if (!bHasReference)
     {
-        LastStatus = NSLOCTEXT("ResonanceForge", "ReferenceSwapMissing", "还没有参考声纹 · 先钉住当前版本");
+        LastStatus = NSLOCTEXT("ResonanceForge", "ReferenceSwapMissing", "还没有参考配方 · 先钉住本炉配方");
         return FReply::Handled();
     }
 
     const FName PreviousPreset = ActivePreset;
     const EResonanceModelType PreviousModel = ActiveModel;
     const float PreviousEnergy = PreviewEnergy;
-    const float PreviousBrightness = PreviewBrightness;
     const float PreviousSize = PreviewSize;
     const float PreviousStrikePosition = PreviewStrikePosition;
     const float PreviousSustain = WaveguideSustain;
@@ -983,7 +1045,19 @@ FReply FResonanceForgeEditorModule::SwapAndPreviewReference()
     const float PreviousCoupling = WaveguideCoupling;
     const float PreviousPickup = WaveguidePickup;
     const EResonanceExcitationType PreviousExcitation = WaveguideExcitation;
+    const EResonanceVelocityCurve PreviousVelocityCurve = VelocityCurve;
+    const int32 PreviousMidiNote = LastKeybedNote;
+    const float PreviousInputVelocity = LastKeybedVelocity;
+    const AResonanceForgeImpactInstrumentActor* PreviousInstrument = ResolveInstrument();
+    const float PreviousBowSpeed = PreviousInstrument ? PreviousInstrument->MidiBrightness : PreviewBrightness;
+    const float PreviousBowPressure = PreviousInstrument ? PreviousInstrument->MidiBowPressure : PreviewBrightness;
+    const float PreviousBrightness = PreviousModel == EResonanceModelType::WaveguideString && PreviousExcitation == EResonanceExcitationType::Bow
+        ? PreviousBowSpeed
+        : PreviewBrightness;
+    const float PreviousBowDirection = BowDirection;
     const TArray<FResonanceMode> PreviousModes = ActiveModes;
+    const float TargetBowSpeed = ReferenceBowSpeed;
+    const float TargetBowPressure = ReferenceBowPressure;
 
     ActivePreset = ReferencePreset;
     ActiveModel = ReferenceModel;
@@ -996,6 +1070,10 @@ FReply FResonanceForgeEditorModule::SwapAndPreviewReference()
     WaveguideCoupling = ReferenceCoupling;
     WaveguidePickup = ReferencePickup;
     WaveguideExcitation = ReferenceExcitation;
+    VelocityCurve = ReferenceVelocityCurve;
+    LastKeybedNote = ReferenceMidiNote;
+    LastKeybedVelocity = ReferenceInputVelocity;
+    BowDirection = ReferenceBowDirection;
     ActiveModes = ReferenceModes;
 
     ReferencePreset = PreviousPreset;
@@ -1009,6 +1087,12 @@ FReply FResonanceForgeEditorModule::SwapAndPreviewReference()
     ReferenceCoupling = PreviousCoupling;
     ReferencePickup = PreviousPickup;
     ReferenceExcitation = PreviousExcitation;
+    ReferenceVelocityCurve = PreviousVelocityCurve;
+    ReferenceMidiNote = PreviousMidiNote;
+    ReferenceInputVelocity = PreviousInputVelocity;
+    ReferenceBowSpeed = PreviousBowSpeed;
+    ReferenceBowPressure = PreviousBowPressure;
+    ReferenceBowDirection = PreviousBowDirection;
     ReferenceModes = PreviousModes;
 
     const TArray<FResonanceMode> DesiredModes = ActiveModes;
@@ -1017,6 +1101,20 @@ FReply FResonanceForgeEditorModule::SwapAndPreviewReference()
     ActiveModes = DesiredModes;
     ApplyModalModes(false, FText::GetEmpty());
     ApplyStrikePosition(PreviewStrikePosition, false);
+    ApplyWaveguideParameters();
+    if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
+    {
+        Instrument->VelocityCurve = VelocityCurve;
+        Instrument->MidiBrightness = TargetBowSpeed;
+        Instrument->MidiBowPressure = TargetBowPressure;
+        Instrument->BowDirection = BowDirection;
+        if (Instrument->NativeSynth)
+        {
+            Instrument->NativeSynth->SetBowSpeed(TargetBowSpeed);
+            Instrument->NativeSynth->SetBowPressure(TargetBowPressure);
+            Instrument->NativeSynth->SetBowDirection(BowDirection);
+        }
+    }
     TriggerPreview();
     LastStatus = FText::Format(
         NSLOCTEXT("ResonanceForge", "ReferenceSwapped", "正在试听「{0}」· 再按一次即可切回另一版"),
@@ -1027,7 +1125,7 @@ FReply FResonanceForgeEditorModule::SwapAndPreviewReference()
 FReply FResonanceForgeEditorModule::ClearReference()
 {
     bHasReference = false;
-    LastStatus = NSLOCTEXT("ResonanceForge", "ReferenceCleared", "参考声纹已清除");
+    LastStatus = NSLOCTEXT("ResonanceForge", "ReferenceCleared", "配方对照已收起");
     return FReply::Handled();
 }
 
@@ -2480,57 +2578,9 @@ FText FResonanceForgeEditorModule::GetComparisonText() const
 {
     if (!bHasReference)
     {
-        return NSLOCTEXT("ResonanceForge", "NoReference", "钉住一次声纹，再调整材质或力度进行 A/B 比较");
+        return NSLOCTEXT("ResonanceForge", "NoReference", "先钉住本炉配方，再改一处声音进行 A/B 比较");
     }
-
-    const int32 EnergyDelta = FMath::RoundToInt((PreviewEnergy - ReferenceEnergy) * 100.0f);
-    const int32 BrightnessDelta = FMath::RoundToInt((PreviewBrightness - ReferenceBrightness) * 100.0f);
-    const int32 SizeDelta = FMath::RoundToInt((PreviewSize - ReferenceSize) * 100.0f);
-    const int32 PositionDelta = FMath::RoundToInt((PreviewStrikePosition - ReferenceStrikePosition) * 100.0f);
-    const int32 SustainDelta = FMath::RoundToInt((WaveguideSustain - ReferenceSustain) * 100.0f);
-    const int32 DampingDelta = FMath::RoundToInt((WaveguideDamping - ReferenceDamping) * 100.0f);
-    const int32 CouplingDelta = FMath::RoundToInt((WaveguideCoupling - ReferenceCoupling) * 100.0f);
-    const int32 PickupDelta = FMath::RoundToInt((WaveguidePickup - ReferencePickup) * 100.0f);
-    int32 ChangedModeCount = FMath::Abs(ActiveModes.Num() - ReferenceModes.Num());
-    for (int32 Index = 0; Index < FMath::Min(ActiveModes.Num(), ReferenceModes.Num()); ++Index)
-    {
-        const FResonanceMode& Current = ActiveModes[Index];
-        const FResonanceMode& Reference = ReferenceModes[Index];
-        if (!FMath::IsNearlyEqual(Current.FrequencyHz, Reference.FrequencyHz, 0.5f)
-            || !FMath::IsNearlyEqual(Current.Gain, Reference.Gain, 0.005f)
-            || !FMath::IsNearlyEqual(Current.DecaySeconds, Reference.DecaySeconds, 0.005f))
-        {
-            ++ChangedModeCount;
-        }
-    }
-    const auto SignedPercent = [](int32 Value)
-    {
-        return FText::FromString(FString::Printf(TEXT("%+d"), Value));
-    };
-    if (ActiveModel == EResonanceModelType::WaveguideString || ReferenceModel == EResonanceModelType::WaveguideString)
-    {
-        const auto GestureText = [](const EResonanceExcitationType Type)
-        {
-            return Type == EResonanceExcitationType::Finger
-                ? NSLOCTEXT("ResonanceForge", "CompareFinger", "指腹")
-                : Type == EResonanceExcitationType::Hammer
-                    ? NSLOCTEXT("ResonanceForge", "CompareHammer", "锤击")
-                    : Type == EResonanceExcitationType::Bow
-                        ? NSLOCTEXT("ResonanceForge", "CompareBow", "弓擦")
-                        : NSLOCTEXT("ResonanceForge", "ComparePick", "拨片");
-        };
-        return FText::Format(
-            NSLOCTEXT("ResonanceForge", "WaveguideReferenceDifference", "参考「{0}」 · 起振 {1}%  拾音 {2}%  延音 {3}%  阻尼 {4}%  · {5} → {6}"),
-            FText::FromName(ReferencePreset), SignedPercent(PositionDelta), SignedPercent(PickupDelta), SignedPercent(SustainDelta), SignedPercent(DampingDelta), GestureText(ReferenceExcitation), GestureText(WaveguideExcitation));
-    }
-    return FText::Format(
-        NSLOCTEXT("ResonanceForge", "ReferenceDifference", "参考「{0}」 · 能量 {1}%  明亮 {2}%  尺度 {3}%  落点 {4}%  ·  变化 {5} 根共振齿"),
-        FText::FromName(ReferencePreset),
-        SignedPercent(EnergyDelta),
-        SignedPercent(BrightnessDelta),
-        SignedPercent(SizeDelta),
-        SignedPercent(PositionDelta),
-        FText::AsNumber(ChangedModeCount));
+    return NSLOCTEXT("ResonanceForge", "ReferenceDifference", "青色立柱 = 改动项");
 }
 
 TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTabArgs& Args)
@@ -2973,15 +3023,73 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                             ]
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
                             [
+                                SNew(SResonanceRecipeCompare)
+                                .HasReference_Lambda([this]{ return bHasReference; })
+                                .CurrentPreset_Lambda([this]{ return ActivePreset; })
+                                .ReferencePreset_Lambda([this]{ return ReferencePreset; })
+                                .CurrentModel_Lambda([this]{ return ActiveModel; })
+                                .ReferenceModel_Lambda([this]{ return ReferenceModel; })
+                                .CurrentExcitation_Lambda([this]{ return WaveguideExcitation; })
+                                .ReferenceExcitation_Lambda([this]{ return ReferenceExcitation; })
+                                .CurrentVelocityCurve_Lambda([this]{ return VelocityCurve; })
+                                .ReferenceVelocityCurve_Lambda([this]{ return ReferenceVelocityCurve; })
+                                .CurrentMidiNote_Lambda([this]{ return LastKeybedNote; })
+                                .ReferenceMidiNote_Lambda([this]{ return ReferenceMidiNote; })
+                                .CurrentInputVelocity_Lambda([this]{ return LastKeybedVelocity; })
+                                .ReferenceInputVelocity_Lambda([this]{ return ReferenceInputVelocity; })
+                                .CurrentBowSpeed_Lambda([this]
+                                {
+                                    const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+                                    return Instrument ? Instrument->MidiBrightness : PreviewBrightness;
+                                })
+                                .ReferenceBowSpeed_Lambda([this]{ return ReferenceBowSpeed; })
+                                .CurrentBowPressure_Lambda([this]
+                                {
+                                    const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+                                    return Instrument ? Instrument->MidiBowPressure : PreviewBrightness;
+                                })
+                                .ReferenceBowPressure_Lambda([this]{ return ReferenceBowPressure; })
+                                .CurrentBowDirection_Lambda([this]{ return BowDirection; })
+                                .ReferenceBowDirection_Lambda([this]{ return ReferenceBowDirection; })
+                                .CurrentStrike_Lambda([this]{ return PreviewStrikePosition; })
+                                .ReferenceStrike_Lambda([this]{ return ReferenceStrikePosition; })
+                                .CurrentPickup_Lambda([this]{ return WaveguidePickup; })
+                                .ReferencePickup_Lambda([this]{ return ReferencePickup; })
+                                .CurrentSustain_Lambda([this]{ return WaveguideSustain; })
+                                .ReferenceSustain_Lambda([this]{ return ReferenceSustain; })
+                                .CurrentEnergy_Lambda([this]{ return PreviewEnergy; })
+                                .ReferenceEnergy_Lambda([this]{ return ReferenceEnergy; })
+                                .CurrentBrightness_Lambda([this]{ return PreviewBrightness; })
+                                .ReferenceBrightness_Lambda([this]{ return ReferenceBrightness; })
+                                .CurrentSize_Lambda([this]{ return PreviewSize; })
+                                .ReferenceSize_Lambda([this]{ return ReferenceSize; })
+                                .CurrentModeCount_Lambda([this]{ return ActiveModes.Num(); })
+                                .ReferenceModeCount_Lambda([this]{ return ReferenceModes.Num(); })
+                                .ModesChanged_Lambda([this]
+                                {
+                                    if (ActiveModes.Num() != ReferenceModes.Num()) return true;
+                                    for (int32 Index = 0; Index < ActiveModes.Num(); ++Index)
+                                    {
+                                        const FResonanceMode& A = ActiveModes[Index];
+                                        const FResonanceMode& B = ReferenceModes[Index];
+                                        if (!FMath::IsNearlyEqual(A.FrequencyHz, B.FrequencyHz, 0.5f)
+                                            || !FMath::IsNearlyEqual(A.Gain, B.Gain, 0.005f)
+                                            || !FMath::IsNearlyEqual(A.DecaySeconds, B.DecaySeconds, 0.005f)) return true;
+                                    }
+                                    return false;
+                                })
+                            ]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
+                            [
                                 SNew(SHorizontalBox)
                                 + SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
                                 [SNew(STextBlock).Text_Raw(this, &FResonanceForgeEditorModule::GetComparisonText).ColorAndOpacity(Muted)]
                                 + SHorizontalBox::Slot().AutoWidth().Padding(8, 0)
-                                [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "PinReference", "钉住当前声纹")).OnClicked_Raw(this, &FResonanceForgeEditorModule::PinReference)]
+                                [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "PinReference", "钉住本炉配方")).OnClicked_Raw(this, &FResonanceForgeEditorModule::PinReference)]
                                 + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 8, 0)
                                 [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "SwapReference", "交换并试听 A/B")).IsEnabled_Lambda([this]{ return bHasReference; }).OnClicked_Raw(this, &FResonanceForgeEditorModule::SwapAndPreviewReference)]
                                 + SHorizontalBox::Slot().AutoWidth()
-                                [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "ClearReference", "清除参考")).IsEnabled_Lambda([this]{ return bHasReference; }).OnClicked_Raw(this, &FResonanceForgeEditorModule::ClearReference)]
+                                [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "ClearReference", "收起对照")).IsEnabled_Lambda([this]{ return bHasReference; }).OnClicked_Raw(this, &FResonanceForgeEditorModule::ClearReference)]
                             ]
                         ]
                         + SHorizontalBox::Slot().FillWidth(0.95f).Padding(7, 0, 0, 0)
