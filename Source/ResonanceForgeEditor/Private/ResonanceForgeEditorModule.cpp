@@ -6,6 +6,7 @@
 #include "SResonanceKeybed.h"
 #include "SResonanceVelocityCam.h"
 #include "SResonanceDecayPrint.h"
+#include "SResonanceForgeFlowRail.h"
 
 #include "Editor.h"
 #include "Audio.h"
@@ -90,16 +91,6 @@ namespace ResonanceForgeEditor
             [SNew(STextBlock).Text(Detail).ColorAndOpacity(Muted).AutoWrapText(true)];
     }
 
-    TSharedRef<SWidget> RecipeStage(const FText& Title, const TAttribute<FText>& Detail, const FLinearColor& Accent)
-    {
-        return SNew(SVerticalBox)
-            + SVerticalBox::Slot().AutoHeight()
-            [SNew(SBorder).BorderImage(FAppStyle::GetBrush(TEXT("WhiteBrush"))).BorderBackgroundColor(Accent).Padding(FMargin(0, 2))]
-            + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
-            [SNew(STextBlock).Text(Title).ColorAndOpacity(Accent).Font(FAppStyle::GetFontStyle(TEXT("BoldFont")))]
-            + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)
-            [SNew(STextBlock).Text(Detail).ColorAndOpacity(Muted).AutoWrapText(true)];
-    }
 }
 
 void FResonanceForgeEditorModule::StartupModule()
@@ -371,6 +362,7 @@ bool FResonanceForgeEditorModule::PollLiveImpact(float)
     }
     if (Instrument->ImpactSerial > 0 && Instrument->ImpactSerial != ObservedImpactSerial)
     {
+        SetFlowStation(1);
         ObservedImpactSerial = Instrument->ImpactSerial;
         LiveImpactPosition = Instrument->LastStrikePosition;
         LiveImpactEnergy = Instrument->LastImpactEnergy;
@@ -391,6 +383,7 @@ bool FResonanceForgeEditorModule::PollLiveImpact(float)
 
 void FResonanceForgeEditorModule::ApplyPreset(const FName PresetName)
 {
+    SetFlowStation(2);
     ActivePreset = PresetName;
     ActiveModes = UResonanceForgeSynthComponent::GetBuiltInModes(PresetName);
     SelectedModeIndex = FMath::Clamp(SelectedModeIndex, 0, FMath::Max(0, ActiveModes.Num() - 1));
@@ -425,6 +418,7 @@ void FResonanceForgeEditorModule::ApplyPreset(const FName PresetName)
 
 void FResonanceForgeEditorModule::ApplyModel(const EResonanceModelType ModelType)
 {
+    SetFlowStation(2);
     ActiveModel = ModelType;
     AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
     if (!Instrument)
@@ -468,6 +462,7 @@ void FResonanceForgeEditorModule::ApplyWaveguideParameters()
 
 void FResonanceForgeEditorModule::ApplyWaveguidePickup(const float NewPosition, const bool bFinished)
 {
+    SetFlowStation(2);
     WaveguidePickup = FMath::Clamp(NewPosition, 0.0f, 1.0f);
     ApplyWaveguideParameters();
     if (bFinished)
@@ -478,6 +473,7 @@ void FResonanceForgeEditorModule::ApplyWaveguidePickup(const float NewPosition, 
 
 FReply FResonanceForgeEditorModule::SetWaveguideExcitation(const EResonanceExcitationType NewType)
 {
+    SetFlowStation(1);
     WaveguideExcitation = NewType;
     ApplyWaveguideParameters();
     AuditionCurrentSound(FText::Format(
@@ -488,6 +484,7 @@ FReply FResonanceForgeEditorModule::SetWaveguideExcitation(const EResonanceExcit
 
 FReply FResonanceForgeEditorModule::SetVelocityCurve(const EResonanceVelocityCurve NewCurve)
 {
+    SetFlowStation(1);
     VelocityCurve = NewCurve;
     if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
     {
@@ -501,6 +498,7 @@ FReply FResonanceForgeEditorModule::SetVelocityCurve(const EResonanceVelocityCur
 
 void FResonanceForgeEditorModule::ApplyModalModes(const bool bAudition, const FText& ChangeLabel)
 {
+    SetFlowStation(2);
     if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
     {
         Instrument->Modify();
@@ -524,6 +522,7 @@ void FResonanceForgeEditorModule::SelectModalMode(const int32 ModeIndex)
 {
     if (ActiveModes.IsValidIndex(ModeIndex))
     {
+        SetFlowStation(2);
         SelectedModeIndex = ModeIndex;
         LastStatus = FText::Format(
             NSLOCTEXT("ResonanceForge", "ModeSelected", "已夹住第 {0} 根共振齿 · 调整频率、重量或余响后松手试听"),
@@ -533,6 +532,7 @@ void FResonanceForgeEditorModule::SelectModalMode(const int32 ModeIndex)
 
 void FResonanceForgeEditorModule::ApplyStrikePosition(const float NewPosition, const bool bFinished)
 {
+    SetFlowStation(1);
     PreviewStrikePosition = FMath::Clamp(NewPosition, 0.0f, 1.0f);
     if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
     {
@@ -551,6 +551,7 @@ void FResonanceForgeEditorModule::ApplyStrikePosition(const float NewPosition, c
 
 void FResonanceForgeEditorModule::TriggerKeybedNote(const int32 MidiNote, const float Velocity)
 {
+    SetFlowStation(1);
     const int32 SafeNote = FMath::Clamp(MidiNote, 0, 127);
     const float SafeVelocity = FMath::Clamp(Velocity, 0.0f, 1.0f);
     LastKeybedNote = SafeNote;
@@ -604,6 +605,7 @@ FReply FResonanceForgeEditorModule::SyncFromSelection()
 {
     if (const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
     {
+        SetFlowStation(0);
         const UResonanceMaterialProfile* SharedProfile = Instrument->NativeSynth ? Instrument->NativeSynth->MaterialProfile : nullptr;
         ActiveModel = SharedProfile ? SharedProfile->ModelType : Instrument->SynthesisModel;
         ActivePreset = SharedProfile ? SharedProfile->SourcePreset : Instrument->ResonancePreset;
@@ -641,12 +643,14 @@ FReply FResonanceForgeEditorModule::SyncFromSelection()
 
 FReply FResonanceForgeEditorModule::TriggerPreview()
 {
+    SetFlowStation(1);
     AuditionCurrentSound(NSLOCTEXT("ResonanceForge", "CurrentVoice", "当前声纹"));
     return FReply::Handled();
 }
 
 FReply FResonanceForgeEditorModule::SetListenMode(const EResonanceForgeListenMode NewMode)
 {
+    SetFlowStation(3);
     ListenMode = NewMode;
     if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
     {
@@ -667,6 +671,7 @@ FReply FResonanceForgeEditorModule::TriggerStrikePreset(
     const float Brightness,
     const FText& GestureName)
 {
+    SetFlowStation(1);
     PreviewEnergy = FMath::Clamp(Energy, 0.0f, 1.0f);
     PreviewBrightness = FMath::Clamp(Brightness, 0.0f, 1.0f);
 
@@ -1457,6 +1462,7 @@ FReply FResonanceForgeEditorModule::ExportCurrentSample()
     }
 
     LastSampleExportPath = FPaths::ConvertRelativePathToFull(ExportPath);
+    SetFlowStation(4);
     RefreshRecentSampleLabels();
     LastStatus = FText::Format(
         NSLOCTEXT("ResonanceForge", "SampleExported", "铸样完成 · WAV + 声源铭牌 / {0} 秒 / 48 kHz / 16-bit stereo"),
@@ -1872,6 +1878,7 @@ FReply FResonanceForgeEditorModule::ReforgeSampleLabelFromPath(const FString& La
     ApplyWaveguideParameters();
     Instrument->MarkPackageDirty();
     LastSampleReforgedSeconds = FPlatformTime::Seconds();
+    SetFlowStation(4);
     Instrument->TriggerInstrument(PreviewEnergy, PreviewBrightness, LastKeybedNote, PreviewStrikePosition);
     LastStatus = FText::Format(
         NSLOCTEXT("ResonanceForge", "ReforgeComplete", "铭牌回炉完成 · {0} / {1} 根共振齿 / Note {2} · 已试听"),
@@ -2029,6 +2036,61 @@ FReply FResonanceForgeEditorModule::OpenDemoMap()
     return FReply::Handled();
 }
 
+void FResonanceForgeEditorModule::SetFlowStation(const int32 Station)
+{
+    ActiveFlowStation = FMath::Clamp(Station, 0, 4);
+}
+
+void FResonanceForgeEditorModule::NavigateToFlowStation(const int32 Station)
+{
+    SetFlowStation(Station);
+    if (!WorkbenchScrollBox.IsValid())
+    {
+        return;
+    }
+
+    TSharedPtr<SWidget> Target;
+    switch (ActiveFlowStation)
+    {
+    case 0:
+        Target = FlowObjectAnchor;
+        break;
+    case 1:
+        Target = FlowExcitationAnchor;
+        break;
+    case 2:
+        Target = ActiveModel == EResonanceModelType::WaveguideString ? FlowWaveguideAnchor : FlowModalAnchor;
+        break;
+    case 3:
+        Target = FlowOutputAnchor;
+        break;
+    default:
+        Target = FlowSampleAnchor;
+        break;
+    }
+    if (Target.IsValid())
+    {
+        WorkbenchScrollBox->ScrollDescendantIntoView(Target, true, EDescendantScrollDestination::TopOrLeft, 18.0f);
+    }
+}
+
+FText FResonanceForgeEditorModule::GetFlowGuideText() const
+{
+    switch (ActiveFlowStation)
+    {
+    case 0:
+        return NSLOCTEXT("ResonanceForge", "FlowGuideObject", "先取一件共振体，再选择它要怎样发声。");
+    case 1:
+        return NSLOCTEXT("ResonanceForge", "FlowGuideExcitation", "声音已起振：接着去弦床或共振齿列塑形。");
+    case 2:
+        return NSLOCTEXT("ResonanceForge", "FlowGuideResonance", "共振已成形：切换监听闸门比较 UE 原声与 Wwise。");
+    case 3:
+        return NSLOCTEXT("ResonanceForge", "FlowGuideOutput", "出口已接通：满意后把这件声音铸成 WAV 与铭牌。");
+    default:
+        return NSLOCTEXT("ResonanceForge", "FlowGuideSample", "铸样已落盘：点击铭牌可回炉，或回到任一工位继续打磨。");
+    }
+}
+
 FText FResonanceForgeEditorModule::GetSelectionText() const
 {
     if (const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
@@ -2045,42 +2107,6 @@ FText FResonanceForgeEditorModule::GetSelectionText() const
             FText::FromString(Instrument->GetActorLabel()), ModelText, RecipeText);
     }
     return NSLOCTEXT("ResonanceForge", "SelectionEmpty", "没有共振体 · 打开声学工坊，或在场景中选择一个共振对象");
-}
-
-FText FResonanceForgeEditorModule::GetExcitationText() const
-{
-    return ActiveModel == EResonanceModelType::WaveguideString
-        ? FText::Format(
-            NSLOCTEXT("ResonanceForge", "StringExcitation", "{0}起振 / MIDI 力度"),
-            GetWaveguideExcitationText())
-        : NSLOCTEXT("ResonanceForge", "ImpactExcitation", "物理碰撞 / 冲量、速度与落点");
-}
-
-FText FResonanceForgeEditorModule::GetResonanceText() const
-{
-    return ActiveModel == EResonanceModelType::WaveguideString
-        ? NSLOCTEXT("ResonanceForge", "StringResonance", "延迟线传播 / 阻尼反馈")
-        : FText::Format(NSLOCTEXT("ResonanceForge", "ImpactResonance", "{0} / 离散模态组"), FText::FromName(ActivePreset));
-}
-
-FText FResonanceForgeEditorModule::GetOutputRouteText() const
-{
-    if (ListenMode == EResonanceForgeListenMode::NativeOnly)
-    {
-        return ActiveModel == EResonanceModelType::WaveguideString
-            ? NSLOCTEXT("ResonanceForge", "NativeWaveguideRoute", "UE 原声炉 / 数字波导弦")
-            : NSLOCTEXT("ResonanceForge", "NativeModalRoute", "UE 原声炉 / 模态撞击体");
-    }
-    if (ListenMode == EResonanceForgeListenMode::Layered)
-    {
-        return FText::Format(
-            NSLOCTEXT("ResonanceForge", "LayeredOutputRoute", "UE 原声 + {0} / 3 RTPC"),
-            FText::FromString(ResonanceForgeEditor::GetWwiseEventName(ActivePreset)));
-    }
-    return FText::Format(
-        NSLOCTEXT("ResonanceForge", "OutputMaterialRoute", "{0} → {1} / 3 RTPC"),
-        FText::FromName(ActivePreset),
-        FText::FromString(ResonanceForgeEditor::GetWwiseEventName(ActivePreset)));
 }
 
 FText FResonanceForgeEditorModule::GetPrimaryActionText() const
@@ -2482,7 +2508,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                     ]
                     + SVerticalBox::Slot().AutoHeight().Padding(22, 0, 22, 12)
                     [
-                        SNew(SBorder).BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel"))).BorderBackgroundColor(PanelRaised).Padding(FMargin(12, 9))
+                        SAssignNew(FlowObjectAnchor, SBorder).BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel"))).BorderBackgroundColor(PanelRaised).Padding(FMargin(12, 9))
                         [
                             SNew(SHorizontalBox)
                             + SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)[SNew(STextBlock).Text_Raw(this, &FResonanceForgeEditorModule::GetSelectionText)]
@@ -2495,30 +2521,31 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                     + SVerticalBox::Slot().AutoHeight().Padding(22, 0, 22, 18)
                     [
                         SNew(SVerticalBox)
-                        + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 8)
-                        [SNew(STextBlock).Text(NSLOCTEXT("ResonanceForge", "SignalChain", "这件声音的配方")).Font(FAppStyle::GetFontStyle(TEXT("BoldFont"))).ColorAndOpacity(Cyan)]
-                        + SVerticalBox::Slot().AutoHeight()
+                        + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 7)
                         [
                             SNew(SHorizontalBox)
                             + SHorizontalBox::Slot().FillWidth(1.0f)
-                            [RecipeStage(NSLOCTEXT("ResonanceForge", "ObjectNode", "对象"), TAttribute<FText>::CreateLambda([this]{ return GetSelectionText(); }), Steel)]
-                            + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(8, 0)
-                            [SNew(STextBlock).Text(FText::FromString(TEXT("›"))).Font(FAppStyle::GetFontStyle(TEXT("HeadingSmall"))).ColorAndOpacity(Muted)]
-                            + SHorizontalBox::Slot().FillWidth(0.82f)
-                            [RecipeStage(NSLOCTEXT("ResonanceForge", "ExciterNode", "激励"), TAttribute<FText>::CreateLambda([this]{ return GetExcitationText(); }), Wood)]
-                            + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(8, 0)
-                            [SNew(STextBlock).Text(FText::FromString(TEXT("›"))).Font(FAppStyle::GetFontStyle(TEXT("HeadingSmall"))).ColorAndOpacity(Muted)]
-                            + SHorizontalBox::Slot().FillWidth(0.82f)
-                            [RecipeStage(NSLOCTEXT("ResonanceForge", "ResonatorNode", "共振"), TAttribute<FText>::CreateLambda([this]{ return GetResonanceText(); }), Glass)]
-                            + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(8, 0)
-                            [SNew(STextBlock).Text(FText::FromString(TEXT("›"))).Font(FAppStyle::GetFontStyle(TEXT("HeadingSmall"))).ColorAndOpacity(Muted)]
-                            + SHorizontalBox::Slot().FillWidth(0.95f)
-                            [RecipeStage(NSLOCTEXT("ResonanceForge", "OutputNode", "声音出口"), TAttribute<FText>::CreateLambda([this]{ return GetOutputRouteText(); }), Cyan)]
+                            [SNew(STextBlock).Text(NSLOCTEXT("ResonanceForge", "SignalChain", "铸造声路")).Font(FAppStyle::GetFontStyle(TEXT("BoldFont"))).ColorAndOpacity(Cyan)]
+                            + SHorizontalBox::Slot().AutoWidth()
+                            [SNew(STextBlock).Text(NSLOCTEXT("ResonanceForge", "SignalChainHint", "点击工位，工作台会带你到对应工具")).ColorAndOpacity(Muted)]
+                        ]
+                        + SVerticalBox::Slot().AutoHeight()
+                        [
+                            SNew(SBorder)
+                            .BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel")))
+                            .BorderBackgroundColor(FLinearColor(0.010f, 0.014f, 0.014f, 1.0f))
+                            .Padding(FMargin(1))
+                            [
+                                SNew(SResonanceForgeFlowRail)
+                                .ActiveStation_Lambda([this]{ return ActiveFlowStation; })
+                                .GuideText_Raw(this, &FResonanceForgeEditorModule::GetFlowGuideText)
+                                .OnStationSelected(FOnResonanceFlowStationSelected::CreateRaw(this, &FResonanceForgeEditorModule::NavigateToFlowStation))
+                            ]
                         ]
                     ]
                     + SVerticalBox::Slot().AutoHeight().Padding(22, 0, 22, 14)
                     [
-                        SNew(SBorder)
+                        SAssignNew(FlowOutputAnchor, SBorder)
                         .BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel")))
                         .BorderBackgroundColor(FLinearColor(0.025f, 0.032f, 0.031f, 1.0f))
                         .Padding(FMargin(12, 10))
@@ -2594,7 +2621,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                     ]
                     + SVerticalBox::Slot().AutoHeight().Padding(22, 4, 22, 12)
                     [
-                        SNew(SBorder)
+                        SAssignNew(FlowExcitationAnchor, SBorder)
                         .BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel")))
                         .BorderBackgroundColor(FLinearColor(0.030f, 0.040f, 0.036f, 1.0f))
                         .Padding(FMargin(14, 12))
@@ -2692,7 +2719,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                     ]
                     + SVerticalBox::Slot().AutoHeight().Padding(22, 2, 22, 12)
                     [
-                        SNew(SBorder)
+                        SAssignNew(FlowWaveguideAnchor, SBorder)
                         .Visibility_Lambda([this]
                         {
                             return ActiveModel == EResonanceModelType::WaveguideString ? EVisibility::Visible : EVisibility::Collapsed;
@@ -2753,7 +2780,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                     ]
                     + SVerticalBox::Slot().AutoHeight().Padding(22, 2, 22, 12)
                     [
-                        SNew(SBorder)
+                        SAssignNew(FlowModalAnchor, SBorder)
                         .Visibility_Lambda([this]
                         {
                             return ActiveModel == EResonanceModelType::ModalImpact ? EVisibility::Visible : EVisibility::Collapsed;
@@ -2925,7 +2952,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                     ]
                     + SVerticalBox::Slot().AutoHeight().Padding(22, 4, 22, 12)
                     [
-                        SNew(SBorder)
+                        SAssignNew(FlowSampleAnchor, SBorder)
                         .BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel")))
                         .BorderBackgroundColor(FLinearColor(0.045f, 0.030f, 0.018f, 1.0f))
                         .Padding(FMargin(14, 12))

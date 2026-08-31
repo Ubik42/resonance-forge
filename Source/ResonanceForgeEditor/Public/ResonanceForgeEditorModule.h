@@ -51,10 +51,9 @@ private:
     bool CaptureWorkbenchImage(const FString& FileName);
     bool PollLiveImpact(float DeltaSeconds);
     FReply OpenDemoMap();
+    void SetFlowStation(int32 Station);
+    void NavigateToFlowStation(int32 Station);
     FText GetSelectionText() const;
-    FText GetExcitationText() const;
-    FText GetResonanceText() const;
-    FText GetOutputRouteText() const;
     FText GetPrimaryActionText() const;
     FText GetStatusText() const;
     FText GetComparisonText() const;
@@ -68,6 +67,7 @@ private:
     FText GetWaveguideExcitationText() const;
     FText GetVelocityCurveText() const;
     FText GetVelocityMappingText() const;
+    FText GetFlowGuideText() const;
     FText GetSelectedModeFrequencyText() const;
     FText GetSelectedModeGainText() const;
     FText GetSelectedModeDecayText() const;
@@ -117,6 +117,12 @@ private:
     TSharedPtr<SComboBox<TSharedPtr<FString>>> MidiDeviceCombo;
     TWeakPtr<SWidget> WorkbenchWidget;
     TSharedPtr<class SScrollBox> WorkbenchScrollBox;
+    TSharedPtr<SWidget> FlowObjectAnchor;
+    TSharedPtr<SWidget> FlowExcitationAnchor;
+    TSharedPtr<SWidget> FlowWaveguideAnchor;
+    TSharedPtr<SWidget> FlowModalAnchor;
+    TSharedPtr<SWidget> FlowOutputAnchor;
+    TSharedPtr<SWidget> FlowSampleAnchor;
     class IConsoleObject* CaptureConsoleCommand = nullptr;
     FTSTicker::FDelegateHandle LiveImpactTickerHandle;
     TWeakObjectPtr<class AResonanceForgeImpactInstrumentActor> ObservedImpactActor;
@@ -128,6 +134,7 @@ private:
     int32 LastKeybedNote = 55;
     float LastKeybedVelocity = 0.0f;
     double LastKeybedPlayedSeconds = -1000.0;
+    int32 ActiveFlowStation = 0;
     FString SharedRecipeName = TEXT("新声学配方");
     FString SampleExportName = TEXT("RF_HammerBridge_G3");
     float SampleExportDurationSeconds = 3.0f;
