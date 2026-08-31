@@ -96,6 +96,45 @@ float UResonanceForgeSynthComponent::ComputeModeExcitation(const int32 ModeIndex
     return FMath::Lerp(0.12f, 1.0f, ModeShape);
 }
 
+bool UResonanceForgeSynthComponent::RenderOfflinePreview(
+    const TArray<FResonanceMode>& Modes,
+    const EResonanceModelType ModelType,
+    const float Energy,
+    const float Brightness,
+    const float ObjectSize,
+    const float StrikePosition,
+    const int32 MidiNote,
+    const float InStringDecay,
+    const float InStringDamping,
+    const float InBodyCoupling,
+    const float DurationSeconds,
+    const int32 SampleRate,
+    TArray<float>& OutInterleavedStereo)
+{
+    const int32 SafeSampleRate = FMath::Clamp(SampleRate, 8000, 192000);
+    const int32 NumFrames = FMath::Clamp(FMath::RoundToInt(DurationSeconds * SafeSampleRate), 1, SafeSampleRate * 12);
+    UResonanceForgeSynthComponent* OfflineSynth = NewObject<UResonanceForgeSynthComponent>(GetTransientPackage());
+    if (!OfflineSynth)
+    {
+        return false;
+    }
+
+    OfflineSynth->RenderSampleRate = static_cast<float>(SafeSampleRate);
+    OfflineSynth->SynthesisModel = ModelType;
+    OfflineSynth->StringDecay = FMath::Clamp(InStringDecay, 0.90f, 0.99999f);
+    OfflineSynth->StringDamping = FMath::Clamp(InStringDamping, 0.0f, 1.0f);
+    OfflineSynth->BodyCoupling = FMath::Clamp(InBodyCoupling, 0.0f, 1.0f);
+    OfflineSynth->PitchScale = FMath::Lerp(1.35f, 0.72f, FMath::Clamp(ObjectSize, 0.0f, 1.0f));
+    OfflineSynth->CustomModes = Modes;
+    OfflineSynth->RebuildModesFrom(Modes.IsEmpty() ? GetBuiltInModes(TEXT("拉丝钢")) : Modes);
+    OfflineSynth->InitializeWaveguideVoices();
+    OfflineSynth->Strike(Energy, Brightness, MidiNote, StrikePosition);
+
+    OutInterleavedStereo.SetNumZeroed(NumFrames * OfflineSynth->NumChannels);
+    const int32 Written = OfflineSynth->OnGenerateAudio(OutInterleavedStereo.GetData(), OutInterleavedStereo.Num());
+    return Written == OutInterleavedStereo.Num() && !OutInterleavedStereo.IsEmpty();
+}
+
 #if WITH_DEV_AUTOMATION_TESTS
 bool UResonanceForgeSynthComponent::RenderWaveguideForTest(const int32 MidiNote, const int32 NumFrames, TArray<float>& OutSamples)
 {

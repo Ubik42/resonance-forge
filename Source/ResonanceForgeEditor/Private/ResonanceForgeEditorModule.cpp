@@ -5,11 +5,13 @@
 #include "SResonanceKeybed.h"
 
 #include "Editor.h"
+#include "Audio.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Containers/Ticker.h"
 #include "EngineUtils.h"
 #include "Framework/Application/SlateApplication.h"
 #include "HAL/IConsoleManager.h"
+#include "HAL/PlatformProcess.h"
 #include "ImageUtils.h"
 #include "Engine/Selection.h"
 #include "Framework/Docking/TabManager.h"
@@ -160,6 +162,7 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
                 FTickerDelegate::CreateLambda([this](float)
                 {
                     CaptureWorkbenchImage(TEXT("resonance-forge-keybed.png"));
+                    ExportCurrentSample();
                     if (WorkbenchScrollBox.IsValid())
                     {
                         WorkbenchScrollBox->ScrollToEnd();
@@ -1041,6 +1044,101 @@ FText FResonanceForgeEditorModule::GetKeybedStatusText() const
         : NSLOCTEXT("ResonanceForge", "KeybedReady", "无需 MIDI 设备 · 点击或横向拖过锤键即可演奏");
 }
 
+FReply FResonanceForgeEditorModule::ExportCurrentSample()
+{
+    FString SafeName = ObjectTools::SanitizeObjectName(SampleExportName.TrimStartAndEnd());
+    if (SafeName.IsEmpty())
+    {
+        SafeName = TEXT("RF_ForgedSample");
+    }
+
+    const FString ExportDirectory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("ResonanceForge"), TEXT("Exports"));
+    IFileManager::Get().MakeDirectory(*ExportDirectory, true);
+    FString ExportPath = FPaths::Combine(ExportDirectory, SafeName + TEXT(".wav"));
+    for (int32 Suffix = 2; FPaths::FileExists(ExportPath); ++Suffix)
+    {
+        ExportPath = FPaths::Combine(ExportDirectory, FString::Printf(TEXT("%s_%02d.wav"), *SafeName, Suffix));
+    }
+
+    TArray<float> Samples;
+    const float StringDecay = FMath::Lerp(
+        ResonanceForgeEditor::WaveguideDecayMin,
+        ResonanceForgeEditor::WaveguideDecayMax,
+        FMath::Clamp(WaveguideSustain, 0.0f, 1.0f));
+    const bool bRendered = UResonanceForgeSynthComponent::RenderOfflinePreview(
+        ActiveModes,
+        ActiveModel,
+        PreviewEnergy,
+        PreviewBrightness,
+        PreviewSize,
+        PreviewStrikePosition,
+        LastKeybedNote,
+        StringDecay,
+        WaveguideDamping,
+        WaveguideCoupling,
+        SampleExportDurationSeconds,
+        48000,
+        Samples);
+    if (!bRendered)
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "SampleRenderFailed", "铸样失败 · 当前物理声源没有生成有效音频");
+        return FReply::Handled();
+    }
+
+    float Peak = 0.0f;
+    for (const float Sample : Samples)
+    {
+        Peak = FMath::Max(Peak, FMath::Abs(Sample));
+    }
+    const float Gain = Peak > 0.98f ? 0.98f / Peak : 1.0f;
+    TArray<int16> Pcm16;
+    Pcm16.SetNumUninitialized(Samples.Num());
+    for (int32 Index = 0; Index < Samples.Num(); ++Index)
+    {
+        Pcm16[Index] = static_cast<int16>(FMath::RoundToInt(FMath::Clamp(Samples[Index] * Gain, -1.0f, 1.0f) * 32767.0f));
+    }
+
+    TArray<uint8> WaveData;
+    SerializeWaveFile(
+        WaveData,
+        reinterpret_cast<const uint8*>(Pcm16.GetData()),
+        Pcm16.Num() * sizeof(int16),
+        2,
+        48000);
+    if (WaveData.IsEmpty() || !FFileHelper::SaveArrayToFile(WaveData, *ExportPath))
+    {
+        LastStatus = NSLOCTEXT("ResonanceForge", "SampleWriteFailed", "铸样完成，但 WAV 写入失败");
+        return FReply::Handled();
+    }
+
+    LastSampleExportPath = FPaths::ConvertRelativePathToFull(ExportPath);
+    LastStatus = FText::Format(
+        NSLOCTEXT("ResonanceForge", "SampleExported", "铸样完成 · {0} 秒 / 48 kHz / 16-bit stereo"),
+        FText::AsNumber(SampleExportDurationSeconds));
+    return FReply::Handled();
+}
+
+FReply FResonanceForgeEditorModule::RevealSampleExport()
+{
+    const FString Directory = LastSampleExportPath.IsEmpty()
+        ? FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("ResonanceForge"), TEXT("Exports"))
+        : FPaths::GetPath(LastSampleExportPath);
+    IFileManager::Get().MakeDirectory(*Directory, true);
+    FPlatformProcess::ExploreFolder(*Directory);
+    return FReply::Handled();
+}
+
+FText FResonanceForgeEditorModule::GetSampleExportStatusText() const
+{
+    if (LastSampleExportPath.IsEmpty())
+    {
+        return NSLOCTEXT("ResonanceForge", "SampleNotExported", "等待铸样 · 复用当前模态、落点、弦床与演奏参数");
+    }
+    return FText::Format(
+        NSLOCTEXT("ResonanceForge", "SampleExportPath", "已生成 · {0}"),
+        FText::FromString(FPaths::GetCleanFilename(LastSampleExportPath)));
+}
+
 FReply FResonanceForgeEditorModule::ForgeSharedRecipeAsset()
 {
     AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
@@ -1871,6 +1969,47 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                             ]
                             + SHorizontalBox::Slot().AutoWidth()
                             [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "ForgeSharedRecipe", "铸印为 Content 资产")).OnClicked_Raw(this, &FResonanceForgeEditorModule::ForgeSharedRecipeAsset)]
+                        ]
+                    ]
+                    + SVerticalBox::Slot().AutoHeight().Padding(22, 4, 22, 12)
+                    [
+                        SNew(SBorder)
+                        .BorderImage(FAppStyle::GetBrush(TEXT("Brushes.Panel")))
+                        .BorderBackgroundColor(FLinearColor(0.045f, 0.030f, 0.018f, 1.0f))
+                        .Padding(FMargin(14, 12))
+                        [
+                            SNew(SVerticalBox)
+                            + SVerticalBox::Slot().AutoHeight()
+                            [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "SampleForge", "铸样台"), NSLOCTEXT("ResonanceForge", "SampleForgeDetail", "把当前物理声源离线锻成标准 WAV；可直接交给 Wwise、DAW 或版本库。"))]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
+                            [
+                                SNew(SHorizontalBox)
+                                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(0, 0, 8, 0)
+                                [
+                                    SNew(SEditableTextBox)
+                                    .Text_Lambda([this]{ return FText::FromString(SampleExportName); })
+                                    .HintText(NSLOCTEXT("ResonanceForge", "SampleNameHint", "例如：RF_WoodString_G3"))
+                                    .OnTextChanged_Lambda([this](const FText& Text){ SampleExportName = Text.ToString(); })
+                                ]
+                                + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 5, 0)
+                                [SNew(SButton).Text(FText::FromString(TEXT("1.5 秒"))).ButtonColorAndOpacity_Lambda([this]{ return FMath::IsNearlyEqual(SampleExportDurationSeconds, 1.5f) ? ResonanceForgeEditor::Wood * 0.55f : FLinearColor::White; }).OnClicked_Lambda([this]{ SampleExportDurationSeconds = 1.5f; return FReply::Handled(); })]
+                                + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 5, 0)
+                                [SNew(SButton).Text(FText::FromString(TEXT("3 秒"))).ButtonColorAndOpacity_Lambda([this]{ return FMath::IsNearlyEqual(SampleExportDurationSeconds, 3.0f) ? ResonanceForgeEditor::Wood * 0.55f : FLinearColor::White; }).OnClicked_Lambda([this]{ SampleExportDurationSeconds = 3.0f; return FReply::Handled(); })]
+                                + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 8, 0)
+                                [SNew(SButton).Text(FText::FromString(TEXT("6 秒"))).ButtonColorAndOpacity_Lambda([this]{ return FMath::IsNearlyEqual(SampleExportDurationSeconds, 6.0f) ? ResonanceForgeEditor::Wood * 0.55f : FLinearColor::White; }).OnClicked_Lambda([this]{ SampleExportDurationSeconds = 6.0f; return FReply::Handled(); })]
+                                + SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
+                                [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "ExportSample", "铸成 WAV")).OnClicked_Raw(this, &FResonanceForgeEditorModule::ExportCurrentSample)]
+                                + SHorizontalBox::Slot().AutoWidth()
+                                [SNew(SButton).Text(NSLOCTEXT("ResonanceForge", "RevealSample", "打开目录")).OnClicked_Raw(this, &FResonanceForgeEditorModule::RevealSampleExport)]
+                            ]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 9, 0, 0)
+                            [
+                                SNew(SHorizontalBox)
+                                + SHorizontalBox::Slot().FillWidth(1.0f)
+                                [SNew(STextBlock).Text_Raw(this, &FResonanceForgeEditorModule::GetSampleExportStatusText).ColorAndOpacity(Glass)]
+                                + SHorizontalBox::Slot().AutoWidth()
+                                [SNew(STextBlock).Text(FText::FromString(TEXT("48 kHz · 16-bit · stereo · Saved/ResonanceForge/Exports"))).ColorAndOpacity(Muted)]
+                            ]
                         ]
                     ]
                     + SVerticalBox::Slot().AutoHeight().Padding(22, 4, 22, 12)

@@ -75,6 +75,21 @@ public:
     UFUNCTION(BlueprintPure, Category="共振铸造台")
     static float ComputeModeExcitation(int32 ModeIndex, float StrikePosition);
 
+    static bool RenderOfflinePreview(
+        const TArray<FResonanceMode>& Modes,
+        EResonanceModelType ModelType,
+        float Energy,
+        float Brightness,
+        float ObjectSize,
+        float StrikePosition,
+        int32 MidiNote,
+        float StringDecay,
+        float StringDamping,
+        float BodyCoupling,
+        float DurationSeconds,
+        int32 SampleRate,
+        TArray<float>& OutInterleavedStereo);
+
 #if WITH_DEV_AUTOMATION_TESTS
     bool RenderWaveguideForTest(int32 MidiNote, int32 NumFrames, TArray<float>& OutSamples);
 #endif

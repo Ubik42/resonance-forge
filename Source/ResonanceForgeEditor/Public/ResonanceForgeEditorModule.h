@@ -36,6 +36,8 @@ private:
     FReply ConnectSelectedMidiDevice();
     FReply DisconnectMidiDevice();
     FReply ForgeSharedRecipeAsset();
+    FReply ExportCurrentSample();
+    FReply RevealSampleExport();
     FReply CaptureWorkbenchScreenshot();
     void QueueAutomatedCapture();
     bool CaptureWorkbenchImage(const FString& FileName);
@@ -61,6 +63,7 @@ private:
     float GetLiveImpactGlow() const;
     float GetKeybedGlow() const;
     FText GetKeybedStatusText() const;
+    FText GetSampleExportStatusText() const;
     bool HasRecipeSlot(int32 SlotIndex) const;
     bool ReadRecipeSlot(int32 SlotIndex, FName& OutPreset, EResonanceModelType& OutModel, float& OutEnergy, float& OutBrightness, float& OutSize, float& OutSustain, float& OutDamping, float& OutCoupling) const;
 
@@ -104,5 +107,8 @@ private:
     float LastKeybedVelocity = 0.0f;
     double LastKeybedPlayedSeconds = -1000.0;
     FString SharedRecipeName = TEXT("新声学配方");
+    FString SampleExportName = TEXT("RF_LongTailWood_G3");
+    float SampleExportDurationSeconds = 3.0f;
+    FString LastSampleExportPath;
     FText LastStatus;
 };
