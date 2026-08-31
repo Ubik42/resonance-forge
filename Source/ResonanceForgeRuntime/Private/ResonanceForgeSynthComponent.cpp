@@ -45,27 +45,25 @@ void UResonanceForgeSynthComponent::Strike(
     const float Brightness,
     const int32 MidiNote,
     const float StrikePosition,
-    const float BowPressureOverride)
+    const float BowPressureOverride,
+    const float BowDirection)
 {
     const UResonanceMaterialProfile* Profile = MaterialProfile;
-    PendingStrikes.Enqueue({
-        FMath::Clamp(Energy, 0.0f, 1.5f),
-        FMath::Clamp(Brightness, 0.0f, 1.0f),
-        FMath::Clamp(MidiNote, 0, 127),
-        Profile ? Profile->ModelType : SynthesisModel,
-        Profile ? Profile->StringDecay : StringDecay,
-        Profile ? Profile->StringDamping : StringDamping,
-        Profile ? Profile->BodyCoupling : BodyCoupling,
-        Profile ? Profile->PickupPosition : PickupPosition,
-        Profile ? Profile->ExcitationType : ExcitationType,
-        PitchScale,
-        FMath::Clamp(StrikePosition, 0.0f, 1.0f),
-        BowPressureOverride < 0.0f ? -1.0f : FMath::Clamp(BowPressureOverride, 0.0f, 1.0f),
-        false,
-        false,
-        false,
-        false
-    });
+    FStrikeEvent Event{};
+    Event.Energy = FMath::Clamp(Energy, 0.0f, 1.5f);
+    Event.Brightness = FMath::Clamp(Brightness, 0.0f, 1.0f);
+    Event.MidiNote = FMath::Clamp(MidiNote, 0, 127);
+    Event.ModelType = Profile ? Profile->ModelType : SynthesisModel;
+    Event.Decay = Profile ? Profile->StringDecay : StringDecay;
+    Event.Damping = Profile ? Profile->StringDamping : StringDamping;
+    Event.Coupling = Profile ? Profile->BodyCoupling : BodyCoupling;
+    Event.Pickup = Profile ? Profile->PickupPosition : PickupPosition;
+    Event.ExcitationType = Profile ? Profile->ExcitationType : ExcitationType;
+    Event.PitchScale = PitchScale;
+    Event.StrikePosition = FMath::Clamp(StrikePosition, 0.0f, 1.0f);
+    Event.BowPressure = BowPressureOverride < 0.0f ? -1.0f : FMath::Clamp(BowPressureOverride, 0.0f, 1.0f);
+    Event.BowDirection = BowDirection < 0.0f ? -1.0f : 1.0f;
+    PendingStrikes.Enqueue(Event);
 }
 
 void UResonanceForgeSynthComponent::NoteOn(
@@ -73,27 +71,28 @@ void UResonanceForgeSynthComponent::NoteOn(
     const float Brightness,
     const int32 MidiNote,
     const float StrikePosition,
-    const float InitialBowPressure)
+    const float InitialBowPressure,
+    const float BowDirection)
 {
     const UResonanceMaterialProfile* Profile = MaterialProfile;
-    PendingStrikes.Enqueue({
-        FMath::Clamp(Energy, 0.0f, 1.5f),
-        FMath::Clamp(Brightness, 0.0f, 1.0f),
-        FMath::Clamp(MidiNote, 0, 127),
-        Profile ? Profile->ModelType : SynthesisModel,
-        Profile ? Profile->StringDecay : StringDecay,
-        Profile ? Profile->StringDamping : StringDamping,
-        Profile ? Profile->BodyCoupling : BodyCoupling,
-        Profile ? Profile->PickupPosition : PickupPosition,
-        Profile ? Profile->ExcitationType : ExcitationType,
-        PitchScale,
-        FMath::Clamp(StrikePosition, 0.0f, 1.0f),
-        InitialBowPressure < 0.0f ? FMath::Clamp(Brightness, 0.0f, 1.0f) : FMath::Clamp(InitialBowPressure, 0.0f, 1.0f),
-        true,
-        false,
-        false,
-        false
-    });
+    FStrikeEvent Event{};
+    Event.Energy = FMath::Clamp(Energy, 0.0f, 1.5f);
+    Event.Brightness = FMath::Clamp(Brightness, 0.0f, 1.0f);
+    Event.MidiNote = FMath::Clamp(MidiNote, 0, 127);
+    Event.ModelType = Profile ? Profile->ModelType : SynthesisModel;
+    Event.Decay = Profile ? Profile->StringDecay : StringDecay;
+    Event.Damping = Profile ? Profile->StringDamping : StringDamping;
+    Event.Coupling = Profile ? Profile->BodyCoupling : BodyCoupling;
+    Event.Pickup = Profile ? Profile->PickupPosition : PickupPosition;
+    Event.ExcitationType = Profile ? Profile->ExcitationType : ExcitationType;
+    Event.PitchScale = PitchScale;
+    Event.StrikePosition = FMath::Clamp(StrikePosition, 0.0f, 1.0f);
+    Event.BowPressure = InitialBowPressure < 0.0f
+        ? FMath::Clamp(Brightness, 0.0f, 1.0f)
+        : FMath::Clamp(InitialBowPressure, 0.0f, 1.0f);
+    Event.BowDirection = BowDirection < 0.0f ? -1.0f : 1.0f;
+    Event.bHeld = true;
+    PendingStrikes.Enqueue(Event);
 }
 
 void UResonanceForgeSynthComponent::NoteOff(const int32 MidiNote)
@@ -125,6 +124,14 @@ void UResonanceForgeSynthComponent::SetBowPressure(const float NormalizedPressur
     PressureEvent.BowPressure = FMath::Clamp(NormalizedPressure, 0.0f, 1.0f);
     PressureEvent.bBowPressureChange = true;
     PendingStrikes.Enqueue(PressureEvent);
+}
+
+void UResonanceForgeSynthComponent::SetBowDirection(const float Direction)
+{
+    FStrikeEvent DirectionEvent{};
+    DirectionEvent.BowDirection = Direction < 0.0f ? -1.0f : 1.0f;
+    DirectionEvent.bBowDirectionChange = true;
+    PendingStrikes.Enqueue(DirectionEvent);
 }
 
 TArray<FName> UResonanceForgeSynthComponent::GetBuiltInPresetNames()
@@ -177,6 +184,8 @@ bool UResonanceForgeSynthComponent::RenderOfflinePreview(
     const float InBodyCoupling,
     const float InPickupPosition,
     const EResonanceExcitationType InExcitationType,
+    const float InBowPressure,
+    const float InBowDirection,
     const float DurationSeconds,
     const int32 SampleRate,
     TArray<float>& OutInterleavedStereo)
@@ -200,7 +209,7 @@ bool UResonanceForgeSynthComponent::RenderOfflinePreview(
     OfflineSynth->CustomModes = Modes;
     OfflineSynth->RebuildModesFrom(Modes.IsEmpty() ? GetBuiltInModes(TEXT("拉丝钢")) : Modes);
     OfflineSynth->InitializeWaveguideVoices();
-    OfflineSynth->Strike(Energy, Brightness, MidiNote, StrikePosition);
+    OfflineSynth->Strike(Energy, Brightness, MidiNote, StrikePosition, InBowPressure, InBowDirection);
 
     OutInterleavedStereo.SetNumZeroed(NumFrames * OfflineSynth->NumChannels);
     const int32 Written = OfflineSynth->OnGenerateAudio(OutInterleavedStereo.GetData(), OutInterleavedStereo.Num());
@@ -278,6 +287,24 @@ bool UResonanceForgeSynthComponent::RenderAutoBowPressureForTest(
     ExcitationType = EResonanceExcitationType::Bow;
     ActiveModes.Reset();
     Strike(0.82f, 0.58f, MidiNote, 0.5f, InBowPressure);
+    OutSamples.SetNumZeroed(FMath::Max(1, NumFrames) * NumChannels);
+    OnGenerateAudio(OutSamples.GetData(), OutSamples.Num());
+    return !OutSamples.IsEmpty();
+}
+
+bool UResonanceForgeSynthComponent::RenderAutoBowDirectionForTest(
+    const int32 MidiNote,
+    const float InBowDirection,
+    const int32 NumFrames,
+    TArray<float>& OutSamples)
+{
+    RenderSampleRate = 48000.0f;
+    RebuildModesFrom(GetEffectiveModes());
+    InitializeWaveguideVoices();
+    SynthesisModel = EResonanceModelType::WaveguideString;
+    ExcitationType = EResonanceExcitationType::Bow;
+    ActiveModes.Reset();
+    Strike(0.82f, 0.58f, MidiNote, 0.5f, 0.68f, InBowDirection);
     OutSamples.SetNumZeroed(FMath::Max(1, NumFrames) * NumChannels);
     OnGenerateAudio(OutSamples.GetData(), OutSamples.Num());
     return !OutSamples.IsEmpty();
@@ -472,6 +499,8 @@ void UResonanceForgeSynthComponent::StartWaveguideVoice(const FStrikeEvent& Even
         ? FMath::Clamp(Event.Energy, 0.0f, 1.0f)
         : FMath::Clamp(Event.BowPressure, 0.0f, 1.0f);
     Target->TargetBowPressure = Target->BowPressure;
+    Target->BowDirection = Event.BowDirection < 0.0f ? -1.0f : 1.0f;
+    Target->TargetBowDirection = Target->BowDirection;
     Target->bActive = true;
 
     float PreviousNoise = 0.0f;
@@ -540,9 +569,11 @@ float UResonanceForgeSynthComponent::RenderWaveguideVoices()
         {
             const float SpeedSmoothing = 1.0f - FMath::Exp(-1.0f / FMath::Max(1.0f, RenderSampleRate * 0.018f));
             const float PressureSmoothing = 1.0f - FMath::Exp(-1.0f / FMath::Max(1.0f, RenderSampleRate * 0.012f));
+            const float DirectionSmoothing = 1.0f - FMath::Exp(-1.0f / FMath::Max(1.0f, RenderSampleRate * 0.010f));
             Voice.BowSpeed = FMath::Lerp(Voice.BowSpeed, Voice.TargetBowSpeed, SpeedSmoothing);
             Voice.BowPressure = FMath::Lerp(Voice.BowPressure, Voice.TargetBowPressure, PressureSmoothing);
-            const float BowVelocity = FMath::Lerp(0.025f, 0.24f, Voice.BowSpeed);
+            Voice.BowDirection = FMath::Lerp(Voice.BowDirection, Voice.TargetBowDirection, DirectionSmoothing);
+            const float BowVelocity = FMath::Lerp(0.025f, 0.24f, Voice.BowSpeed) * Voice.BowDirection;
             const float BowPressure = FMath::Lerp(0.07f, 0.46f, FMath::Sqrt(Voice.BowPressure))
                 * FMath::Lerp(0.62f, 1.18f, Voice.BowEnergy);
             const int32 BowIndex = (Voice.Cursor + Voice.BowOffset) % Voice.DelaySamples;
@@ -633,6 +664,16 @@ int32 UResonanceForgeSynthComponent::OnGenerateAudio(float* OutAudio, const int3
                     && (Event.MidiNote < 0 || Voice.MidiNote == Event.MidiNote))
                 {
                     Voice.TargetBowPressure = Event.BowPressure;
+                }
+            }
+        }
+        else if (Event.bBowDirectionChange)
+        {
+            for (FWaveguideVoice& Voice : WaveguideVoices)
+            {
+                if (Voice.bActive && Voice.ExcitationType == EResonanceExcitationType::Bow && Voice.bBowHeld)
+                {
+                    Voice.TargetBowDirection = Event.BowDirection < 0.0f ? -1.0f : 1.0f;
                 }
             }
         }

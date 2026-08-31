@@ -105,7 +105,8 @@ int32 AResonanceForgeImpactInstrumentActor::TriggerInstrument(
     const int32 MidiNote,
     const float StrikePosition,
     const bool bHoldNativeNote,
-    const float BowPressureOverride)
+    const float BowPressureOverride,
+    const float BowDirectionOverride)
 {
     FResonanceForgeImpactParameters Parameters;
     Parameters.Energy = FMath::Clamp(Energy, 0.0f, 1.0f);
@@ -120,6 +121,10 @@ int32 AResonanceForgeImpactInstrumentActor::TriggerInstrument(
     Parameters.MaterialPreset = NativeSynth && NativeSynth->MaterialProfile
         ? NativeSynth->MaterialProfile->SourcePreset
         : ResonancePreset;
+    const float ActiveBowDirection = BowDirectionOverride == 0.0f
+        ? (BowDirection < 0.0f ? -1.0f : 1.0f)
+        : (BowDirectionOverride < 0.0f ? -1.0f : 1.0f);
+    BowDirection = ActiveBowDirection;
 
     NativeSynth->PitchScale = FMath::Lerp(1.35f, 0.72f, Parameters.ObjectSize);
 
@@ -135,7 +140,8 @@ int32 AResonanceForgeImpactInstrumentActor::TriggerInstrument(
                 Parameters.Brightness,
                 Parameters.MidiNote,
                 Parameters.StrikePosition,
-                MidiBowPressure);
+                MidiBowPressure,
+                ActiveBowDirection);
         }
         else
         {
@@ -144,7 +150,8 @@ int32 AResonanceForgeImpactInstrumentActor::TriggerInstrument(
                 Parameters.Brightness,
                 Parameters.MidiNote,
                 Parameters.StrikePosition,
-                BowPressureOverride);
+                BowPressureOverride,
+                ActiveBowDirection);
         }
     }
     if (ListenModeIncludesWwise(ListenMode) && WwiseBridge)
@@ -229,6 +236,10 @@ bool AResonanceForgeImpactInstrumentActor::ConnectMidiInput(const int32 DeviceId
 
 void AResonanceForgeImpactInstrumentActor::DisconnectMidiInput()
 {
+    if (LastMidiVelocity > 0 && NativeSynth)
+    {
+        NativeSynth->NoteOff(LastMidiNote);
+    }
     if (MidiController)
     {
         MidiController->OnMIDIEvent.RemoveDynamic(this, &AResonanceForgeImpactInstrumentActor::HandleMidiEvent);
@@ -237,6 +248,7 @@ void AResonanceForgeImpactInstrumentActor::DisconnectMidiInput()
     }
     bHasMidiAftertouch = false;
     LastMidiPressure = -1;
+    LastMidiVelocity = 0;
     MidiBowPressure = MidiBrightness;
 }
 

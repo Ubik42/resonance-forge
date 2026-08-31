@@ -31,6 +31,7 @@ private:
         float InputVelocity = 0.76f;
         float BowSpeed = 0.58f;
         float BowPressure = 0.55f;
+        float BowDirection = 1.0f;
         TArray<FResonanceMode> Modes;
     };
 
@@ -48,6 +49,9 @@ private:
     void PrepareBowGaugeAudition();
     void ApplyBowGaugeSpeed(float NewValue, bool bFinished);
     void ApplyBowGaugePressure(float NewValue, bool bFinished);
+    void BeginBowStroke(float Position, float Pressure);
+    void UpdateBowStroke(float Position, float Speed, float Pressure, float Direction);
+    void EndBowStroke();
     FReply SetWaveguideExcitation(EResonanceExcitationType NewType);
     FReply SetVelocityCurve(EResonanceVelocityCurve NewCurve);
     void TriggerKeybedNote(int32 MidiNote, float Velocity);
@@ -118,6 +122,9 @@ private:
     float WaveguideDamping = 0.36f;
     float WaveguideCoupling = 0.22f;
     float WaveguidePickup = 0.35f;
+    float BowStrokePosition = 0.28f;
+    float BowDirection = 1.0f;
+    bool bBowStrokeActive = false;
     EResonanceExcitationType WaveguideExcitation = EResonanceExcitationType::Pick;
     EResonanceVelocityCurve VelocityCurve = EResonanceVelocityCurve::Linear;
     EResonanceForgeListenMode ListenMode = EResonanceForgeListenMode::Layered;

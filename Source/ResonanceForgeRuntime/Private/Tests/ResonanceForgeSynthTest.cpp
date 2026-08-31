@@ -156,6 +156,26 @@ bool FResonanceForgePresetTest::RunTest(const FString& Parameters)
         : FMath::Sqrt(static_cast<float>(AutoBowDiffSquareSum / LowPressureAutoBow.Num()));
     AddInfo(FString::Printf(TEXT("弓感双轮自动弓压差分 RMS：%.6f"), AutoBowDiffRms));
     TestTrue(TEXT("松手试听中的弓压覆盖形成可听差异"), AutoBowDiffRms > 0.001f);
+
+    UResonanceForgeSynthComponent* ForwardBowSynth = NewObject<UResonanceForgeSynthComponent>();
+    UResonanceForgeSynthComponent* ReverseBowSynth = NewObject<UResonanceForgeSynthComponent>();
+    TArray<float> ForwardBow;
+    TArray<float> ReverseBow;
+    TestTrue(TEXT("推弓方向能够进入自动弓程"),
+        ForwardBowSynth->RenderAutoBowDirectionForTest(55, 1.0f, 48000, ForwardBow));
+    TestTrue(TEXT("回弓方向能够进入自动弓程"),
+        ReverseBowSynth->RenderAutoBowDirectionForTest(55, -1.0f, 48000, ReverseBow));
+    double DirectionDiffSquareSum = 0.0;
+    for (int32 Index = 0; Index < ForwardBow.Num(); ++Index)
+    {
+        const double Difference = ForwardBow[Index] - ReverseBow[Index];
+        DirectionDiffSquareSum += Difference * Difference;
+    }
+    const float DirectionDiffRms = ForwardBow.IsEmpty()
+        ? 0.0f
+        : FMath::Sqrt(static_cast<float>(DirectionDiffSquareSum / ForwardBow.Num()));
+    AddInfo(FString::Printf(TEXT("推弓/回弓差分 RMS：%.6f"), DirectionDiffRms));
+    TestTrue(TEXT("换弓方向改变实际波导摩擦输出"), DirectionDiffRms > 0.001f);
     return true;
 }
 

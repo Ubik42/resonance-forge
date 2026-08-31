@@ -140,7 +140,7 @@ public:
 
         const FString RouteText = bConnected
             ? (bIndependent ? TEXT("双路分控") : TEXT("CC1 联动"))
-            : TEXT("拖轮试听");
+            : TEXT("双轮微调");
         FSlateDrawElement::MakeText(
             OutDrawElements, LayerId + 5,
             Geometry.ToPaintGeometry(FVector2f(100.0f, 16.0f), FSlateLayoutTransform(FVector2f(Size.X * 0.5f - 46.0f, 12.0f))),

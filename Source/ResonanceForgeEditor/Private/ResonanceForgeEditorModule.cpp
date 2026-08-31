@@ -8,6 +8,7 @@
 #include "SResonanceDecayPrint.h"
 #include "SResonanceForgeFlowRail.h"
 #include "SResonanceBowGauge.h"
+#include "SResonanceBowStroke.h"
 
 #include "Editor.h"
 #include "Audio.h"
@@ -241,10 +242,10 @@ void FResonanceForgeEditorModule::QueueAutomatedCapture()
         SampleExportName = TEXT("RF_Bow_G3");
         ApplyWaveguideParameters();
         TriggerKeybedNote(55, 0.76f);
-        if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
-        {
-            Instrument->MidiBowPressure = 0.68f;
-        }
+        BeginBowStroke(0.22f, 0.44f);
+        UpdateBowStroke(0.74f, 0.66f, 0.68f, 1.0f);
+        UpdateBowStroke(0.42f, 0.55f, 0.68f, -1.0f);
+        EndBowStroke();
         SaveRecipeSlot(0);
         ApplyBowGaugePressure(0.24f, false);
         RecallRecipeSlot(0);
@@ -606,6 +607,104 @@ void FResonanceForgeEditorModule::ApplyBowGaugePressure(const float NewValue, co
     }
 }
 
+void FResonanceForgeEditorModule::BeginBowStroke(const float Position, const float Pressure)
+{
+    PrepareBowGaugeAudition();
+    SetFlowStation(1);
+    BowStrokePosition = FMath::Clamp(Position, 0.0f, 1.0f);
+    bBowStrokeActive = true;
+    if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
+    {
+        if (Instrument->LastMidiVelocity > 0)
+        {
+            bBowStrokeActive = false;
+            LastStatus = NSLOCTEXT("ResonanceForge", "BowStrokeMidiHeld", "弓行轨未起弓 · 当前 MIDI 音符仍在持音，先松键再拉奏");
+            return;
+        }
+        Instrument->MidiBrightness = PreviewBrightness;
+        Instrument->MidiBowPressure = FMath::Clamp(Pressure, 0.0f, 1.0f);
+        Instrument->BowDirection = BowDirection;
+        Instrument->ObjectSize = PreviewSize;
+        Instrument->VelocityCurve = VelocityCurve;
+        ApplyWaveguideParameters();
+        Instrument->ListenMode = ListenMode;
+        Instrument->TriggerInstrument(
+            PreviewEnergy,
+            PreviewBrightness,
+            LastKeybedNote,
+            PreviewStrikePosition,
+            true,
+            Instrument->MidiBowPressure,
+            BowDirection);
+        LastStatus = NSLOCTEXT("ResonanceForge", "BowStrokeStarted", "弓毛已咬弦 · 左右拉动换弓，向下压入增加弓压");
+    }
+    else
+    {
+        bBowStrokeActive = false;
+        LastStatus = NSLOCTEXT("ResonanceForge", "BowStrokeMissing", "弓行轨等待共振体 · 请先打开试听场景");
+    }
+}
+
+void FResonanceForgeEditorModule::UpdateBowStroke(
+    const float Position,
+    const float Speed,
+    const float Pressure,
+    const float Direction)
+{
+    if (!bBowStrokeActive)
+    {
+        return;
+    }
+    BowStrokePosition = FMath::Clamp(Position, 0.0f, 1.0f);
+    PreviewBrightness = FMath::Clamp(Speed, 0.05f, 1.0f);
+    BowDirection = Direction < 0.0f ? -1.0f : 1.0f;
+    if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
+    {
+        Instrument->MidiBrightness = PreviewBrightness;
+        Instrument->MidiBowPressure = FMath::Clamp(Pressure, 0.0f, 1.0f);
+        Instrument->BowDirection = BowDirection;
+        if (Instrument->NativeSynth)
+        {
+            Instrument->NativeSynth->SetBowSpeed(PreviewBrightness);
+            Instrument->NativeSynth->SetBowPressure(Instrument->MidiBowPressure, LastKeybedNote);
+            Instrument->NativeSynth->SetBowDirection(BowDirection);
+        }
+        if (AResonanceForgeImpactInstrumentActor::ListenModeIncludesWwise(Instrument->ListenMode) && Instrument->WwiseBridge)
+        {
+            Instrument->WwiseBridge->SetLiveBrightness(PreviewBrightness);
+        }
+        LastStatus = FText::Format(
+            NSLOCTEXT("ResonanceForge", "BowStrokeMoving", "{0} · 弓速 {1}% / 弓压 {2}% · 松手收弓"),
+            BowDirection > 0.0f
+                ? NSLOCTEXT("ResonanceForge", "ForwardBowStatus", "推弓")
+                : NSLOCTEXT("ResonanceForge", "ReverseBowStatus", "回弓"),
+            FText::AsNumber(FMath::RoundToInt(PreviewBrightness * 100.0f)),
+            FText::AsNumber(FMath::RoundToInt(Instrument->MidiBowPressure * 100.0f)));
+    }
+}
+
+void FResonanceForgeEditorModule::EndBowStroke()
+{
+    if (!bBowStrokeActive)
+    {
+        return;
+    }
+    bBowStrokeActive = false;
+    if (AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument())
+    {
+        if (Instrument->NativeSynth)
+        {
+            Instrument->NativeSynth->NoteOff(LastKeybedNote);
+        }
+        LastStatus = FText::Format(
+            NSLOCTEXT("ResonanceForge", "BowStrokeEnded", "{0}结束 · Note {1} 已进入收弓"),
+            BowDirection > 0.0f
+                ? NSLOCTEXT("ResonanceForge", "ForwardBowEnded", "推弓")
+                : NSLOCTEXT("ResonanceForge", "ReverseBowEnded", "回弓"),
+            FText::AsNumber(LastKeybedNote));
+    }
+}
+
 FReply FResonanceForgeEditorModule::SetWaveguideExcitation(const EResonanceExcitationType NewType)
 {
     SetFlowStation(1);
@@ -706,7 +805,8 @@ void FResonanceForgeEditorModule::TriggerKeybedNote(const int32 MidiNote, const 
             SafeNote,
             PreviewStrikePosition,
             false,
-            Instrument->MidiBowPressure);
+            Instrument->MidiBowPressure,
+            BowDirection);
         LastStatus = FText::Format(
             NSLOCTEXT("ResonanceForge", "KeybedPlayed", "试音键床 · Note {0} / 输入 {1}% → 能量 {2}% · {3}"),
             FText::AsNumber(SafeNote),
@@ -733,7 +833,8 @@ void FResonanceForgeEditorModule::AuditionCurrentSound(const FText& ChangeLabel)
             LastKeybedNote,
             PreviewStrikePosition,
             false,
-            Instrument->MidiBowPressure);
+            Instrument->MidiBowPressure,
+            BowDirection);
         LastStatus = FText::Format(
             NSLOCTEXT("ResonanceForge", "AuditionedChange", "{0} · 已试听  能量 {1}% / 明亮度 {2}% / 尺度 {3}% · {4}"),
             ChangeLabel,
@@ -759,6 +860,7 @@ FReply FResonanceForgeEditorModule::SyncFromSelection()
         PreviewSize = Instrument->ObjectSize;
         VelocityCurve = Instrument->VelocityCurve;
         ListenMode = Instrument->ListenMode;
+        BowDirection = Instrument->BowDirection < 0.0f ? -1.0f : 1.0f;
         PreviewStrikePosition = Instrument->LastStrikePosition;
         if (Instrument->NativeSynth)
         {
@@ -969,6 +1071,7 @@ bool FResonanceForgeEditorModule::ReadRecipeSlot(
     OutRecipe.BowPressure = OutRecipe.Brightness;
     GConfig->GetFloat(*Section, *(Prefix + TEXT(".BowSpeed")), OutRecipe.BowSpeed, GEditorPerProjectIni);
     GConfig->GetFloat(*Section, *(Prefix + TEXT(".BowPressure")), OutRecipe.BowPressure, GEditorPerProjectIni);
+    GConfig->GetFloat(*Section, *(Prefix + TEXT(".BowDirection")), OutRecipe.BowDirection, GEditorPerProjectIni);
 
     OutRecipe.Preset = PresetString.IsEmpty() ? FName(TEXT("拉丝钢")) : FName(*PresetString);
     if (!UResonanceForgeSynthComponent::GetBuiltInPresetNames().Contains(OutRecipe.Preset))
@@ -990,6 +1093,7 @@ bool FResonanceForgeEditorModule::ReadRecipeSlot(
     OutRecipe.InputVelocity = FMath::Clamp(OutRecipe.InputVelocity, 0.0f, 1.0f);
     OutRecipe.BowSpeed = FMath::Clamp(OutRecipe.BowSpeed, 0.0f, 1.0f);
     OutRecipe.BowPressure = FMath::Clamp(OutRecipe.BowPressure, 0.0f, 1.0f);
+    OutRecipe.BowDirection = OutRecipe.BowDirection < 0.0f ? -1.0f : 1.0f;
     OutRecipe.Excitation = ExcitationValue == static_cast<int32>(EResonanceExcitationType::Finger)
         ? EResonanceExcitationType::Finger
         : ExcitationValue == static_cast<int32>(EResonanceExcitationType::Hammer)
@@ -1053,10 +1157,13 @@ FText FResonanceForgeEditorModule::GetRecipeSlotDetailText(const int32 SlotIndex
                     ? NSLOCTEXT("ResonanceForge", "RecipeFinger", "指腹")
                     : NSLOCTEXT("ResonanceForge", "RecipePick", "拨片");
         return FText::Format(
-            NSLOCTEXT("ResonanceForge", "WaveguideRecipeDetail", "{0} · {1} · {2}\n弓速 {3}% / 弓压 {4}% · {5} 根共振齿"),
+            NSLOCTEXT("ResonanceForge", "WaveguideRecipeDetail", "{0} · {1} · {2} · {3}\n弓速 {4}% / 弓压 {5}% · {6} 根共振齿"),
             ModelText,
             GestureText,
             FText::FromString(ResonanceForgeEditor::GetMidiNoteName(Recipe.MidiNote)),
+            Recipe.BowDirection > 0.0f
+                ? NSLOCTEXT("ResonanceForge", "RecipeForwardBow", "推弓")
+                : NSLOCTEXT("ResonanceForge", "RecipeReverseBow", "回弓"),
             FText::AsNumber(FMath::RoundToInt(Recipe.BowSpeed * 100.0f)),
             FText::AsNumber(FMath::RoundToInt(Recipe.BowPressure * 100.0f)),
             FText::AsNumber(Recipe.Modes.Num()));
@@ -1083,7 +1190,7 @@ FReply FResonanceForgeEditorModule::SaveRecipeSlot(const int32 SlotIndex)
     const float BowSpeed = Instrument ? Instrument->MidiBrightness : PreviewBrightness;
     const float BowPressure = Instrument ? Instrument->MidiBowPressure : PreviewBrightness;
     GConfig->SetBool(*Section, *(Prefix + TEXT(".Valid")), true, GEditorPerProjectIni);
-    GConfig->SetInt(*Section, *(Prefix + TEXT(".SchemaVersion")), 2, GEditorPerProjectIni);
+    GConfig->SetInt(*Section, *(Prefix + TEXT(".SchemaVersion")), 3, GEditorPerProjectIni);
     GConfig->SetString(*Section, *(Prefix + TEXT(".Preset")), *ActivePreset.ToString(), GEditorPerProjectIni);
     GConfig->SetInt(*Section, *(Prefix + TEXT(".Model")), static_cast<int32>(ActiveModel), GEditorPerProjectIni);
     GConfig->SetFloat(*Section, *(Prefix + TEXT(".Energy")), PreviewEnergy, GEditorPerProjectIni);
@@ -1100,6 +1207,7 @@ FReply FResonanceForgeEditorModule::SaveRecipeSlot(const int32 SlotIndex)
     GConfig->SetFloat(*Section, *(Prefix + TEXT(".InputVelocity")), LastKeybedVelocity, GEditorPerProjectIni);
     GConfig->SetFloat(*Section, *(Prefix + TEXT(".BowSpeed")), BowSpeed, GEditorPerProjectIni);
     GConfig->SetFloat(*Section, *(Prefix + TEXT(".BowPressure")), BowPressure, GEditorPerProjectIni);
+    GConfig->SetFloat(*Section, *(Prefix + TEXT(".BowDirection")), BowDirection, GEditorPerProjectIni);
     GConfig->SetString(*Section, *(Prefix + TEXT(".Modes")), *ResonanceForgeEditor::EncodeRecipeModes(ActiveModes), GEditorPerProjectIni);
     GConfig->Flush(false, GEditorPerProjectIni);
     LastStatus = FText::Format(
@@ -1131,6 +1239,7 @@ FReply FResonanceForgeEditorModule::RecallRecipeSlot(const int32 SlotIndex)
     VelocityCurve = Recipe.VelocityCurve;
     LastKeybedNote = Recipe.MidiNote;
     LastKeybedVelocity = Recipe.InputVelocity;
+    BowDirection = Recipe.BowDirection;
     ApplyModel(ActiveModel);
     ApplyPreset(ActivePreset);
     ActiveModes = Recipe.Modes;
@@ -1144,10 +1253,12 @@ FReply FResonanceForgeEditorModule::RecallRecipeSlot(const int32 SlotIndex)
         Instrument->VelocityCurve = VelocityCurve;
         Instrument->MidiBrightness = Recipe.BowSpeed;
         Instrument->MidiBowPressure = Recipe.BowPressure;
+        Instrument->BowDirection = Recipe.BowDirection;
         if (Instrument->NativeSynth)
         {
             Instrument->NativeSynth->SetBowSpeed(Recipe.BowSpeed);
             Instrument->NativeSynth->SetBowPressure(Recipe.BowPressure);
+            Instrument->NativeSynth->SetBowDirection(Recipe.BowDirection);
         }
         Instrument->MarkPackageDirty();
     }
@@ -1476,6 +1587,8 @@ FReply FResonanceForgeEditorModule::ExportCurrentSample()
     const TArray<FResonanceMode> RenderedModes = ActiveModes.IsEmpty()
         ? UResonanceForgeSynthComponent::GetBuiltInModes(ActivePreset)
         : ActiveModes;
+    const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+    const float ExportBowPressure = Instrument ? Instrument->MidiBowPressure : PreviewBrightness;
     const bool bRendered = UResonanceForgeSynthComponent::RenderOfflinePreview(
         RenderedModes,
         ActiveModel,
@@ -1489,6 +1602,8 @@ FReply FResonanceForgeEditorModule::ExportCurrentSample()
         WaveguideCoupling,
         WaveguidePickup,
         WaveguideExcitation,
+        ExportBowPressure,
+        BowDirection,
         SampleExportDurationSeconds,
         48000,
         Samples);
@@ -1623,6 +1738,9 @@ FReply FResonanceForgeEditorModule::ExportCurrentSample()
     Waveguide->SetNumberField(TEXT("damping"), WaveguideDamping);
     Waveguide->SetNumberField(TEXT("bodyCoupling"), WaveguideCoupling);
     Waveguide->SetNumberField(TEXT("pickupPosition"), WaveguidePickup);
+    Waveguide->SetNumberField(TEXT("bowSpeed"), PreviewBrightness);
+    Waveguide->SetNumberField(TEXT("bowPressure"), ExportBowPressure);
+    Waveguide->SetStringField(TEXT("bowDirection"), BowDirection > 0.0f ? TEXT("Forward") : TEXT("Reverse"));
     Waveguide->SetStringField(TEXT("excitation"),
         WaveguideExcitation == EResonanceExcitationType::Finger ? TEXT("Finger")
         : WaveguideExcitation == EResonanceExcitationType::Hammer ? TEXT("Hammer")
@@ -1704,9 +1822,12 @@ void FResonanceForgeEditorModule::RefreshRecentSampleLabels()
             double Duration = 0.0;
             double TailDb = 0.0;
             FString ExcitationName(TEXT("Pick"));
+            FString BowDirectionName(TEXT("Forward"));
             if (Root->HasTypedField<EJson::Object>(TEXT("waveguide")))
             {
-                Root->GetObjectField(TEXT("waveguide"))->TryGetStringField(TEXT("excitation"), ExcitationName);
+                const TSharedPtr<FJsonObject> WaveguideObject = Root->GetObjectField(TEXT("waveguide"));
+                WaveguideObject->TryGetStringField(TEXT("excitation"), ExcitationName);
+                WaveguideObject->TryGetStringField(TEXT("bowDirection"), BowDirectionName);
             }
             Source->TryGetNumberField(TEXT("strikePosition"), StrikePosition);
             if (Source->TryGetStringField(TEXT("preset"), Preset)
@@ -1723,7 +1844,9 @@ void FResonanceForgeEditorModule::RefreshRecentSampleLabels()
                             : ExcitationName == TEXT("Hammer")
                                 ? NSLOCTEXT("ResonanceForge", "RecentHammer", "锤击")
                                 : ExcitationName == TEXT("Bow")
-                                    ? NSLOCTEXT("ResonanceForge", "RecentBow", "弓擦")
+                                    ? (BowDirectionName == TEXT("Reverse")
+                                        ? NSLOCTEXT("ResonanceForge", "RecentReverseBow", "弓擦/回弓")
+                                        : NSLOCTEXT("ResonanceForge", "RecentForwardBow", "弓擦/推弓"))
                                     : NSLOCTEXT("ResonanceForge", "RecentPick", "拨片"),
                         FText::AsNumber(FMath::RoundToInt(FMath::Clamp(StrikePosition, 0.0, 1.0) * 100.0)))
                     : NSLOCTEXT("ResonanceForge", "RecentModal", "模态体");
@@ -1983,6 +2106,9 @@ FReply FResonanceForgeEditorModule::ReforgeSampleLabelFromPath(const FString& La
     double Damping = 0.0;
     double Coupling = 0.0;
     double Pickup = 0.35;
+    double BowSpeed = Brightness;
+    double BowPressure = Brightness;
+    FString BowDirectionName(TEXT("Forward"));
     FString ExcitationName(TEXT("Pick"));
     if (!ReadFinite(WaveguideObject, TEXT("sustainNormalized"), Sustain)
         || !ReadFinite(WaveguideObject, TEXT("damping"), Damping)
@@ -1995,6 +2121,22 @@ FReply FResonanceForgeEditorModule::ReforgeSampleLabelFromPath(const FString& La
         && (!ReadFinite(WaveguideObject, TEXT("pickupPosition"), Pickup) || !InRange(Pickup, 0.0, 1.0)))
     {
         return Fail(NSLOCTEXT("ResonanceForge", "ReforgeInvalidPickup", "铭牌回炉失败 · 拾音位置越界"));
+    }
+    if (WaveguideObject->HasField(TEXT("bowSpeed"))
+        && (!ReadFinite(WaveguideObject, TEXT("bowSpeed"), BowSpeed) || !InRange(BowSpeed, 0.0, 1.0)))
+    {
+        return Fail(NSLOCTEXT("ResonanceForge", "ReforgeInvalidBowSpeed", "铭牌回炉失败 · 弓速越界"));
+    }
+    if (WaveguideObject->HasField(TEXT("bowPressure"))
+        && (!ReadFinite(WaveguideObject, TEXT("bowPressure"), BowPressure) || !InRange(BowPressure, 0.0, 1.0)))
+    {
+        return Fail(NSLOCTEXT("ResonanceForge", "ReforgeInvalidBowPressure", "铭牌回炉失败 · 弓压越界"));
+    }
+    if (WaveguideObject->HasField(TEXT("bowDirection"))
+        && (!WaveguideObject->TryGetStringField(TEXT("bowDirection"), BowDirectionName)
+            || (BowDirectionName != TEXT("Forward") && BowDirectionName != TEXT("Reverse"))))
+    {
+        return Fail(NSLOCTEXT("ResonanceForge", "ReforgeInvalidBowDirection", "铭牌回炉失败 · 弓向不受当前版本支持"));
     }
     if (WaveguideObject->HasField(TEXT("excitation"))
         && (!WaveguideObject->TryGetStringField(TEXT("excitation"), ExcitationName)
@@ -2037,7 +2179,7 @@ FReply FResonanceForgeEditorModule::ReforgeSampleLabelFromPath(const FString& La
     ActivePreset = ImportedPreset;
     ActiveModel = ImportedModel;
     PreviewEnergy = static_cast<float>(Energy);
-    PreviewBrightness = static_cast<float>(Brightness);
+    PreviewBrightness = static_cast<float>(BowSpeed);
     PreviewSize = static_cast<float>(ObjectSize);
     PreviewStrikePosition = static_cast<float>(StrikePosition);
     LastKeybedNote = FMath::RoundToInt(MidiNote);
@@ -2051,6 +2193,7 @@ FReply FResonanceForgeEditorModule::ReforgeSampleLabelFromPath(const FString& La
     WaveguideDamping = static_cast<float>(Damping);
     WaveguideCoupling = static_cast<float>(Coupling);
     WaveguidePickup = static_cast<float>(Pickup);
+    BowDirection = BowDirectionName == TEXT("Reverse") ? -1.0f : 1.0f;
     WaveguideExcitation = ExcitationName == TEXT("Finger")
         ? EResonanceExcitationType::Finger
         : ExcitationName == TEXT("Hammer")
@@ -2071,13 +2214,23 @@ FReply FResonanceForgeEditorModule::ReforgeSampleLabelFromPath(const FString& La
     Instrument->Modify();
     Instrument->ObjectSize = PreviewSize;
     Instrument->VelocityCurve = VelocityCurve;
+    Instrument->MidiBrightness = PreviewBrightness;
+    Instrument->MidiBowPressure = static_cast<float>(BowPressure);
+    Instrument->BowDirection = BowDirection;
     Instrument->ManualStrikePosition = PreviewStrikePosition;
     Instrument->LastStrikePosition = PreviewStrikePosition;
     ApplyWaveguideParameters();
     Instrument->MarkPackageDirty();
     LastSampleReforgedSeconds = FPlatformTime::Seconds();
     SetFlowStation(4);
-    Instrument->TriggerInstrument(PreviewEnergy, PreviewBrightness, LastKeybedNote, PreviewStrikePosition);
+    Instrument->TriggerInstrument(
+        PreviewEnergy,
+        PreviewBrightness,
+        LastKeybedNote,
+        PreviewStrikePosition,
+        false,
+        Instrument->MidiBowPressure,
+        BowDirection);
     LastStatus = FText::Format(
         NSLOCTEXT("ResonanceForge", "ReforgeComplete", "铭牌回炉完成 · {0} / {1} 根共振齿 / Note {2} · 已试听"),
         FText::FromName(ActivePreset),
@@ -2850,7 +3003,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                         [
                             SNew(SHorizontalBox)
                             + SHorizontalBox::Slot().FillWidth(0.82f).VAlign(VAlign_Center)
-                            [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "MidiPerformance", "演奏入口"), NSLOCTEXT("ResonanceForge", "MidiMapping", "拖左轮试弓速，拖右轮试弓压；接入 MIDI 后同一双轮继续走针。"))]
+                            [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "MidiPerformance", "演奏入口"), NSLOCTEXT("ResonanceForge", "MidiMapping", "先在弓行轨直接拉奏；双轮用于读数与微调，接入 MIDI 后继续显示 CC1 和 Aftertouch。"))]
                             + SHorizontalBox::Slot().FillWidth(1.15f).Padding(16, 0, 8, 0).VAlign(VAlign_Center)
                             [
                                 SAssignNew(MidiDeviceCombo, SComboBox<TSharedPtr<FString>>)
@@ -2910,6 +3063,26 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                         ]
                         + SHorizontalBox::Slot().FillWidth(1.0f).Padding(16, 0, 0, 0).VAlign(VAlign_Center)
                         [SNew(STextBlock).Text_Raw(this, &FResonanceForgeEditorModule::GetMidiStatusText).ColorAndOpacity(Glass).AutoWrapText(true)]
+                    ]
+                    + SVerticalBox::Slot().AutoHeight().Padding(22, 0, 22, 12)
+                    [
+                        SNew(SResonanceBowStroke)
+                        .StrokePosition_Lambda([this]{ return BowStrokePosition; })
+                        .BowSpeed_Lambda([this]
+                        {
+                            const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+                            return Instrument ? Instrument->MidiBrightness : PreviewBrightness;
+                        })
+                        .BowPressure_Lambda([this]
+                        {
+                            const AResonanceForgeImpactInstrumentActor* Instrument = ResolveInstrument();
+                            return Instrument ? Instrument->MidiBowPressure : PreviewBrightness;
+                        })
+                        .BowDirection_Lambda([this]{ return BowDirection; })
+                        .StrokeActive_Lambda([this]{ return bBowStrokeActive; })
+                        .OnStrokeBegin(FOnResonanceBowStrokeBegin::CreateRaw(this, &FResonanceForgeEditorModule::BeginBowStroke))
+                        .OnStrokeChanged(FOnResonanceBowStrokeChanged::CreateRaw(this, &FResonanceForgeEditorModule::UpdateBowStroke))
+                        .OnStrokeEnd(FOnResonanceBowStrokeEnd::CreateRaw(this, &FResonanceForgeEditorModule::EndBowStroke))
                     ]
                     + SVerticalBox::Slot().AutoHeight().Padding(22, 0, 22, 12)
                     [
