@@ -64,6 +64,7 @@ private:
     float GetKeybedGlow() const;
     FText GetKeybedStatusText() const;
     FText GetSampleExportStatusText() const;
+    FText GetSampleTailStatusText() const;
     bool HasRecipeSlot(int32 SlotIndex) const;
     bool ReadRecipeSlot(int32 SlotIndex, FName& OutPreset, EResonanceModelType& OutModel, float& OutEnergy, float& OutBrightness, float& OutSize, float& OutSustain, float& OutDamping, float& OutCoupling) const;
 
@@ -110,5 +111,8 @@ private:
     FString SampleExportName = TEXT("RF_LongTailWood_G3");
     float SampleExportDurationSeconds = 3.0f;
     FString LastSampleExportPath;
+    TArray<float> LastSampleEnvelope;
+    float LastSampleTailDb = -96.0f;
+    float LastSampleDurationSeconds = 0.0f;
     FText LastStatus;
 };

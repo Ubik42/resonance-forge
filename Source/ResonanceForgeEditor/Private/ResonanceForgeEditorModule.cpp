@@ -3,6 +3,7 @@
 #include "SResonanceModeRack.h"
 #include "SResonanceStrikeRail.h"
 #include "SResonanceKeybed.h"
+#include "SResonanceDecayPrint.h"
 
 #include "Editor.h"
 #include "Audio.h"
@@ -1085,6 +1086,39 @@ FReply FResonanceForgeEditorModule::ExportCurrentSample()
         return FReply::Handled();
     }
 
+    constexpr int32 EnvelopeBins = 180;
+    const int32 NumFrames = Samples.Num() / 2;
+    LastSampleEnvelope.SetNumZeroed(EnvelopeBins);
+    float RenderPeak = 0.0f;
+    for (const float Sample : Samples)
+    {
+        RenderPeak = FMath::Max(RenderPeak, FMath::Abs(Sample));
+    }
+    for (int32 Bin = 0; Bin < EnvelopeBins; ++Bin)
+    {
+        const int32 FirstFrame = Bin * NumFrames / EnvelopeBins;
+        const int32 LastFrame = FMath::Max(FirstFrame + 1, (Bin + 1) * NumFrames / EnvelopeBins);
+        float BinPeak = 0.0f;
+        for (int32 Frame = FirstFrame; Frame < LastFrame && Frame < NumFrames; ++Frame)
+        {
+            BinPeak = FMath::Max(BinPeak, FMath::Abs(Samples[Frame * 2]));
+            BinPeak = FMath::Max(BinPeak, FMath::Abs(Samples[Frame * 2 + 1]));
+        }
+        LastSampleEnvelope[Bin] = RenderPeak > KINDA_SMALL_NUMBER ? BinPeak / RenderPeak : 0.0f;
+    }
+
+    const int32 TailFrames = FMath::Min(NumFrames, 4800);
+    double TailSquareSum = 0.0;
+    for (int32 Frame = NumFrames - TailFrames; Frame < NumFrames; ++Frame)
+    {
+        const float Left = Samples[Frame * 2];
+        const float Right = Samples[Frame * 2 + 1];
+        TailSquareSum += (static_cast<double>(Left) * Left + static_cast<double>(Right) * Right) * 0.5;
+    }
+    const float TailRms = TailFrames > 0 ? FMath::Sqrt(static_cast<float>(TailSquareSum / TailFrames)) : 0.0f;
+    LastSampleTailDb = 20.0f * FMath::LogX(10.0f, FMath::Max(TailRms / FMath::Max(RenderPeak, KINDA_SMALL_NUMBER), 0.000001f));
+    LastSampleDurationSeconds = SampleExportDurationSeconds;
+
     float Peak = 0.0f;
     for (const float Sample : Samples)
     {
@@ -1137,6 +1171,27 @@ FText FResonanceForgeEditorModule::GetSampleExportStatusText() const
     return FText::Format(
         NSLOCTEXT("ResonanceForge", "SampleExportPath", "已生成 · {0}"),
         FText::FromString(FPaths::GetCleanFilename(LastSampleExportPath)));
+}
+
+FText FResonanceForgeEditorModule::GetSampleTailStatusText() const
+{
+    if (LastSampleEnvelope.IsEmpty())
+    {
+        return NSLOCTEXT("ResonanceForge", "SampleTailWaiting", "余响拓片 · 铸样后显示真实振幅包络与末段电平");
+    }
+    if (LastSampleTailDb <= -48.0f)
+    {
+        return FText::Format(
+            NSLOCTEXT("ResonanceForge", "SampleTailSettled", "余响已收束 · 末 100 ms 约 {0} dB（相对峰值）"),
+            FText::AsNumber(FMath::RoundToInt(LastSampleTailDb)));
+    }
+    const FText Advice = LastSampleDurationSeconds < 6.0f
+        ? NSLOCTEXT("ResonanceForge", "SampleTailLongerAdvice", "建议延长一档，或降低回响长度")
+        : NSLOCTEXT("ResonanceForge", "SampleTailShapeAdvice", "可保留长尾，或降低回响长度");
+    return FText::Format(
+        NSLOCTEXT("ResonanceForge", "SampleTailActive", "尾音仍活跃 · 末 100 ms 约 {0} dB（相对峰值） · {1}"),
+        FText::AsNumber(FMath::RoundToInt(LastSampleTailDb)),
+        Advice);
 }
 
 FReply FResonanceForgeEditorModule::ForgeSharedRecipeAsset()
@@ -1981,6 +2036,20 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                             SNew(SVerticalBox)
                             + SVerticalBox::Slot().AutoHeight()
                             [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "SampleForge", "铸样台"), NSLOCTEXT("ResonanceForge", "SampleForgeDetail", "把当前物理声源离线锻成标准 WAV；可直接交给 Wwise、DAW 或版本库。"))]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
+                            [
+                                SNew(SResonanceDecayPrint)
+                                .Envelope(&LastSampleEnvelope)
+                                .TailDb_Lambda([this]{ return LastSampleTailDb; })
+                                .DurationSeconds_Lambda([this]{ return LastSampleDurationSeconds; })
+                            ]
+                            + SVerticalBox::Slot().AutoHeight().Padding(0, 5, 0, 0)
+                            [
+                                SNew(STextBlock)
+                                .Text_Raw(this, &FResonanceForgeEditorModule::GetSampleTailStatusText)
+                                .ColorAndOpacity_Lambda([this]{ return LastSampleTailDb <= -48.0f ? ResonanceForgeEditor::Glass : ResonanceForgeEditor::Wood; })
+                                .AutoWrapText(true)
+                            ]
                             + SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
                             [
                                 SNew(SHorizontalBox)
