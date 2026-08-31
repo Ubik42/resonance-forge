@@ -49,6 +49,12 @@ public:
     UFUNCTION(BlueprintCallable, Category="共振铸造台")
     void Strike(float Energy = 0.7f, float Brightness = 0.5f, int32 MidiNote = 60, float StrikePosition = 0.5f);
 
+    UFUNCTION(BlueprintCallable, Category="共振铸造台|MIDI")
+    void NoteOn(float Energy = 0.7f, float Brightness = 0.5f, int32 MidiNote = 60, float StrikePosition = 0.5f);
+
+    UFUNCTION(BlueprintCallable, Category="共振铸造台|MIDI")
+    void NoteOff(int32 MidiNote = 60);
+
     UFUNCTION(BlueprintCallable, Category="共振铸造台")
     void LoadBuiltInPreset(FName PresetName);
 
@@ -100,6 +106,7 @@ public:
 
 #if WITH_DEV_AUTOMATION_TESTS
     bool RenderWaveguideForTest(int32 MidiNote, int32 NumFrames, TArray<float>& OutSamples);
+    bool RenderHeldBowForTest(int32 MidiNote, int32 HoldFrames, int32 ReleaseFrames, TArray<float>& OutSamples);
 #endif
 
 protected:
@@ -120,6 +127,8 @@ private:
         EResonanceExcitationType ExcitationType;
         float PitchScale;
         float StrikePosition;
+        bool bHeld;
+        bool bNoteOff;
     };
 
     struct FActiveMode
@@ -145,11 +154,15 @@ private:
         float Gain = 0.0f;
         float EnergyEstimate = 0.0f;
         EResonanceExcitationType ExcitationType = EResonanceExcitationType::Pick;
+        int32 MidiNote = 60;
         int32 BowOffset = 1;
         int32 BowSamplesRemaining = 0;
         int32 BowSamplesTotal = 0;
+        int32 BowSamplesElapsed = 0;
+        int32 BowReleaseSamplesRemaining = 0;
         float BowVelocity = 0.0f;
         float BowPressure = 0.0f;
+        bool bBowHeld = false;
         bool bActive = false;
     };
 

@@ -103,7 +103,8 @@ int32 AResonanceForgeImpactInstrumentActor::TriggerInstrument(
     const float Energy,
     const float Brightness,
     const int32 MidiNote,
-    const float StrikePosition)
+    const float StrikePosition,
+    const bool bHoldNativeNote)
 {
     FResonanceForgeImpactParameters Parameters;
     Parameters.Energy = FMath::Clamp(Energy, 0.0f, 1.0f);
@@ -126,7 +127,14 @@ int32 AResonanceForgeImpactInstrumentActor::TriggerInstrument(
     int32 PlayingId = 0;
     if (ListenModeIncludesNative(ListenMode) && NativeSynth)
     {
-        NativeSynth->Strike(Parameters.Energy, Parameters.Brightness, Parameters.MidiNote, Parameters.StrikePosition);
+        if (bHoldNativeNote)
+        {
+            NativeSynth->NoteOn(Parameters.Energy, Parameters.Brightness, Parameters.MidiNote, Parameters.StrikePosition);
+        }
+        else
+        {
+            NativeSynth->Strike(Parameters.Energy, Parameters.Brightness, Parameters.MidiNote, Parameters.StrikePosition);
+        }
     }
     if (ListenModeIncludesWwise(ListenMode) && WwiseBridge)
     {
@@ -247,6 +255,15 @@ void AResonanceForgeImpactInstrumentActor::HandleMidiEvent(
     {
         LastMidiNote = ControlId;
         LastMidiVelocity = Velocity;
-        TriggerInstrument(ShapePerformanceVelocity(Velocity / 127.0f, VelocityCurve), MidiBrightness, ControlId);
+        TriggerInstrument(ShapePerformanceVelocity(Velocity / 127.0f, VelocityCurve), MidiBrightness, ControlId, -1.0f, true);
+    }
+    else if (EventType == EMIDIEventType::NoteOff || (EventType == EMIDIEventType::NoteOn && Velocity == 0))
+    {
+        LastMidiNote = ControlId;
+        LastMidiVelocity = 0;
+        if (ListenModeIncludesNative(ListenMode) && NativeSynth)
+        {
+            NativeSynth->NoteOff(ControlId);
+        }
     }
 }

@@ -1045,7 +1045,7 @@ FReply FResonanceForgeEditorModule::ConnectSelectedMidiDevice()
 
     const bool bConnected = Instrument->ConnectMidiInput(MidiDeviceIds[OptionIndex]);
     LastStatus = bConnected
-        ? NSLOCTEXT("ResonanceForge", "MidiConnected", "MIDI 已连接 · Note On 控制音高与力度，CC1 塑造明亮度")
+        ? NSLOCTEXT("ResonanceForge", "MidiConnected", "MIDI 已连接 · Note On 起音，弓擦松键收弓，CC1 塑造明亮度")
         : NSLOCTEXT("ResonanceForge", "MidiConnectFailed", "MIDI 连接失败 · 设备可能正被其他程序占用");
     return FReply::Handled();
 }
@@ -2645,7 +2645,7 @@ TSharedRef<SDockTab> FResonanceForgeEditorModule::SpawnWorkbench(const FSpawnTab
                         [
                             SNew(SHorizontalBox)
                             + SHorizontalBox::Slot().FillWidth(0.82f).VAlign(VAlign_Center)
-                            [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "MidiPerformance", "演奏入口"), NSLOCTEXT("ResonanceForge", "MidiMapping", "琴键 Note On → 音高与力度  ·  调制轮 CC1 → 明亮度"))]
+                            [WorkspaceTitle(NSLOCTEXT("ResonanceForge", "MidiPerformance", "演奏入口"), NSLOCTEXT("ResonanceForge", "MidiMapping", "Note On → 起音  ·  弓擦 Note Off → 收弓  ·  CC1 → 明亮度"))]
                             + SHorizontalBox::Slot().FillWidth(1.15f).Padding(16, 0, 8, 0).VAlign(VAlign_Center)
                             [
                                 SAssignNew(MidiDeviceCombo, SComboBox<TSharedPtr<FString>>)

@@ -65,6 +65,10 @@ bool FResonanceForgePresetTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("数字波导输出包含可听能量"), Peak > 0.01f);
     TestTrue(TEXT("软限幅将输出约束在安全范围"), Peak <= 1.0f);
 
+    // 共享配方是只读快照；进入现场调音时与编辑器一致，先解挂再覆盖手势。
+    Synth->ApplyMaterialProfile(nullptr);
+    Synth->SetSynthesisModel(EResonanceModelType::WaveguideString);
+    Synth->SetCustomModes(WoodModes);
     Synth->ExcitationType = EResonanceExcitationType::Bow;
     TArray<float> BowedSamples;
     TestTrue(TEXT("弓擦手势能够离线生成持续波导输出"), Synth->RenderWaveguideForTest(55, 96000, BowedSamples));
@@ -82,6 +86,31 @@ bool FResonanceForgePresetTest::RunTest(const FString& Parameters)
         : 0.0f;
     TestTrue(TEXT("弓擦输出保持有限值"), bBowFinite);
     TestTrue(TEXT("弓擦在一秒后仍保留持续能量"), LateRms > 0.001f);
+
+    TArray<float> HeldBowSamples;
+    constexpr int32 HoldFrames = 144000;
+    constexpr int32 ReleaseFrames = 48000;
+    TestTrue(TEXT("MIDI 持音弓擦能够经历 Note On、持续和 Note Off 收弓"),
+        Synth->RenderHeldBowForTest(55, HoldFrames, ReleaseFrames, HeldBowSamples));
+    auto ComputeWindowRms = [&HeldBowSamples](const int32 StartFrame, const int32 EndFrame)
+    {
+        double SquareSum = 0.0;
+        int32 SampleCount = 0;
+        for (int32 Frame = StartFrame; Frame < EndFrame; ++Frame)
+        {
+            for (int32 Channel = 0; Channel < 2; ++Channel)
+            {
+                const float Sample = HeldBowSamples[Frame * 2 + Channel];
+                SquareSum += static_cast<double>(Sample) * Sample;
+                ++SampleCount;
+            }
+        }
+        return SampleCount > 0 ? FMath::Sqrt(static_cast<float>(SquareSum / SampleCount)) : 0.0f;
+    };
+    const float HeldLateRms = ComputeWindowRms(120000, 144000);
+    const float ReleasedLateRms = ComputeWindowRms(182400, 192000);
+    TestTrue(TEXT("按住 MIDI 音符三秒后弓擦仍持续补能"), HeldLateRms > 0.001f);
+    TestTrue(TEXT("松键后输出显著低于持弓末段"), ReleasedLateRms < HeldLateRms * 0.45f);
     return true;
 }
 

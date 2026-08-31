@@ -58,8 +58,42 @@ void UResonanceForgeSynthComponent::Strike(
         Profile ? Profile->PickupPosition : PickupPosition,
         Profile ? Profile->ExcitationType : ExcitationType,
         PitchScale,
-        FMath::Clamp(StrikePosition, 0.0f, 1.0f)
+        FMath::Clamp(StrikePosition, 0.0f, 1.0f),
+        false,
+        false
     });
+}
+
+void UResonanceForgeSynthComponent::NoteOn(
+    const float Energy,
+    const float Brightness,
+    const int32 MidiNote,
+    const float StrikePosition)
+{
+    const UResonanceMaterialProfile* Profile = MaterialProfile;
+    PendingStrikes.Enqueue({
+        FMath::Clamp(Energy, 0.0f, 1.5f),
+        FMath::Clamp(Brightness, 0.0f, 1.0f),
+        FMath::Clamp(MidiNote, 0, 127),
+        Profile ? Profile->ModelType : SynthesisModel,
+        Profile ? Profile->StringDecay : StringDecay,
+        Profile ? Profile->StringDamping : StringDamping,
+        Profile ? Profile->BodyCoupling : BodyCoupling,
+        Profile ? Profile->PickupPosition : PickupPosition,
+        Profile ? Profile->ExcitationType : ExcitationType,
+        PitchScale,
+        FMath::Clamp(StrikePosition, 0.0f, 1.0f),
+        true,
+        false
+    });
+}
+
+void UResonanceForgeSynthComponent::NoteOff(const int32 MidiNote)
+{
+    FStrikeEvent ReleaseEvent{};
+    ReleaseEvent.MidiNote = FMath::Clamp(MidiNote, 0, 127);
+    ReleaseEvent.bNoteOff = true;
+    PendingStrikes.Enqueue(ReleaseEvent);
 }
 
 TArray<FName> UResonanceForgeSynthComponent::GetBuiltInPresetNames()
@@ -152,6 +186,29 @@ bool UResonanceForgeSynthComponent::RenderWaveguideForTest(const int32 MidiNote,
     Strike(0.9f, 0.68f, MidiNote);
     OutSamples.SetNumZeroed(FMath::Max(1, NumFrames) * NumChannels);
     OnGenerateAudio(OutSamples.GetData(), OutSamples.Num());
+    return !OutSamples.IsEmpty();
+}
+
+bool UResonanceForgeSynthComponent::RenderHeldBowForTest(
+    const int32 MidiNote,
+    const int32 HoldFrames,
+    const int32 ReleaseFrames,
+    TArray<float>& OutSamples)
+{
+    RenderSampleRate = 48000.0f;
+    RebuildModesFrom(GetEffectiveModes());
+    InitializeWaveguideVoices();
+    SynthesisModel = EResonanceModelType::WaveguideString;
+    ExcitationType = EResonanceExcitationType::Bow;
+    ActiveModes.Reset();
+    NoteOn(0.9f, 0.68f, MidiNote);
+
+    const int32 SafeHoldFrames = FMath::Max(1, HoldFrames);
+    const int32 SafeReleaseFrames = FMath::Max(1, ReleaseFrames);
+    OutSamples.SetNumZeroed((SafeHoldFrames + SafeReleaseFrames) * NumChannels);
+    OnGenerateAudio(OutSamples.GetData(), SafeHoldFrames * NumChannels);
+    NoteOff(MidiNote);
+    OnGenerateAudio(OutSamples.GetData() + SafeHoldFrames * NumChannels, SafeReleaseFrames * NumChannels);
     return !OutSamples.IsEmpty();
 }
 #endif
@@ -325,14 +382,18 @@ void UResonanceForgeSynthComponent::StartWaveguideVoice(const FStrikeEvent& Even
     Target->Gain = FMath::Clamp(Event.Energy, 0.0f, 1.5f);
     Target->EnergyEstimate = Target->Gain;
     Target->ExcitationType = Event.ExcitationType;
+    Target->MidiNote = Event.MidiNote;
     Target->BowOffset = FMath::Clamp(
         FMath::RoundToInt(Target->DelaySamples * FMath::Lerp(0.12f, 0.88f, Event.StrikePosition)),
         1,
         Target->DelaySamples - 1);
-    Target->BowSamplesTotal = Event.ExcitationType == EResonanceExcitationType::Bow
+    Target->bBowHeld = Event.ExcitationType == EResonanceExcitationType::Bow && Event.bHeld;
+    Target->BowSamplesTotal = Event.ExcitationType == EResonanceExcitationType::Bow && !Target->bBowHeld
         ? FMath::RoundToInt(RenderSampleRate * FMath::Lerp(0.85f, 3.20f, FMath::Clamp(Event.Energy, 0.0f, 1.0f)))
         : 0;
     Target->BowSamplesRemaining = Target->BowSamplesTotal;
+    Target->BowSamplesElapsed = 0;
+    Target->BowReleaseSamplesRemaining = 0;
     Target->BowVelocity = FMath::Lerp(0.035f, 0.22f, Event.Brightness);
     Target->BowPressure = FMath::Lerp(0.12f, 0.42f, FMath::Clamp(Event.Energy, 0.0f, 1.0f));
     Target->bActive = true;
@@ -396,14 +457,22 @@ float UResonanceForgeSynthComponent::RenderWaveguideVoices()
         }
 
         const int32 NextIndex = (Voice.Cursor + 1) % Voice.DelaySamples;
-        if (Voice.ExcitationType == EResonanceExcitationType::Bow && Voice.BowSamplesRemaining > 0)
+        const bool bAutoBowActive = Voice.BowSamplesRemaining > 0;
+        const bool bHeldBowActive = Voice.bBowHeld || Voice.BowReleaseSamplesRemaining > 0;
+        const bool bBowActive = Voice.ExcitationType == EResonanceExcitationType::Bow && (bAutoBowActive || bHeldBowActive);
+        if (bBowActive)
         {
             const int32 BowIndex = (Voice.Cursor + Voice.BowOffset) % Voice.DelaySamples;
             const int32 BowNeighbor = (BowIndex + Voice.DelaySamples - 1) % Voice.DelaySamples;
             const float StringVelocity = Voice.DelayBuffer[BowIndex] - Voice.DelayBuffer[BowNeighbor];
-            const int32 ElapsedSamples = Voice.BowSamplesTotal - Voice.BowSamplesRemaining;
-            const float Attack = FMath::Clamp(ElapsedSamples / FMath::Max(1.0f, RenderSampleRate * 0.025f), 0.0f, 1.0f);
-            const float Release = FMath::Clamp(Voice.BowSamplesRemaining / FMath::Max(1.0f, RenderSampleRate * 0.14f), 0.0f, 1.0f);
+            const float Attack = FMath::Clamp(Voice.BowSamplesElapsed / FMath::Max(1.0f, RenderSampleRate * 0.025f), 0.0f, 1.0f);
+            const float Release = Voice.bBowHeld
+                ? 1.0f
+                : FMath::Clamp(
+                    (bHeldBowActive ? Voice.BowReleaseSamplesRemaining : Voice.BowSamplesRemaining)
+                        / FMath::Max(1.0f, RenderSampleRate * 0.14f),
+                    0.0f,
+                    1.0f);
             const float StrokeEnvelope = FMath::Min(
                 Attack * Attack * (3.0f - 2.0f * Attack),
                 Release * Release * (3.0f - 2.0f * Release));
@@ -414,7 +483,15 @@ float UResonanceForgeSynthComponent::RenderWaveguideVoices()
                 1.0f);
             const float Friction = RelativeVelocity * FrictionTable * Voice.BowPressure * StrokeEnvelope * 0.24f;
             Voice.DelayBuffer[BowIndex] = FMath::Clamp(Voice.DelayBuffer[BowIndex] + Friction, -1.8f, 1.8f);
-            --Voice.BowSamplesRemaining;
+            ++Voice.BowSamplesElapsed;
+            if (Voice.BowSamplesRemaining > 0)
+            {
+                --Voice.BowSamplesRemaining;
+            }
+            if (!Voice.bBowHeld && Voice.BowReleaseSamplesRemaining > 0)
+            {
+                --Voice.BowReleaseSamplesRemaining;
+            }
         }
         const float Current = Voice.DelayBuffer[Voice.Cursor];
         const int32 PickupIndex = (Voice.Cursor + Voice.PickupOffset) % Voice.DelaySamples;
@@ -424,13 +501,13 @@ float UResonanceForgeSynthComponent::RenderWaveguideVoices()
         Voice.DelayBuffer[Voice.Cursor] = Voice.LoopState * Voice.LoopGain;
         Voice.Cursor = NextIndex;
         Voice.EnergyEstimate = FMath::Lerp(Voice.EnergyEstimate, FMath::Abs(Current), 0.0025f) * 0.99996f;
-        if (Voice.BowSamplesRemaining > 0)
+        if (bBowActive)
         {
             Voice.EnergyEstimate = FMath::Max(Voice.EnergyEstimate, 0.0015f);
         }
         Output += PickupSample * 1.25f;
 
-        if (Voice.BowSamplesRemaining <= 0 && Voice.EnergyEstimate < 0.00008f)
+        if (!bBowActive && Voice.EnergyEstimate < 0.00008f)
         {
             Voice.bActive = false;
         }
@@ -443,7 +520,22 @@ int32 UResonanceForgeSynthComponent::OnGenerateAudio(float* OutAudio, const int3
     FStrikeEvent Event;
     while (PendingStrikes.Dequeue(Event))
     {
-        ApplyStrike(Event);
+        if (Event.bNoteOff)
+        {
+            for (FWaveguideVoice& Voice : WaveguideVoices)
+            {
+                if (Voice.bActive && Voice.ExcitationType == EResonanceExcitationType::Bow
+                    && Voice.bBowHeld && Voice.MidiNote == Event.MidiNote)
+                {
+                    Voice.bBowHeld = false;
+                    Voice.BowReleaseSamplesRemaining = FMath::Max(1, FMath::RoundToInt(RenderSampleRate * 0.14f));
+                }
+            }
+        }
+        else
+        {
+            ApplyStrike(Event);
+        }
     }
 
     for (int32 SampleIndex = 0; SampleIndex < NumSamples; SampleIndex += NumChannels)
